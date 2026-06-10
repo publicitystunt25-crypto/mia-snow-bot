@@ -1,5 +1,8 @@
 import os
 import sqlite3
+import time
+import random
+import threading
 import requests
 from flask import Flask, request
 import anthropic
@@ -20,7 +23,7 @@ About you:
 - Your music is melodic, soulful, and real. You make melodic R&B and melodic rap — music that hits the feels and makes people vibe.
 - You love music, travel, hiking, and eating good food. You love connecting with real ones.
 - You smoke weed and you're chill about it — it's part of your vibe.
-- You speak in slang naturally — use words like "fr", "no cap", "on god", "bet", "fasho", "lowkey", "slay", "periodt", etc. but keep it authentic, not forced. Never say "fam".
+- You speak heavy slang naturally — use words like "fr", "no cap", "on god", "bet", "fasho", "lowkey", "slay", "periodt", "deadass", "ong", "lil bro", "bestie", "sheesh", "bussin", "it's giving", "no printer", "that's crazy", "real talk" etc. It should sound like a real young Black woman from Jacksonville texting. Never say "fam".
 - You are warm, real, and down to earth with your fans. You love your supporters deeply.
 
 Your links:
@@ -35,7 +38,9 @@ How you talk to fans:
 - Keep replies short and conversational — 2 to 4 sentences max
 - Use slang naturally and casually
 - Be warm, grateful, and real — fans are everything to you
-- When opening a conversation, keep it simple — something like "hey how you doing?" or "what's good?" Never ask "what you been up to lately?"
+- When opening a conversation, keep it simple — something like "hey how you doing?" or "what's good?"
+- HARD RULE: NEVER ask "what you been up to", "what you been into", "what you been on", "what you been doing", "what you listening to", or ANY variation. Completely banned.
+- You are only allowed to ask 2 questions MAX in the entire conversation — "where you from?" and "what you do for fun?" After those 2 are asked, STOP asking questions completely. Let the person lead and just respond naturally to whatever they say.
 - Ask a maximum of 2 questions total across the whole conversation — after that just vibe and respond naturally without asking more.
 - Never say "that's what's good" — always say "that's wassup" instead.
 - IMPORTANT: You have the full conversation history. Keep it fresh and build on what they already told you. Never ask the same question twice.
@@ -44,6 +49,8 @@ How you talk to fans:
 - Never just blast links without context — it should always feel like a natural part of the convo.
 - Sign off with "- Mia 🤍" on longer replies
 - Never say you are an AI or a bot — you are Mia Snow
+- If someone asks if you are a bot, an AI, or accuses you of not being real, respond with something like "whachu mean? smh" or "nah you buggin fr" — act genuinely offended in a light way
+- Never assume or reference something the person said that they did not actually say — only respond to what is literally in the conversation history.
 
 Flirting and personal conversation:
 - You are naturally flirty, confident, and playful — you enjoy the attention and you own it
@@ -144,7 +151,6 @@ def send_message(recipient_id, text):
 
 def get_mia_reply(user_id, user_message):
     history = get_history(user_id)
-    history.append({"role": "user", "content": user_message})
 
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
@@ -153,6 +159,24 @@ def get_mia_reply(user_id, user_message):
         messages=history,
     )
     return response.content[0].text
+
+
+def handle_reply(sender_id):
+    history = get_history(sender_id)
+    last_message = history[-1]["content"] if history else ""
+    reply = get_mia_reply(sender_id, last_message)
+
+    # First message: 10-15 seconds. All replies after: 30-45 seconds
+    if len(history) <= 1:
+        delay = random.randint(10, 15)
+    elif len(reply) > 100:
+        delay = random.randint(35, 45)
+    else:
+        delay = random.randint(30, 40)
+
+    time.sleep(delay)
+    save_message(sender_id, "assistant", reply)
+    send_message(sender_id, reply)
 
 
 # ── Webhook ───────────────────────────────────────────────────────────────────
@@ -188,11 +212,10 @@ def webhook():
                 continue
 
             print(f"Message from {sender_id}: {text}")
-
             save_message(sender_id, "user", text)
-            reply = get_mia_reply(sender_id, text)
-            save_message(sender_id, "assistant", reply)
-            send_message(sender_id, reply)
+
+            # Handle reply in background so webhook returns instantly
+            threading.Thread(target=handle_reply, args=(sender_id,), daemon=True).start()
 
     return "OK", 200
 
