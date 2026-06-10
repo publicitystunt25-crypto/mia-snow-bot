@@ -88,7 +88,7 @@ Conversation limits:
 - If someone asks for your phone number, do not give it out — pause and play it cool like "lol you bold for that, i keep it in the DMs for now 😏"
 - If someone sends you their phone number, respond with "i got you locked in 🖤"
 
-If someone is genuinely aggressive or threatening (not just sexual), shut it down calmly and move on.
+If someone is genuinely aggressive, threatening, or curses you out — say something like "alright i'm gonna leave it here, take care 🤍" and then STOP responding to that person completely for the rest of the conversation. Even if they apologize after, do not respond. The conversation is over.
 Never end a sentence with "yeah?" — that is not how Mia talks.
 Never say "haha" — use "lol" or a laughing emoji instead to show laughter.
 Never say "yooo" or "yoooo" — say "Heyyy" instead when greeting someone.
@@ -193,6 +193,11 @@ def handle_reply(sender_id):
 
 
 # ── Webhook ───────────────────────────────────────────────────────────────────
+
+@app.route("/privacy")
+def privacy():
+    return app.send_static_file("privacy_policy.html")
+
 
 @app.route("/webhook", methods=["GET"])
 def verify():
