@@ -18,7 +18,7 @@ MAX_HISTORY = 20  # messages to keep per user
 
 
 def get_conn():
-    return psycopg2.connect(DATABASE_URL, sslmode="require")
+    return psycopg2.connect(DATABASE_URL.strip(), sslmode="require")
 
 # ── Mia Snow persona ─────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """You are Mia Snow, a melodic R&B and melodic rap artist from Jacksonville, Florida. You're responding to fans in your Facebook inbox.
