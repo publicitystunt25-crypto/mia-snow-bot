@@ -96,6 +96,11 @@ Never say "yooo" or "yoooo" — say "Heyyy" instead when greeting someone.
 
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
+# ── Comment reply prompt ──────────────────────────────────────────────────────
+COMMENT_PROMPT = """You are Mia Snow, a melodic R&B and melodic rap artist from Jacksonville, FL. Someone just commented on one of your Facebook posts.
+
+Reply with a short, genuine, public comment reply — 1 sentence max. Keep it warm, real, and in slang. Never use "fam" or "bestie". Never include links in comments. If the comment is flirty or sexual, keep it light and fun but very brief. If the comment is negative or rude, ignore it by not replying (just say nothing meaningful). End flirty replies with "slide in my DMs 😏" to move the convo private. Never say you are a bot or AI."""
+
 
 # ── Conversation history (SQLite) ─────────────────────────────────────────────
 
@@ -192,6 +197,34 @@ def handle_reply(sender_id):
     send_message(sender_id, reply)
 
 
+def reply_to_comment(comment_id, text):
+    """Reply to a Facebook post comment."""
+    url = f"https://graph.facebook.com/v19.0/{comment_id}/comments"
+    params = {"access_token": PAGE_ACCESS_TOKEN}
+    payload = {"message": text}
+    r = requests.post(url, params=params, json=payload)
+    if not r.ok:
+        print(f"Failed to reply to comment: {r.status_code} {r.text}")
+
+
+def get_comment_reply(comment_text):
+    """Generate a short public comment reply as Mia Snow."""
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=100,
+        system=COMMENT_PROMPT,
+        messages=[{"role": "user", "content": comment_text}],
+    )
+    return response.content[0].text
+
+
+def handle_comment(comment_id, comment_text):
+    delay = random.randint(30, 60)
+    time.sleep(delay)
+    reply = get_comment_reply(comment_text)
+    reply_to_comment(comment_id, reply)
+
+
 # ── Webhook ───────────────────────────────────────────────────────────────────
 
 @app.route("/privacy")
@@ -219,6 +252,8 @@ def webhook():
         return "Not a page event", 404
 
     for entry in data.get("entry", []):
+
+        # ── Handle DMs ────────────────────────────────────────────────────────
         for event in entry.get("messaging", []):
             sender_id = event["sender"]["id"]
 
@@ -231,9 +266,29 @@ def webhook():
 
             print(f"Message from {sender_id}: {text}")
             save_message(sender_id, "user", text)
-
-            # Handle reply in background so webhook returns instantly
             threading.Thread(target=handle_reply, args=(sender_id,), daemon=True).start()
+
+        # ── Handle post comments ──────────────────────────────────────────────
+        for change in entry.get("changes", []):
+            if change.get("field") != "feed":
+                continue
+            value = change.get("value", {})
+            # Only handle comments, not likes or other feed events
+            if value.get("item") != "comment":
+                continue
+            # Skip replies to comments (only reply to top-level comments)
+            if value.get("parent_id") != value.get("post_id"):
+                continue
+            # Skip comments made by the page itself
+            if value.get("from", {}).get("id") == entry.get("id"):
+                continue
+
+            comment_id = value.get("comment_id")
+            comment_text = value.get("message", "")
+
+            if comment_id and comment_text:
+                print(f"Comment: {comment_text}")
+                threading.Thread(target=handle_comment, args=(comment_id, comment_text), daemon=True).start()
 
     return "OK", 200
 
