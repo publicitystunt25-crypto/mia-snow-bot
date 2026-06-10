@@ -264,6 +264,12 @@ def webhook():
             if not text:
                 continue
 
+            # Dedup — skip if we already saved this exact message recently
+            recent = get_history(sender_id)
+            if recent and recent[-1]["role"] == "user" and recent[-1]["content"] == text:
+                print(f"Duplicate message skipped from {sender_id}")
+                continue
+
             print(f"Message from {sender_id}: {text}")
             save_message(sender_id, "user", text)
             threading.Thread(target=handle_reply, args=(sender_id,), daemon=True).start()
