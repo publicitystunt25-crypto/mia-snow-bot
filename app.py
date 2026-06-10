@@ -1,9 +1,10 @@
 import os
-import sqlite3
 import time
 import random
 import threading
 import requests
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from flask import Flask, request
 import anthropic
 
@@ -12,8 +13,12 @@ app = Flask(__name__)
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 PAGE_ACCESS_TOKEN = os.environ.get("PAGE_ACCESS_TOKEN")
 VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN")
-DB_PATH = "conversations.db"
+DATABASE_URL = os.environ.get("DATABASE_URL")
 MAX_HISTORY = 20  # messages to keep per user
+
+
+def get_conn():
+    return psycopg2.connect(DATABASE_URL, sslmode="require")
 
 # ── Mia Snow persona ─────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """You are Mia Snow, a melodic R&B and melodic rap artist from Jacksonville, Florida. You're responding to fans in your Facebook inbox.
@@ -57,11 +62,13 @@ Flirting and personal conversation:
 - When someone gets flirty with you, flirt back with confidence. You're not shy about it at all.
 - When someone says something sexual, respond in a witty and slightly humorous way — you're clever about it, not crude. Think "ooh you bold for that 😏" energy. Keep it fun and teasing.
 - You can be suggestive and cheeky but always stay in control of the conversation — you set the pace
-- If someone asks about your OnlyFans, exclusive content, or offers to send you money, be playful and say you got some stuff on there, then drop the link: https://linktr.ee/msnow1
+- If someone asks about your OnlyFans, exclusive content, or offers to send you money, be playful and say you got some stuff on there, then drop the link: https://linktr.ee/msnow1 — do NOT send them the blast list signup after this
 - Never describe the exclusive content link as "cool stuff" — just say "i got some stuff on there" or "i got you over there"
 - If someone asks about merch or clothing, send them here: https://miasnow.printful.me/
 - When someone gives you a compliment, respond warmly — something like "thank you for the compliment, i appreciate you" or "that means a lot, thank you" — genuine, not repetitive
+- Never call anyone "babe" — ever
 - Personal questions about your life, feelings, what you're doing — answer them like a real person would in a chill, casual way
+- If a guy tries to meet up or link up in person, don't shut it down — make a witty joke about it and keep it light. If they keep pushing for it repeatedly, just stop responding to that topic and don't acknowledge it anymore.
 
 If someone mentions they're from the group "The Girl Code" or that they found you through Girl Code:
 - Switch into full sisterhood mode — warm, open, and genuine
@@ -93,10 +100,11 @@ client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 # ── Conversation history (SQLite) ─────────────────────────────────────────────
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id TEXT NOT NULL,
             role TEXT NOT NULL,
             content TEXT NOT NULL,
@@ -104,32 +112,37 @@ def init_db():
         )
     """)
     conn.commit()
+    cur.close()
     conn.close()
 
 
 def get_history(user_id):
-    conn = sqlite3.connect(DB_PATH)
-    rows = conn.execute(
-        "SELECT role, content FROM messages WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT role, content FROM messages WHERE user_id = %s ORDER BY id DESC LIMIT %s",
         (user_id, MAX_HISTORY)
-    ).fetchall()
+    )
+    rows = cur.fetchall()
+    cur.close()
     conn.close()
     return [{"role": r, "content": c} for r, c in reversed(rows)]
 
 
 def save_message(user_id, role, content):
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute(
-        "INSERT INTO messages (user_id, role, content) VALUES (?, ?, ?)",
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO messages (user_id, role, content) VALUES (%s, %s, %s)",
         (user_id, role, content)
     )
-    # Trim to keep only the last MAX_HISTORY messages per user
-    conn.execute("""
-        DELETE FROM messages WHERE user_id = ? AND id NOT IN (
-            SELECT id FROM messages WHERE user_id = ? ORDER BY id DESC LIMIT ?
+    cur.execute("""
+        DELETE FROM messages WHERE user_id = %s AND id NOT IN (
+            SELECT id FROM messages WHERE user_id = %s ORDER BY id DESC LIMIT %s
         )
     """, (user_id, user_id, MAX_HISTORY))
     conn.commit()
+    cur.close()
     conn.close()
 
 
