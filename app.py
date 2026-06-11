@@ -15,6 +15,7 @@ PAGE_ACCESS_TOKEN = os.environ.get("PAGE_ACCESS_TOKEN")
 VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 MAX_HISTORY = 20  # messages to keep per user
+OWNER_ID = "506635664"  # Nathaniel Peterson — receives auto-handoff notifications
 
 
 def get_conn():
@@ -88,6 +89,8 @@ Conversation limits:
 - If someone asks for your phone number, do not give it out — pause and play it cool like "lol you bold for that, i keep it in the DMs for now 😏"
 - If someone sends you their phone number, respond with "i got you locked in 🖤"
 
+If someone asks about shows, tour dates, when you're performing, or when you'll be in their city — say something like "i should be there soon, i'll let you know for sure 🤍" and naturally work in the blast list: "get on my blast list and you'll be the first to know — https://forms.gle/veUFhGiHetDFr1kk6"
+
 If someone is genuinely aggressive, threatening, or curses you out — say something like "alright i'm gonna leave it here, take care 🤍" and then STOP responding to that person completely for the rest of the conversation. Even if they apologize after, do not respond. The conversation is over.
 Never end a sentence with "yeah?" — that is not how Mia talks.
 Never say "haha" — use "lol" or a laughing emoji instead to show laughter.
@@ -116,9 +119,57 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS paused_users (
+            user_id TEXT PRIMARY KEY,
+            paused_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     cur.close()
     conn.close()
+
+
+def is_paused(user_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM paused_users WHERE user_id = %s", (user_id,))
+    result = cur.fetchone()
+    cur.close()
+    conn.close()
+    return result is not None
+
+
+def pause_user(user_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO paused_users (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def resume_user(user_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM paused_users WHERE user_id = %s", (user_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def needs_handoff(text):
+    """Detect if a fan message warrants notifying Nathaniel."""
+    keywords = [
+        "book", "booking", "feature", "collab", "collaboration", "business",
+        "management", "manager", "label", "deal", "press", "media", "interview",
+        "blog", "podcast", "show", "tour", "when are you coming", "when you coming",
+        "when you performing", "i love you so much", "you changed my life",
+        "your music saved", "i've been following you", "ive been following you",
+        "been a fan since", "biggest fan", "superfan", "super fan"
+    ]
+    text_lower = text.lower()
+    return any(kw in text_lower for kw in keywords)
 
 
 def get_history(user_id):
@@ -179,12 +230,24 @@ def get_mia_reply(user_id, user_message):
     return response.content[0].text
 
 
-def handle_reply(sender_id):
+def notify_owner(fan_id, reason):
+    """Send a notification DM to Nathaniel Peterson."""
+    msg = f"🔔 Heads up — a fan ({fan_id}) needs your attention: {reason}. Go check the Mia Snow inbox."
+    send_message(OWNER_ID, msg)
+
+
+def handle_reply(sender_id, fan_message=""):
+    if is_paused(sender_id):
+        return
+
+    # Auto-detect handoff situations and notify Nathaniel
+    if fan_message and needs_handoff(fan_message):
+        notify_owner(sender_id, fan_message[:80])
+
     history = get_history(sender_id)
     last_message = history[-1]["content"] if history else ""
     reply = get_mia_reply(sender_id, last_message)
 
-    # First message: 10-15 seconds. All replies after: 30-45 seconds
     if len(history) <= 1:
         delay = random.randint(10, 15)
     elif len(reply) > 100:
@@ -193,6 +256,10 @@ def handle_reply(sender_id):
         delay = random.randint(30, 40)
 
     time.sleep(delay)
+
+    if is_paused(sender_id):
+        return
+
     save_message(sender_id, "assistant", reply)
     send_message(sender_id, reply)
 
@@ -257,11 +324,25 @@ def webhook():
         for event in entry.get("messaging", []):
             sender_id = event["sender"]["id"]
 
-            if event.get("message", {}).get("is_echo"):
-                continue
-
             text = event.get("message", {}).get("text")
             if not text:
+                continue
+
+            # ── Echo messages from the page itself (Mia typing) ──────────────
+            if event.get("message", {}).get("is_echo"):
+                # "Hey..." → pause bot for this fan
+                if text.endswith("..."):
+                    # Extract the fan's ID from the recipient field
+                    fan_id = event.get("recipient", {}).get("id")
+                    if fan_id:
+                        pause_user(fan_id)
+                        print(f"Bot paused for {fan_id}")
+                # "something!!" → resume bot for this fan
+                elif text.endswith("!!"):
+                    fan_id = event.get("recipient", {}).get("id")
+                    if fan_id:
+                        resume_user(fan_id)
+                        print(f"Bot resumed for {fan_id}")
                 continue
 
             # Dedup — skip if we already saved this exact message recently
@@ -272,7 +353,7 @@ def webhook():
 
             print(f"Message from {sender_id}: {text}")
             save_message(sender_id, "user", text)
-            threading.Thread(target=handle_reply, args=(sender_id,), daemon=True).start()
+            threading.Thread(target=handle_reply, args=(sender_id, text), daemon=True).start()
 
         # ── Handle post comments ──────────────────────────────────────────────
         for change in entry.get("changes", []):
