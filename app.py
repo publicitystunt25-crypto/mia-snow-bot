@@ -99,6 +99,10 @@ Never say "yooo" or "yoooo" — say "Heyyy" instead when greeting someone.
 
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
+# ── Message batching — collects rapid messages before replying ────────────────
+_pending = {}       # sender_id -> list of messages
+_pending_lock = threading.Lock()
+
 # ── Comment reply prompt ──────────────────────────────────────────────────────
 COMMENT_PROMPT = """You are Mia Snow, a melodic R&B and melodic rap artist from Jacksonville, FL. Someone just commented on one of your Facebook posts.
 
@@ -236,24 +240,38 @@ def notify_owner(fan_id, reason):
     send_message(OWNER_ID, msg)
 
 
-def handle_reply(sender_id, fan_message=""):
+def handle_reply(sender_id):
+    # Wait 5 seconds to collect any follow-up messages sent in quick succession
+    time.sleep(5)
+
     if is_paused(sender_id):
+        with _pending_lock:
+            _pending.pop(sender_id, None)
         return
 
-    # Auto-detect handoff situations and notify Nathaniel
-    if fan_message and needs_handoff(fan_message):
-        notify_owner(sender_id, fan_message[:80])
+    # Grab all batched messages and clear the queue
+    with _pending_lock:
+        messages = _pending.pop(sender_id, [])
+
+    if not messages:
+        return
+
+    # Save all batched messages to history
+    for msg in messages:
+        save_message(sender_id, "user", msg)
+        if needs_handoff(msg):
+            notify_owner(sender_id, msg[:80])
 
     history = get_history(sender_id)
-    last_message = history[-1]["content"] if history else ""
-    reply = get_mia_reply(sender_id, last_message)
+    reply = get_mia_reply(sender_id, "")
 
-    if len(history) <= 1:
-        delay = random.randint(10, 15)
+    # Human-like reply delay on top of the 5s batch window
+    if len(history) <= len(messages):
+        delay = random.randint(8, 12)
     elif len(reply) > 100:
-        delay = random.randint(35, 45)
+        delay = random.randint(28, 38)
     else:
-        delay = random.randint(30, 40)
+        delay = random.randint(23, 33)
 
     time.sleep(delay)
 
@@ -345,15 +363,19 @@ def webhook():
                         print(f"Bot resumed for {fan_id}")
                 continue
 
-            # Dedup — skip if we already saved this exact message recently
-            recent = get_history(sender_id)
-            if recent and recent[-1]["role"] == "user" and recent[-1]["content"] == text:
-                print(f"Duplicate message skipped from {sender_id}")
-                continue
-
             print(f"Message from {sender_id}: {text}")
-            save_message(sender_id, "user", text)
-            threading.Thread(target=handle_reply, args=(sender_id, text), daemon=True).start()
+
+            with _pending_lock:
+                already_queued = sender_id in _pending
+                if already_queued:
+                    # Another message already queued — just add to batch, no new thread
+                    if text not in _pending[sender_id]:
+                        _pending[sender_id].append(text)
+                else:
+                    _pending[sender_id] = [text]
+
+            if not already_queued:
+                threading.Thread(target=handle_reply, args=(sender_id,), daemon=True).start()
 
         # ── Handle post comments ──────────────────────────────────────────────
         for change in entry.get("changes", []):
