@@ -5,8 +5,9 @@ import threading
 import requests
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from flask import Flask, request
+from flask import Flask, request, jsonify, Response
 import anthropic
+import json
 
 app = Flask(__name__)
 
@@ -14,8 +15,9 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 PAGE_ACCESS_TOKEN = os.environ.get("PAGE_ACCESS_TOKEN")
 VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN")
 DATABASE_URL = os.environ.get("DATABASE_URL")
-MAX_HISTORY = 20  # messages to keep per user
-OWNER_ID = "506635664"  # Nathaniel Peterson — receives auto-handoff notifications
+DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "miasnow2024")
+MAX_HISTORY = 20
+OWNER_ID = "506635664"  # Nathaniel Peterson
 
 
 def get_conn():
@@ -99,8 +101,8 @@ Never say "yooo" or "yoooo" — say "Heyyy" instead when greeting someone.
 
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-# ── Message batching — collects rapid messages before replying ────────────────
-_pending = {}       # sender_id -> list of messages
+# ── Message batching ──────────────────────────────────────────────────────────
+_pending = {}
 _pending_lock = threading.Lock()
 
 # ── Comment reply prompt ──────────────────────────────────────────────────────
@@ -109,7 +111,7 @@ COMMENT_PROMPT = """You are Mia Snow, a melodic R&B and melodic rap artist from 
 Reply with a short, genuine, public comment reply — 1 sentence max. Keep it warm, real, and in slang. Never use "fam" or "bestie". Never include links in comments. If the comment is flirty or sexual, keep it light and fun but very brief. If the comment is negative or rude, ignore it by not replying (just say nothing meaningful). End flirty replies with "slide in my DMs 😏" to move the convo private. Never say you are a bot or AI."""
 
 
-# ── Conversation history (SQLite) ─────────────────────────────────────────────
+# ── Database setup ────────────────────────────────────────────────────────────
 
 def init_db():
     conn = get_conn()
@@ -129,52 +131,161 @@ def init_db():
             paused_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fan_profiles (
+            user_id TEXT PRIMARY KEY,
+            fb_name TEXT,
+            fb_url TEXT,
+            nickname TEXT,
+            location TEXT,
+            job TEXT,
+            birthday TEXT,
+            relationship_status TEXT,
+            has_kids BOOLEAN DEFAULT FALSE,
+            interests TEXT,
+            favorite_song TEXT,
+            how_found_mia TEXT,
+            vibe TEXT DEFAULT 'new',
+            fan_score INTEGER DEFAULT 1,
+            total_messages INTEGER DEFAULT 0,
+            total_conversations INTEGER DEFAULT 0,
+            sent_spotify BOOLEAN DEFAULT FALSE,
+            sent_youtube BOOLEAN DEFAULT FALSE,
+            sent_onlyfans BOOLEAN DEFAULT FALSE,
+            sent_merch BOOLEAN DEFAULT FALSE,
+            sent_blast_list BOOLEAN DEFAULT FALSE,
+            on_blast_list BOOLEAN DEFAULT FALSE,
+            bought_merch BOOLEAN DEFAULT FALSE,
+            asked_about_shows BOOLEAN DEFAULT FALSE,
+            is_girl_code BOOLEAN DEFAULT FALSE,
+            is_vip BOOLEAN DEFAULT FALSE,
+            is_blocked BOOLEAN DEFAULT FALSE,
+            handoff_active BOOLEAN DEFAULT FALSE,
+            notes TEXT,
+            first_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     cur.close()
     conn.close()
 
 
-def is_paused(user_id):
+# ── Fan profile functions ─────────────────────────────────────────────────────
+
+def get_fan_profile(user_id):
     conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT 1 FROM paused_users WHERE user_id = %s", (user_id,))
-    result = cur.fetchone()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT * FROM fan_profiles WHERE user_id = %s", (user_id,))
+    row = cur.fetchone()
     cur.close()
     conn.close()
-    return result is not None
+    return dict(row) if row else None
 
 
-def pause_user(user_id):
+def upsert_fan_profile(user_id, **kwargs):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("INSERT INTO paused_users (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user_id,))
+    profile = get_fan_profile(user_id)
+    if not profile:
+        cur.execute("INSERT INTO fan_profiles (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user_id,))
+        conn.commit()
+    if kwargs:
+        sets = ", ".join(f"{k} = %s" for k in kwargs)
+        vals = list(kwargs.values()) + [user_id]
+        cur.execute(f"UPDATE fan_profiles SET {sets} WHERE user_id = %s", vals)
+        conn.commit()
+    cur.close()
+    conn.close()
+
+
+def fetch_fb_name(user_id):
+    """Fetch the fan's Facebook name via Graph API."""
+    try:
+        url = f"https://graph.facebook.com/v19.0/{user_id}"
+        params = {"fields": "name", "access_token": PAGE_ACCESS_TOKEN}
+        r = requests.get(url, params=params, timeout=5)
+        if r.ok:
+            data = r.json()
+            name = data.get("name", "")
+            fb_url = f"https://www.facebook.com/profile.php?id={user_id}"
+            return name, fb_url
+    except Exception:
+        pass
+    return "", f"https://www.facebook.com/profile.php?id={user_id}"
+
+
+def update_fan_after_message(user_id, messages):
+    """Update fan profile stats and extract key details from conversation."""
+    profile = get_fan_profile(user_id)
+    if not profile:
+        return
+
+    total = (profile.get("total_messages") or 0) + len(messages)
+    updates = {"total_messages": total, "last_message_at": "NOW()"}
+
+    combined = " ".join(messages).lower()
+
+    # Detect links sent
+    if "spotify.com" in combined:
+        updates["sent_spotify"] = True
+    if "youtube.com" in combined:
+        updates["sent_youtube"] = True
+    if "linktr.ee/msnow1" in combined:
+        updates["sent_onlyfans"] = True
+    if "miasnow.printful.me" in combined:
+        updates["sent_merch"] = True
+    if "forms.gle" in combined:
+        updates["sent_blast_list"] = True
+
+    # Detect vibe
+    sexual_words = ["fuck", "sex", "naked", "ass", "dick", "pussy", "body", "hot", "fine"]
+    business_words = ["book", "collab", "feature", "label", "manager", "deal", "press", "media"]
+    girl_code_words = ["girl code", "girlcode"]
+
+    if any(w in combined for w in girl_code_words):
+        updates["is_girl_code"] = True
+        updates["vibe"] = "girl_code"
+    elif any(w in combined for w in business_words):
+        updates["vibe"] = "business"
+    elif any(w in combined for w in sexual_words):
+        updates["vibe"] = "flirty"
+    elif "music" in combined or "song" in combined or "spotify" in combined:
+        updates["vibe"] = "music_fan"
+
+    # Show interest
+    if any(w in combined for w in ["show", "tour", "perform", "concert", "city"]):
+        updates["asked_about_shows"] = True
+
+    # Calculate fan score (1-10)
+    score = 1
+    score += min(3, total // 10)  # up to 3 points for message volume
+    if profile.get("sent_blast_list"):
+        score += 1
+    if profile.get("sent_spotify") or profile.get("sent_youtube"):
+        score += 1
+    if profile.get("is_girl_code"):
+        score += 2
+    if profile.get("asked_about_shows"):
+        score += 1
+    if profile.get("on_blast_list"):
+        score += 1
+    updates["fan_score"] = min(10, score)
+
+    # Use NOW() for timestamp
+    conn = get_conn()
+    cur = conn.cursor()
+    updates_copy = {k: v for k, v in updates.items() if v != "NOW()"}
+    updates_copy["last_message_at"] = None
+    sets = ", ".join(f"{k} = %s" for k in updates_copy) + ", last_message_at = NOW()"
+    vals = list(updates_copy.values()) + [user_id]
+    cur.execute(f"UPDATE fan_profiles SET {sets} WHERE user_id = %s", vals)
     conn.commit()
     cur.close()
     conn.close()
 
 
-def resume_user(user_id):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM paused_users WHERE user_id = %s", (user_id,))
-    conn.commit()
-    cur.close()
-    conn.close()
-
-
-def needs_handoff(text):
-    """Detect if a fan message warrants notifying Nathaniel."""
-    keywords = [
-        "book", "booking", "feature", "collab", "collaboration", "business",
-        "management", "manager", "label", "deal", "press", "media", "interview",
-        "blog", "podcast", "show", "tour", "when are you coming", "when you coming",
-        "when you performing", "i love you so much", "you changed my life",
-        "your music saved", "i've been following you", "ive been following you",
-        "been a fan since", "biggest fan", "superfan", "super fan"
-    ]
-    text_lower = text.lower()
-    return any(kw in text_lower for kw in keywords)
-
+# ── Conversation history ──────────────────────────────────────────────────────
 
 def get_history(user_id):
     conn = get_conn()
@@ -206,6 +317,50 @@ def save_message(user_id, role, content):
     conn.close()
 
 
+# ── Pause / resume ────────────────────────────────────────────────────────────
+
+def is_paused(user_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM paused_users WHERE user_id = %s", (user_id,))
+    result = cur.fetchone()
+    cur.close()
+    conn.close()
+    return result is not None
+
+
+def pause_user(user_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO paused_users (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+    upsert_fan_profile(user_id, handoff_active=True)
+
+
+def resume_user(user_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM paused_users WHERE user_id = %s", (user_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+    upsert_fan_profile(user_id, handoff_active=False)
+
+
+def needs_handoff(text):
+    keywords = [
+        "book", "booking", "feature", "collab", "collaboration", "business",
+        "management", "manager", "label", "deal", "press", "media", "interview",
+        "blog", "podcast", "show", "tour", "when are you coming", "when you coming",
+        "when you performing", "i love you so much", "you changed my life",
+        "your music saved", "i've been following you", "ive been following you",
+        "been a fan since", "biggest fan", "superfan", "super fan"
+    ]
+    return any(kw in text.lower() for kw in keywords)
+
+
 # ── Core logic ────────────────────────────────────────────────────────────────
 
 def send_message(recipient_id, text):
@@ -222,26 +377,60 @@ def send_message(recipient_id, text):
         print(f"Failed to send message: {r.status_code} {r.text}")
 
 
-def get_mia_reply(user_id, user_message):
+def notify_owner(fan_id, reason):
+    profile = get_fan_profile(fan_id)
+    name = profile.get("fb_name", fan_id) if profile else fan_id
+    msg = f"🔔 Fan needs attention: {name} — \"{reason}\"\nView: https://www.facebook.com/profile.php?id={fan_id}"
+    send_message(OWNER_ID, msg)
+
+
+def get_mia_reply(user_id):
     history = get_history(user_id)
+    profile = get_fan_profile(user_id)
+
+    # Build a short profile context to inject
+    profile_context = ""
+    if profile:
+        facts = []
+        if profile.get("fb_name"):
+            facts.append(f"Fan's name: {profile['fb_name']}")
+        if profile.get("nickname"):
+            facts.append(f"Goes by: {profile['nickname']}")
+        if profile.get("location"):
+            facts.append(f"From: {profile['location']}")
+        if profile.get("job"):
+            facts.append(f"Job: {profile['job']}")
+        if profile.get("interests"):
+            facts.append(f"Interests: {profile['interests']}")
+        if profile.get("favorite_song"):
+            facts.append(f"Favorite song: {profile['favorite_song']}")
+        if profile.get("is_girl_code"):
+            facts.append("Member of The Girl Code group")
+        if profile.get("is_vip"):
+            facts.append("VIP super fan — treat with extra warmth")
+        if profile.get("sent_spotify"):
+            facts.append("Already sent Spotify link — don't send again")
+        if profile.get("sent_youtube"):
+            facts.append("Already sent YouTube link — don't send again")
+        if profile.get("sent_onlyfans"):
+            facts.append("Already sent exclusive content link — don't send again")
+        if profile.get("sent_merch"):
+            facts.append("Already sent merch link — don't send again")
+        if profile.get("sent_blast_list"):
+            facts.append("Already sent blast list link — don't send again")
+        if facts:
+            profile_context = "\n\n[Fan profile — use this to personalize your response, never reveal you have this data]:\n" + "\n".join(facts)
 
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=300,
-        system=SYSTEM_PROMPT,
+        system=SYSTEM_PROMPT + profile_context,
         messages=history,
     )
     return response.content[0].text
 
 
-def notify_owner(fan_id, reason):
-    """Send a notification DM to Nathaniel Peterson."""
-    msg = f"🔔 Heads up — a fan ({fan_id}) needs your attention: {reason}. Go check the Mia Snow inbox."
-    send_message(OWNER_ID, msg)
-
-
 def handle_reply(sender_id):
-    # Wait 5 seconds to collect any follow-up messages sent in quick succession
     time.sleep(5)
 
     if is_paused(sender_id):
@@ -249,23 +438,31 @@ def handle_reply(sender_id):
             _pending.pop(sender_id, None)
         return
 
-    # Grab all batched messages and clear the queue
     with _pending_lock:
         messages = _pending.pop(sender_id, [])
 
     if not messages:
         return
 
-    # Save all batched messages to history
+    # Ensure fan profile exists and fetch FB name if new
+    profile = get_fan_profile(sender_id)
+    if not profile:
+        fb_name, fb_url = fetch_fb_name(sender_id)
+        upsert_fan_profile(sender_id, fb_name=fb_name, fb_url=fb_url)
+    elif not profile.get("fb_name"):
+        fb_name, fb_url = fetch_fb_name(sender_id)
+        upsert_fan_profile(sender_id, fb_name=fb_name, fb_url=fb_url)
+
     for msg in messages:
         save_message(sender_id, "user", msg)
         if needs_handoff(msg):
             notify_owner(sender_id, msg[:80])
 
-    history = get_history(sender_id)
-    reply = get_mia_reply(sender_id, "")
+    update_fan_after_message(sender_id, messages)
 
-    # Human-like reply delay on top of the 5s batch window
+    history = get_history(sender_id)
+    reply = get_mia_reply(sender_id)
+
     if len(history) <= len(messages):
         delay = random.randint(8, 12)
     elif len(reply) > 100:
@@ -283,7 +480,6 @@ def handle_reply(sender_id):
 
 
 def reply_to_comment(comment_id, text):
-    """Reply to a Facebook post comment."""
     url = f"https://graph.facebook.com/v19.0/{comment_id}/comments"
     params = {"access_token": PAGE_ACCESS_TOKEN}
     payload = {"message": text}
@@ -293,7 +489,6 @@ def reply_to_comment(comment_id, text):
 
 
 def get_comment_reply(comment_text):
-    """Generate a short public comment reply as Mia Snow."""
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=100,
@@ -308,6 +503,287 @@ def handle_comment(comment_id, comment_text):
     time.sleep(delay)
     reply = get_comment_reply(comment_text)
     reply_to_comment(comment_id, reply)
+
+
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+
+DASHBOARD_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mia Snow — Fan Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, sans-serif; background: #0a0a0a; color: #eee; }
+  header { background: #111; padding: 20px 30px; border-bottom: 1px solid #222; display: flex; align-items: center; gap: 15px; }
+  header h1 { font-size: 22px; color: #fff; }
+  header span { color: #888; font-size: 14px; }
+  .stats { display: flex; gap: 15px; padding: 20px 30px; flex-wrap: wrap; }
+  .stat { background: #111; border: 1px solid #222; border-radius: 10px; padding: 15px 20px; min-width: 140px; }
+  .stat .num { font-size: 28px; font-weight: bold; color: #fff; }
+  .stat .label { font-size: 12px; color: #888; margin-top: 3px; }
+  .controls { padding: 0 30px 15px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  input[type=text] { background: #111; border: 1px solid #333; color: #eee; padding: 8px 12px; border-radius: 6px; font-size: 14px; width: 220px; }
+  select { background: #111; border: 1px solid #333; color: #eee; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+  button { background: #9333ea; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  button:hover { background: #7c22d4; }
+  button.export { background: #1a1a1a; border: 1px solid #333; }
+  button.export:hover { background: #222; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #111; color: #888; font-weight: 500; padding: 10px 15px; text-align: left; border-bottom: 1px solid #222; position: sticky; top: 0; }
+  td { padding: 10px 15px; border-bottom: 1px solid #1a1a1a; vertical-align: middle; }
+  tr:hover td { background: #111; }
+  .table-wrap { overflow-x: auto; padding: 0 30px 30px; }
+  .score { display: inline-block; background: #1a1a1a; border-radius: 20px; padding: 2px 10px; font-weight: bold; }
+  .score.high { color: #4ade80; }
+  .score.mid { color: #facc15; }
+  .score.low { color: #f87171; }
+  .vibe { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+  .vibe.flirty { background: #4c1d95; color: #c4b5fd; }
+  .vibe.music_fan { background: #1e3a5f; color: #7dd3fc; }
+  .vibe.business { background: #14532d; color: #86efac; }
+  .vibe.girl_code { background: #831843; color: #fbcfe8; }
+  .vibe.new { background: #1a1a1a; color: #888; }
+  .badge { display: inline-block; width: 18px; height: 18px; border-radius: 50%; text-align: center; line-height: 18px; font-size: 10px; margin: 1px; }
+  .badge.on { background: #4ade80; color: #000; }
+  .badge.off { background: #1a1a1a; color: #444; }
+  a { color: #a78bfa; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .login { display: flex; align-items: center; justify-content: center; height: 100vh; flex-direction: column; gap: 15px; }
+  .login input { width: 260px; padding: 10px 14px; }
+  .login button { width: 260px; padding: 10px; }
+  .vip { color: #facc15; font-size: 12px; }
+  .blocked { color: #f87171; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const pass = localStorage.getItem('dash_pass');
+
+function login() {
+  const p = document.getElementById('pass').value;
+  fetch('/dashboard/data?password=' + encodeURIComponent(p))
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { alert('Wrong password'); return; }
+      localStorage.setItem('dash_pass', p);
+      renderDash(d);
+    });
+}
+
+function loadDash() {
+  const p = pass || '';
+  fetch('/dashboard/data?password=' + encodeURIComponent(p))
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { renderLogin(); return; }
+      renderDash(d);
+    });
+}
+
+function renderLogin() {
+  document.getElementById('app').innerHTML = `
+    <div class="login">
+      <h2 style="color:#fff">Mia Snow Dashboard</h2>
+      <input type="password" id="pass" placeholder="Enter password" onkeydown="if(event.key==='Enter')login()">
+      <button onclick="login()">Login</button>
+    </div>`;
+}
+
+function renderDash(data) {
+  const fans = data.fans;
+  const stats = data.stats;
+
+  document.getElementById('app').innerHTML = `
+    <header>
+      <h1>Mia Snow 🤍 Fan Dashboard</h1>
+      <span>${fans.length} fans total</span>
+    </header>
+    <div class="stats">
+      <div class="stat"><div class="num">${stats.total_fans}</div><div class="label">Total Fans</div></div>
+      <div class="stat"><div class="num">${stats.total_messages}</div><div class="label">Total Messages</div></div>
+      <div class="stat"><div class="num">${stats.vip_count}</div><div class="label">VIP Fans</div></div>
+      <div class="stat"><div class="num">${stats.blast_list_count}</div><div class="label">Blast List</div></div>
+      <div class="stat"><div class="num">${stats.top_city}</div><div class="label">Top City</div></div>
+    </div>
+    <div class="controls">
+      <input type="text" id="search" placeholder="Search name or city..." oninput="filterTable()">
+      <select id="vibeFilter" onchange="filterTable()">
+        <option value="">All vibes</option>
+        <option value="flirty">Flirty</option>
+        <option value="music_fan">Music Fan</option>
+        <option value="business">Business</option>
+        <option value="girl_code">Girl Code</option>
+        <option value="new">New</option>
+      </select>
+      <select id="sortBy" onchange="filterTable()">
+        <option value="fan_score">Sort: Fan Score</option>
+        <option value="total_messages">Sort: Messages</option>
+        <option value="last_message_at">Sort: Last Active</option>
+        <option value="first_message_at">Sort: First Seen</option>
+      </select>
+      <button class="export" onclick="exportCSV()">⬇ Export CSV</button>
+    </div>
+    <div class="table-wrap">
+      <table id="fanTable">
+        <thead>
+          <tr>
+            <th>Fan</th>
+            <th>Location</th>
+            <th>Vibe</th>
+            <th>Score</th>
+            <th>Messages</th>
+            <th>Links Sent</th>
+            <th>Last Active</th>
+            <th>Flags</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>`;
+
+  window._fans = fans;
+  filterTable();
+}
+
+function filterTable() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const vibe = document.getElementById('vibeFilter').value;
+  const sort = document.getElementById('sortBy').value;
+
+  let fans = [...window._fans];
+  if (search) fans = fans.filter(f => (f.fb_name||'').toLowerCase().includes(search) || (f.location||'').toLowerCase().includes(search));
+  if (vibe) fans = fans.filter(f => f.vibe === vibe);
+  fans.sort((a, b) => {
+    if (sort === 'fan_score') return (b.fan_score||0) - (a.fan_score||0);
+    if (sort === 'total_messages') return (b.total_messages||0) - (a.total_messages||0);
+    return new Date(b[sort]||0) - new Date(a[sort]||0);
+  });
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = fans.map(f => {
+    const score = f.fan_score || 1;
+    const scoreClass = score >= 7 ? 'high' : score >= 4 ? 'mid' : 'low';
+    const name = f.fb_name || f.user_id;
+    const nameHtml = f.fb_url ? `<a href="${f.fb_url}" target="_blank">${name}</a>` : name;
+    const flags = [
+      f.is_vip ? '<span class="vip">⭐ VIP</span>' : '',
+      f.is_blocked ? '<span class="blocked">🚫 Blocked</span>' : '',
+      f.is_girl_code ? '<span style="color:#fbcfe8;font-size:11px">👑 GC</span>' : '',
+      f.handoff_active ? '<span style="color:#facc15;font-size:11px">👋 Handoff</span>' : '',
+      f.on_blast_list ? '<span style="color:#4ade80;font-size:11px">📋 Blast</span>' : '',
+    ].filter(Boolean).join(' ');
+    const links = [
+      badge(f.sent_spotify, 'S'),
+      badge(f.sent_youtube, 'Y'),
+      badge(f.sent_onlyfans, 'OF'),
+      badge(f.sent_merch, 'M'),
+      badge(f.sent_blast_list, 'BL'),
+    ].join('');
+    const lastActive = f.last_message_at ? new Date(f.last_message_at).toLocaleDateString() : '—';
+    return `<tr>
+      <td>${nameHtml}</td>
+      <td>${f.location || '—'}</td>
+      <td><span class="vibe ${f.vibe||'new'}">${f.vibe||'new'}</span></td>
+      <td><span class="score ${scoreClass}">${score}/10</span></td>
+      <td>${f.total_messages||0}</td>
+      <td>${links}</td>
+      <td>${lastActive}</td>
+      <td>${flags}</td>
+    </tr>`;
+  }).join('');
+}
+
+function badge(val, label) {
+  return `<span class="badge ${val ? 'on' : 'off'}" title="${label}">${label[0]}</span>`;
+}
+
+function exportCSV() {
+  const p = localStorage.getItem('dash_pass') || '';
+  window.location = '/dashboard/export?password=' + encodeURIComponent(p);
+}
+
+loadDash();
+</script>
+</body>
+</html>"""
+
+
+@app.route("/dashboard")
+def dashboard():
+    return DASHBOARD_HTML
+
+
+@app.route("/dashboard/data")
+def dashboard_data():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT * FROM fan_profiles ORDER BY fan_score DESC, last_message_at DESC")
+    fans = [dict(r) for r in cur.fetchall()]
+
+    cur.execute("SELECT COUNT(*) as c FROM fan_profiles")
+    total_fans = cur.fetchone()["c"]
+
+    cur.execute("SELECT COALESCE(SUM(total_messages),0) as c FROM fan_profiles")
+    total_messages = cur.fetchone()["c"]
+
+    cur.execute("SELECT COUNT(*) as c FROM fan_profiles WHERE is_vip = TRUE")
+    vip_count = cur.fetchone()["c"]
+
+    cur.execute("SELECT COUNT(*) as c FROM fan_profiles WHERE on_blast_list = TRUE")
+    blast_count = cur.fetchone()["c"]
+
+    cur.execute("SELECT location, COUNT(*) as c FROM fan_profiles WHERE location IS NOT NULL AND location != '' GROUP BY location ORDER BY c DESC LIMIT 1")
+    top_city_row = cur.fetchone()
+    top_city = top_city_row["location"] if top_city_row else "—"
+
+    cur.close()
+    conn.close()
+
+    # Convert timestamps to strings
+    for f in fans:
+        for k in ["first_message_at", "last_message_at", "paused_at"]:
+            if k in f and f[k]:
+                f[k] = str(f[k])
+
+    return jsonify({
+        "fans": fans,
+        "stats": {
+            "total_fans": total_fans,
+            "total_messages": total_messages,
+            "vip_count": vip_count,
+            "blast_list_count": blast_count,
+            "top_city": top_city,
+        }
+    })
+
+
+@app.route("/dashboard/export")
+def dashboard_export():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return "Unauthorized", 401
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT user_id, fb_name, fb_url, location, vibe, fan_score, total_messages, sent_spotify, sent_youtube, sent_onlyfans, sent_merch, sent_blast_list, on_blast_list, bought_merch, is_vip, is_girl_code, is_blocked, first_message_at, last_message_at FROM fan_profiles ORDER BY fan_score DESC")
+    rows = cur.fetchall()
+    cols = [d[0] for d in cur.description]
+    cur.close()
+    conn.close()
+
+    lines = [",".join(cols)]
+    for row in rows:
+        lines.append(",".join(str(v) if v is not None else "" for v in row))
+    csv = "\n".join(lines)
+
+    return Response(csv, mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=mia_snow_fans.csv"})
 
 
 # ── Webhook ───────────────────────────────────────────────────────────────────
@@ -346,19 +822,14 @@ def webhook():
             if not text:
                 continue
 
-            # ── Echo messages from the page itself (Mia typing) ──────────────
+            # ── Echo: Mia typing from page ────────────────────────────────────
             if event.get("message", {}).get("is_echo"):
-                # "Hey..." → pause bot for this fan
-                if text.endswith("..."):
-                    # Extract the fan's ID from the recipient field
-                    fan_id = event.get("recipient", {}).get("id")
-                    if fan_id:
+                fan_id = event.get("recipient", {}).get("id")
+                if fan_id:
+                    if text.endswith("..."):
                         pause_user(fan_id)
                         print(f"Bot paused for {fan_id}")
-                # "something!!" → resume bot for this fan
-                elif text.endswith("!!"):
-                    fan_id = event.get("recipient", {}).get("id")
-                    if fan_id:
+                    elif text.endswith("!!"):
                         resume_user(fan_id)
                         print(f"Bot resumed for {fan_id}")
                 continue
@@ -368,7 +839,6 @@ def webhook():
             with _pending_lock:
                 already_queued = sender_id in _pending
                 if already_queued:
-                    # Another message already queued — just add to batch, no new thread
                     if text not in _pending[sender_id]:
                         _pending[sender_id].append(text)
                 else:
@@ -382,13 +852,10 @@ def webhook():
             if change.get("field") != "feed":
                 continue
             value = change.get("value", {})
-            # Only handle comments, not likes or other feed events
             if value.get("item") != "comment":
                 continue
-            # Skip replies to comments (only reply to top-level comments)
             if value.get("parent_id") != value.get("post_id"):
                 continue
-            # Skip comments made by the page itself
             if value.get("from", {}).get("id") == entry.get("id"):
                 continue
 
