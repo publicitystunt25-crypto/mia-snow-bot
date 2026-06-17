@@ -201,18 +201,19 @@ def upsert_fan_profile(user_id, **kwargs):
 
 def fetch_fb_name(user_id):
     """Fetch the fan's Facebook name via Graph API."""
+    fb_url = f"https://www.facebook.com/profile.php?id={user_id}"
     try:
         url = f"https://graph.facebook.com/v19.0/{user_id}"
-        params = {"fields": "name", "access_token": PAGE_ACCESS_TOKEN}
+        params = {"fields": "name,first_name", "access_token": PAGE_ACCESS_TOKEN}
         r = requests.get(url, params=params, timeout=5)
+        print(f"FB name fetch for {user_id}: {r.status_code} {r.text[:200]}")
         if r.ok:
             data = r.json()
-            name = data.get("name", "")
-            fb_url = f"https://www.facebook.com/profile.php?id={user_id}"
+            name = data.get("name") or data.get("first_name") or ""
             return name, fb_url
-    except Exception:
-        pass
-    return "", f"https://www.facebook.com/profile.php?id={user_id}"
+    except Exception as e:
+        print(f"FB name fetch error: {e}")
+    return "", fb_url
 
 
 def update_fan_after_message(user_id, messages):
@@ -275,8 +276,7 @@ def update_fan_after_message(user_id, messages):
     # Use NOW() for timestamp
     conn = get_conn()
     cur = conn.cursor()
-    updates_copy = {k: v for k, v in updates.items() if v != "NOW()"}
-    updates_copy["last_message_at"] = None
+    updates_copy = {k: v for k, v in updates.items() if k != "last_message_at"}
     sets = ", ".join(f"{k} = %s" for k in updates_copy) + ", last_message_at = NOW()"
     vals = list(updates_copy.values()) + [user_id]
     cur.execute(f"UPDATE fan_profiles SET {sets} WHERE user_id = %s", vals)
