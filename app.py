@@ -200,19 +200,8 @@ def upsert_fan_profile(user_id, **kwargs):
 
 
 def fetch_fb_name(user_id):
-    """Fetch the fan's Facebook name via Graph API."""
+    """Return profile URL — name must come from webhook event data."""
     fb_url = f"https://www.facebook.com/profile.php?id={user_id}"
-    try:
-        url = f"https://graph.facebook.com/v19.0/{user_id}"
-        params = {"fields": "name,first_name", "access_token": PAGE_ACCESS_TOKEN}
-        r = requests.get(url, params=params, timeout=5)
-        print(f"FB name fetch for {user_id}: {r.status_code} {r.text[:200]}")
-        if r.ok:
-            data = r.json()
-            name = data.get("name") or data.get("first_name") or ""
-            return name, fb_url
-    except Exception as e:
-        print(f"FB name fetch error: {e}")
     return "", fb_url
 
 
@@ -444,14 +433,11 @@ def handle_reply(sender_id):
     if not messages:
         return
 
-    # Ensure fan profile exists and fetch FB name if new
+    # Ensure fan profile exists
     profile = get_fan_profile(sender_id)
     if not profile:
-        fb_name, fb_url = fetch_fb_name(sender_id)
-        upsert_fan_profile(sender_id, fb_name=fb_name, fb_url=fb_url)
-    elif not profile.get("fb_name"):
-        fb_name, fb_url = fetch_fb_name(sender_id)
-        upsert_fan_profile(sender_id, fb_name=fb_name, fb_url=fb_url)
+        fb_url = f"https://www.facebook.com/profile.php?id={sender_id}"
+        upsert_fan_profile(sender_id, fb_url=fb_url)
 
     for msg in messages:
         save_message(sender_id, "user", msg)
@@ -834,7 +820,18 @@ def webhook():
                         print(f"Bot resumed for {fan_id}")
                 continue
 
-            print(f"Message from {sender_id}: {text}")
+            # Grab name from webhook event if available
+            sender_name = event.get("sender", {}).get("name", "")
+
+            print(f"Message from {sender_id} ({sender_name}): {text}")
+
+            # Save name to profile if we have it
+            profile = get_fan_profile(sender_id)
+            if not profile:
+                fb_url = f"https://www.facebook.com/profile.php?id={sender_id}"
+                upsert_fan_profile(sender_id, fb_name=sender_name, fb_url=fb_url)
+            elif sender_name and not profile.get("fb_name"):
+                upsert_fan_profile(sender_id, fb_name=sender_name)
 
             with _pending_lock:
                 already_queued = sender_id in _pending
