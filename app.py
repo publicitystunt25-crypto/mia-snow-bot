@@ -205,6 +205,22 @@ def fetch_fb_name(user_id):
     return "", fb_url
 
 
+def extract_nickname(text):
+    """Try to pull a name from intro phrases."""
+    import re
+    patterns = [
+        r"(?:i'm|im|i am|my name is|they call me|call me|name's|names)\s+([A-Z][a-z]+)",
+        r"^([A-Z][a-z]+)\s+here\b",
+    ]
+    for p in patterns:
+        m = re.search(p, text, re.IGNORECASE)
+        if m:
+            name = m.group(1).strip()
+            if name.lower() not in ["good", "fine", "okay", "cool", "here", "just", "from", "doing"]:
+                return name
+    return None
+
+
 def update_fan_after_message(user_id, messages):
     """Update fan profile stats and extract key details from conversation."""
     profile = get_fan_profile(user_id)
@@ -215,6 +231,14 @@ def update_fan_after_message(user_id, messages):
     updates = {"total_messages": total, "last_message_at": "NOW()"}
 
     combined = " ".join(messages).lower()
+
+    # Extract nickname if not already saved
+    if not profile.get("nickname"):
+        for msg in messages:
+            name = extract_nickname(msg)
+            if name:
+                updates["nickname"] = name
+                break
 
     # Detect links sent
     if "spotify.com" in combined:
@@ -652,8 +676,8 @@ function filterTable() {
   tbody.innerHTML = fans.map(f => {
     const score = f.fan_score || 1;
     const scoreClass = score >= 7 ? 'high' : score >= 4 ? 'mid' : 'low';
-    const name = f.fb_name || f.user_id;
-    const nameHtml = f.fb_url ? `<a href="${f.fb_url}" target="_blank">${name}</a>` : name;
+    const name = f.nickname || f.fb_name || f.user_id;
+    const nameHtml = name;
     const flags = [
       f.is_vip ? '<span class="vip">⭐ VIP</span>' : '',
       f.is_blocked ? '<span class="blocked">🚫 Blocked</span>' : '',
