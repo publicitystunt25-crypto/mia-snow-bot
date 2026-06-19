@@ -1,0 +1,26 @@
+[Unit]
+Description=Mia Snow Bot (Flask + Gunicorn)
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=miabot
+Group=miabot
+WorkingDirectory=/home/miabot/mia-snow-bot
+EnvironmentFile=/home/miabot/mia-snow-bot/.env
+ExecStart=/home/miabot/mia-snow-bot/.venv/bin/gunicorn \
+    --workers 2 \
+    --bind 127.0.0.1:5000 \
+    --timeout 120 \
+    --log-level info \
+    app:app
+Restart=always
+RestartSec=5
+
+# Harden the process
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
