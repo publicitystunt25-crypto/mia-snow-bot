@@ -362,6 +362,16 @@ def resume_user(user_id):
     upsert_fan_profile(user_id, handoff_active=False)
 
 
+def block_user(user_id):
+    upsert_fan_profile(user_id, is_blocked=True)
+    print(f"Fan blocked: {user_id}")
+
+
+def is_blocked(user_id):
+    profile = get_fan_profile(user_id)
+    return profile.get("is_blocked", False) if profile else False
+
+
 def needs_handoff(text):
     keywords = [
         "book", "booking", "feature", "collab", "collaboration", "business",
@@ -446,7 +456,7 @@ def get_mia_reply(user_id):
 def handle_reply(sender_id):
     time.sleep(5)
 
-    if is_paused(sender_id):
+    if is_paused(sender_id) or is_blocked(sender_id):
         with _pending_lock:
             _pending.pop(sender_id, None)
         return
@@ -482,7 +492,7 @@ def handle_reply(sender_id):
 
     time.sleep(delay)
 
-    if is_paused(sender_id):
+    if is_paused(sender_id) or is_blocked(sender_id):
         return
 
     save_message(sender_id, "assistant", reply)
@@ -540,6 +550,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   button:hover { background: #7c22d4; }
   button.export { background: #1a1a1a; border: 1px solid #333; }
   button.export:hover { background: #222; }
+  button.block { background: #7f1d1d; border: none; padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; color: #fca5a5; }
+  button.block:hover { background: #991b1b; }
+  button.unblock { background: #14532d; border: none; padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; color: #86efac; }
+  button.unblock:hover { background: #166534; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th { background: #111; color: #888; font-weight: 500; padding: 10px 15px; text-align: left; border-bottom: 1px solid #222; position: sticky; top: 0; }
   td { padding: 10px 15px; border-bottom: 1px solid #1a1a1a; vertical-align: middle; }
@@ -693,6 +707,9 @@ function filterTable() {
       badge(f.sent_blast_list, 'BL'),
     ].join('');
     const lastActive = f.last_message_at ? new Date(f.last_message_at).toLocaleDateString() : '—';
+    const blockBtn = f.is_blocked
+      ? `<button class="unblock" onclick="setBlock('${f.user_id}', false)">Unblock</button>`
+      : `<button class="block" onclick="setBlock('${f.user_id}', true)">Block</button>`;
     return `<tr>
       <td>${nameHtml}</td>
       <td>${f.location || '—'}</td>
@@ -701,7 +718,7 @@ function filterTable() {
       <td>${f.total_messages||0}</td>
       <td>${links}</td>
       <td>${lastActive}</td>
-      <td>${flags}</td>
+      <td>${flags} ${blockBtn}</td>
     </tr>`;
   }).join('');
 }
@@ -713,6 +730,18 @@ function badge(val, label) {
 function exportCSV() {
   const p = localStorage.getItem('dash_pass') || '';
   window.location = '/dashboard/export?password=' + encodeURIComponent(p);
+}
+
+function setBlock(user_id, block) {
+  const p = localStorage.getItem('dash_pass') || '';
+  fetch('/dashboard/block', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({user_id, block, password: p})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) loadDash();
+    else alert('Failed');
+  });
 }
 
 loadDash();
@@ -772,6 +801,17 @@ def dashboard_data():
             "top_city": top_city,
         }
     })
+
+
+@app.route("/dashboard/block", methods=["POST"])
+def dashboard_block():
+    data = request.get_json()
+    if data.get("password") != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    user_id = data.get("user_id")
+    block = data.get("block", True)
+    upsert_fan_profile(user_id, is_blocked=block)
+    return jsonify({"ok": True})
 
 
 @app.route("/dashboard/export")
@@ -842,6 +882,8 @@ def webhook():
                     elif text.endswith("!!"):
                         resume_user(fan_id)
                         print(f"Bot resumed for {fan_id}")
+                    elif text.strip() == ":)":
+                        block_user(fan_id)
                 continue
 
             # Grab name from webhook event if available
