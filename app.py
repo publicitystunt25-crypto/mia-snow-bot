@@ -839,6 +839,11 @@ def dashboard_export():
 
 # ── Webhook ───────────────────────────────────────────────────────────────────
 
+@app.route("/")
+def index():
+    return "Mia Snow Bot is running.", 200
+
+
 @app.route("/privacy")
 def privacy():
     return app.send_static_file("privacy_policy.html")
