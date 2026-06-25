@@ -391,6 +391,17 @@ def block_user(user_id):
     print(f"Fan blocked: {user_id}")
 
 
+def reset_conversation(user_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM messages WHERE user_id = %s", (user_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+    resume_user(user_id)
+    print(f"Conversation reset for {user_id}")
+
+
 def is_blocked(user_id):
     profile = get_fan_profile(user_id)
     return profile.get("is_blocked", False) if profile else False
@@ -913,6 +924,9 @@ def webhook():
                         print(f"Bot resumed for {fan_id}")
                     elif text.strip() == ":))":
                         block_user(fan_id)
+                    elif text.strip() == "~~":
+                        reset_conversation(fan_id)
+                        print(f"Conversation reset for {fan_id}")
                 continue
 
             # Grab name from webhook event if available
