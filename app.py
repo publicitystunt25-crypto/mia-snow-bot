@@ -924,7 +924,7 @@ def webhook():
                         print(f"Bot resumed for {fan_id}")
                     elif text.strip() == ":))":
                         block_user(fan_id)
-                    elif text.strip() == "~~":
+                    elif text.strip() == "!.":
                         reset_conversation(fan_id)
                         print(f"Conversation reset for {fan_id}")
                 continue
