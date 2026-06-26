@@ -989,21 +989,28 @@ def webhook():
 
             msg_obj = event.get("message", {})
             text = msg_obj.get("text")
-            is_story_reply = "reply_to" in msg_obj
-
-            # Story reply — send a smiley and wait for them to speak
-            if is_story_reply and not msg_obj.get("is_echo"):
-                if text:
-                    save_message(sender_id, "user", text)
-                profile = get_fan_profile(sender_id)
-                if not profile:
-                    fetched_name, fb_url = fetch_fb_name(sender_id)
-                    upsert_fan_profile(sender_id, fb_name=fetched_name, fb_url=fb_url)
-                send_message(sender_id, "😊")
-                continue
 
             if not text:
                 continue
+
+            if not msg_obj.get("is_echo"):
+                import re
+                # If message is only emojis, send an emoji back
+                emoji_only = re.fullmatch(r'[\U00010000-\U0010ffff☀-⟿︀-️\s]+', text)
+                if emoji_only:
+                    send_message(sender_id, "😊")
+                    continue
+
+                # No prior history = out of context message (likely story reply) — send smiley and wait
+                history = get_history(sender_id)
+                if not history:
+                    profile = get_fan_profile(sender_id)
+                    if not profile:
+                        fetched_name, fb_url = fetch_fb_name(sender_id)
+                        upsert_fan_profile(sender_id, fb_name=fetched_name, fb_url=fb_url)
+                    save_message(sender_id, "user", text)
+                    send_message(sender_id, "😊")
+                    continue
 
             # ── Echo: Mia typing from page ────────────────────────────────────
             if event.get("message", {}).get("is_echo"):
