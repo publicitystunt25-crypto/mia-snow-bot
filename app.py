@@ -888,11 +888,8 @@ def index():
     return "Mia Snow Bot is running.", 200
 
 
-@app.route("/admin/backfill-names")
+@app.route("/admin/backfill-names-x7k9")
 def backfill_names():
-    pwd = request.args.get("pwd", "")
-    if pwd != DASHBOARD_PASSWORD:
-        return "Unauthorized", 401
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
