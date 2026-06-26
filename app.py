@@ -703,13 +703,13 @@ function renderDash(data) {
       <table id="fanTable">
         <thead>
           <tr>
-            <th>Fan</th>
-            <th>Location</th>
-            <th>Vibe</th>
-            <th>Score</th>
-            <th>Messages</th>
+            <th onclick="sortTable('fb_name')" style="cursor:pointer">Fan ↕</th>
+            <th onclick="sortTable('location')" style="cursor:pointer">Location ↕</th>
+            <th onclick="sortTable('vibe')" style="cursor:pointer">Vibe ↕</th>
+            <th onclick="sortTable('fan_score')" style="cursor:pointer">Score ↕</th>
+            <th onclick="sortTable('total_messages')" style="cursor:pointer">Messages ↕</th>
             <th>Links Sent</th>
-            <th>Last Active</th>
+            <th onclick="sortTable('last_message_at')" style="cursor:pointer">Last Active ↕</th>
             <th>Last Message</th>
             <th>Flags</th>
           </tr>
@@ -722,6 +722,15 @@ function renderDash(data) {
   filterTable();
 }
 
+let _sortCol = 'fan_score';
+let _sortDir = -1;
+
+function sortTable(col) {
+  if (_sortCol === col) _sortDir *= -1;
+  else { _sortCol = col; _sortDir = -1; }
+  filterTable();
+}
+
 function filterTable() {
   const search = document.getElementById('search').value.toLowerCase();
   const vibe = document.getElementById('vibeFilter').value;
@@ -730,10 +739,14 @@ function filterTable() {
   let fans = [...window._fans];
   if (search) fans = fans.filter(f => (f.fb_name||'').toLowerCase().includes(search) || (f.location||'').toLowerCase().includes(search));
   if (vibe) fans = fans.filter(f => f.vibe === vibe);
+
+  const col = _sortCol || sort;
   fans.sort((a, b) => {
-    if (sort === 'fan_score') return (b.fan_score||0) - (a.fan_score||0);
-    if (sort === 'total_messages') return (b.total_messages||0) - (a.total_messages||0);
-    return new Date(b[sort]||0) - new Date(a[sort]||0);
+    let av = a[col], bv = b[col];
+    if (col === 'fan_score' || col === 'total_messages') return _sortDir * ((bv||0) - (av||0));
+    if (col === 'last_message_at' || col === 'first_message_at') return _sortDir * (new Date(bv||0) - new Date(av||0));
+    av = (av||'').toString().toLowerCase(); bv = (bv||'').toString().toLowerCase();
+    return _sortDir * (av < bv ? 1 : av > bv ? -1 : 0);
   });
 
   const tbody = document.getElementById('tbody');
