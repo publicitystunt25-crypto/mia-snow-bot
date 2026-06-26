@@ -272,6 +272,11 @@ def update_fan_after_message(user_id, messages):
     total = (profile.get("total_messages") or 0) + len(messages)
     updates = {"total_messages": total, "last_message_at": "NOW()"}
 
+    # Auto-pause fans who send over 100 messages — too much activity
+    if total >= 100 and not is_paused(user_id):
+        pause_user(user_id)
+        print(f"Auto-paused {user_id} after {total} messages")
+
     combined = " ".join(messages).lower()
 
     # Extract nickname if not already saved
