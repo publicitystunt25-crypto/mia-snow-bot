@@ -224,9 +224,19 @@ def upsert_fan_profile(user_id, **kwargs):
 
 
 def fetch_fb_name(user_id):
-    """Return profile URL — name must come from webhook event data."""
+    """Fetch the fan's name from Facebook Graph API."""
     fb_url = f"https://www.facebook.com/profile.php?id={user_id}"
-    return "", fb_url
+    try:
+        resp = requests.get(
+            f"https://graph.facebook.com/v19.0/{user_id}",
+            params={"fields": "name", "access_token": PAGE_ACCESS_TOKEN},
+            timeout=5
+        )
+        data = resp.json()
+        name = data.get("name", "")
+        return name, fb_url
+    except Exception:
+        return "", fb_url
 
 
 def extract_nickname(text):
@@ -937,10 +947,14 @@ def webhook():
             # Save name to profile if we have it
             profile = get_fan_profile(sender_id)
             if not profile:
-                fb_url = f"https://www.facebook.com/profile.php?id={sender_id}"
-                upsert_fan_profile(sender_id, fb_name=sender_name, fb_url=fb_url)
-            elif sender_name and not profile.get("fb_name"):
-                upsert_fan_profile(sender_id, fb_name=sender_name)
+                fetched_name, fb_url = fetch_fb_name(sender_id)
+                real_name = fetched_name or sender_name
+                upsert_fan_profile(sender_id, fb_name=real_name, fb_url=fb_url)
+            elif not profile.get("fb_name"):
+                fetched_name, _ = fetch_fb_name(sender_id)
+                real_name = fetched_name or sender_name
+                if real_name:
+                    upsert_fan_profile(sender_id, fb_name=real_name)
 
             with _pending_lock:
                 already_queued = sender_id in _pending
