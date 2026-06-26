@@ -738,7 +738,7 @@ function filterTable() {
     const score = f.fan_score || 1;
     const scoreClass = score >= 7 ? 'high' : score >= 4 ? 'mid' : 'low';
     const name = f.fb_name || f.user_id;
-    const nameHtml = name;
+    const nameHtml = `<a href="https://www.facebook.com/profile.php?id=${f.user_id}" target="_blank" style="color:inherit">${name}</a>`;
     const flags = [
       f.is_vip ? '<span class="vip">⭐ VIP</span>' : '',
       f.is_blocked ? '<span class="blocked">🚫 Blocked</span>' : '',
