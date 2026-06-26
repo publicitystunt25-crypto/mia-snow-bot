@@ -234,8 +234,10 @@ def fetch_fb_name(user_id):
         )
         data = resp.json()
         name = data.get("name", "")
+        print(f"fetch_fb_name {user_id}: {data}")
         return name, fb_url
-    except Exception:
+    except Exception as e:
+        print(f"fetch_fb_name error {user_id}: {e}")
         return "", fb_url
 
 
