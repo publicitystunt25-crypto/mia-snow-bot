@@ -991,6 +991,8 @@ def webhook():
             text = msg_obj.get("text")
 
             if not text:
+                if not msg_obj.get("is_echo"):
+                    send_message(sender_id, "😊")
                 continue
 
             if not msg_obj.get("is_echo"):
