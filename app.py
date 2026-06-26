@@ -486,7 +486,7 @@ _last_sent_lock = threading.Lock()
 def send_message(recipient_id, text):
     with _last_sent_lock:
         last = _last_sent.get(recipient_id, 0)
-        if time.time() - last < 30:
+        if time.time() - last < 5:
             print(f"Skipping send to {recipient_id} — sent too recently")
             return
         _last_sent[recipient_id] = time.time()
