@@ -973,8 +973,21 @@ def webhook():
         for event in entry.get("messaging", []):
             sender_id = event["sender"]["id"]
 
-            text = event.get("message", {}).get("text")
+            msg_obj = event.get("message", {})
+            text = msg_obj.get("text")
+            is_story_reply = "reply_to" in msg_obj
+
             if not text:
+                continue
+
+            # Story reply — send a smiley and store message but don't AI-respond yet
+            if is_story_reply and not msg_obj.get("is_echo"):
+                save_message(sender_id, "user", text)
+                profile = get_fan_profile(sender_id)
+                if not profile:
+                    fetched_name, fb_url = fetch_fb_name(sender_id)
+                    upsert_fan_profile(sender_id, fb_name=fetched_name, fb_url=fb_url)
+                send_message(sender_id, "😊")
                 continue
 
             # ── Echo: Mia typing from page ────────────────────────────────────
