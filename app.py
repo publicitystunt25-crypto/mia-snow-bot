@@ -830,11 +830,11 @@ def dashboard_data():
     cur.close()
     conn.close()
 
-    # Convert timestamps to strings
+    # Convert timestamps to strings with UTC marker so browser converts correctly
     for f in fans:
         for k in ["first_message_at", "last_message_at", "paused_at"]:
             if k in f and f[k]:
-                f[k] = str(f[k])
+                f[k] = str(f[k]).replace(" ", "T") + "Z"
 
     return jsonify({
         "fans": fans,
