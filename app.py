@@ -480,16 +480,7 @@ def needs_handoff(text):
 
 # ── Core logic ────────────────────────────────────────────────────────────────
 
-_last_sent = {}  # user_id -> timestamp of last sent message
-_last_sent_lock = threading.Lock()
-
 def send_message(recipient_id, text):
-    with _last_sent_lock:
-        last = _last_sent.get(recipient_id, 0)
-        if time.time() - last < 5:
-            print(f"Skipping send to {recipient_id} — sent too recently")
-            return
-        _last_sent[recipient_id] = time.time()
     url = "https://graph.facebook.com/v19.0/me/messages"
     headers = {"Content-Type": "application/json"}
     params = {"access_token": PAGE_ACCESS_TOKEN}
