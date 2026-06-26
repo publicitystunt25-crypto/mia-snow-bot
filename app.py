@@ -555,47 +555,47 @@ def handle_reply(sender_id):
     try:
         time.sleep(5)
 
-    if is_paused(sender_id) or is_blocked(sender_id):
+        if is_paused(sender_id) or is_blocked(sender_id):
+            with _pending_lock:
+                _pending.pop(sender_id, None)
+            return
+
         with _pending_lock:
-            _pending.pop(sender_id, None)
-        return
+            messages = _pending.pop(sender_id, [])
 
-    with _pending_lock:
-        messages = _pending.pop(sender_id, [])
+        if not messages:
+            return
 
-    if not messages:
-        return
+        # Ensure fan profile exists
+        profile = get_fan_profile(sender_id)
+        if not profile:
+            fb_url = f"https://www.facebook.com/profile.php?id={sender_id}"
+            upsert_fan_profile(sender_id, fb_url=fb_url)
 
-    # Ensure fan profile exists
-    profile = get_fan_profile(sender_id)
-    if not profile:
-        fb_url = f"https://www.facebook.com/profile.php?id={sender_id}"
-        upsert_fan_profile(sender_id, fb_url=fb_url)
+        for msg in messages:
+            save_message(sender_id, "user", msg)
+            if needs_handoff(msg):
+                notify_owner(sender_id, msg[:80])
 
-    for msg in messages:
-        save_message(sender_id, "user", msg)
-        if needs_handoff(msg):
-            notify_owner(sender_id, msg[:80])
+        update_fan_after_message(sender_id, messages)
 
-    update_fan_after_message(sender_id, messages)
+        history = get_history(sender_id)
+        reply = get_mia_reply(sender_id)
 
-    history = get_history(sender_id)
-    reply = get_mia_reply(sender_id)
+        if len(history) <= len(messages):
+            delay = random.randint(8, 12)
+        elif len(reply) > 100:
+            delay = random.randint(28, 38)
+        else:
+            delay = random.randint(23, 33)
 
-    if len(history) <= len(messages):
-        delay = random.randint(8, 12)
-    elif len(reply) > 100:
-        delay = random.randint(28, 38)
-    else:
-        delay = random.randint(23, 33)
+        time.sleep(delay)
 
-    time.sleep(delay)
+        if is_paused(sender_id) or is_blocked(sender_id):
+            return
 
-    if is_paused(sender_id) or is_blocked(sender_id):
-        return
-
-    save_message(sender_id, "assistant", reply)
-    send_message(sender_id, reply)
+        save_message(sender_id, "assistant", reply)
+        send_message(sender_id, reply)
     finally:
         with _pending_lock:
             _active_threads.discard(sender_id)
