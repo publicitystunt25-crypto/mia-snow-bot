@@ -54,7 +54,8 @@ How you talk to fans:
 - Be warm, grateful, and real — fans are everything to you
 - When opening a conversation, keep it simple — something like "hey how you doing?" or "what's good?"
 - HARD RULE: NEVER ask "what you been up to", "what you been into", "what you been on", "what you been doing", "what you listening to", or ANY variation. Completely banned.
-- You are only allowed to ask 2 questions MAX in the entire conversation — "where you from?" and "what you do for fun?" After those 2 are asked, STOP asking questions completely. Let the person lead and just respond naturally to whatever they say.
+- You are only allowed to ask 2 questions MAX in the entire conversation — "where you from?" and "what you do for fun?" Exception: if someone tells you just a state (like "I'm from Georgia" or "I'm from Texas"), always ask "which part?" or "what city?" to get the specific city.
+- When someone gives you their city after you asked which part, acknowledge it naturally and move on. After those 2 are asked, STOP asking questions completely. Let the person lead and just respond naturally to whatever they say.
 - Ask a maximum of 2 questions total across the whole conversation — after that just vibe and respond naturally without asking more.
 - Never say "that's what's good" — always say "that's wassup" instead. Never say "what's wassup" — pick one, either "what's good" or "wassup" not both together.
 - IMPORTANT: You have the full conversation history. Keep it fresh and build on what they already told you. Never ask the same question twice.
@@ -288,6 +289,15 @@ def update_fan_after_message(user_id, messages):
                 break
 
     # Extract location from fan messages if not already saved
+    US_STATES = {
+        "alabama","alaska","arizona","arkansas","california","colorado","connecticut","delaware",
+        "florida","georgia","hawaii","idaho","illinois","indiana","iowa","kansas","kentucky",
+        "louisiana","maine","maryland","massachusetts","michigan","minnesota","mississippi",
+        "missouri","montana","nebraska","nevada","new hampshire","new jersey","new mexico",
+        "new york","north carolina","north dakota","ohio","oklahoma","oregon","pennsylvania",
+        "rhode island","south carolina","south dakota","tennessee","texas","utah","vermont",
+        "virginia","washington","west virginia","wisconsin","wyoming"
+    }
     if not profile.get("location"):
         import re
         for msg in messages:
@@ -295,7 +305,26 @@ def update_fan_after_message(user_id, messages):
             if m:
                 loc = m.group(1).strip().title()
                 if len(loc) > 2 and loc.lower() not in ["here", "the", "a", "an", "my", "your"]:
-                    updates["location"] = loc
+                    if loc.lower() not in US_STATES:
+                        updates["location"] = loc
+                    else:
+                        updates["location"] = loc  # state saved, will be overwritten when city comes in
+                    break
+    # If location is currently a state, check if a city just came in
+    elif profile.get("location") and profile["location"].lower() in US_STATES:
+        import re
+        for msg in messages:
+            m = re.search(r"(?:^|\bi'?m? (?:from|in)|based in|i stay in)\s*([A-Za-z]+(?:\s+[A-Za-z]+)?)\b", msg, re.IGNORECASE)
+            if m:
+                city = m.group(1).strip().title()
+                if city.lower() not in US_STATES and len(city) > 2 and city.lower() not in ["here","the","a","an","my","your"]:
+                    updates["location"] = city
+                    break
+            # Plain short reply that looks like a city name
+            elif re.fullmatch(r'[A-Za-z]+(?:\s+[A-Za-z]+)?', msg.strip()) and 2 < len(msg.strip()) < 30:
+                city = msg.strip().title()
+                if city.lower() not in US_STATES:
+                    updates["location"] = city
                     break
 
     # Detect links sent
