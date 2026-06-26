@@ -708,6 +708,7 @@ function renderDash(data) {
             <th>Messages</th>
             <th>Links Sent</th>
             <th>Last Active</th>
+            <th>Last Message</th>
             <th>Flags</th>
           </tr>
         </thead>
@@ -765,6 +766,7 @@ function filterTable() {
       <td>${f.total_messages||0}</td>
       <td>${links}</td>
       <td>${lastActive}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.85em;color:#aaa" title="${(f.last_message||'').replace(/"/g,'&quot;')}">${f.last_message ? f.last_message.substring(0,60) + (f.last_message.length > 60 ? '…' : '') : '—'}</td>
       <td>${flags} ${blockBtn}</td>
     </tr>`;
   }).join('');
@@ -812,6 +814,17 @@ def dashboard_data():
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("SELECT * FROM fan_profiles ORDER BY fan_score DESC, last_message_at DESC")
     fans = [dict(r) for r in cur.fetchall()]
+
+    # Attach last fan message to each profile
+    cur.execute("""
+        SELECT DISTINCT ON (user_id) user_id, content
+        FROM messages
+        WHERE role = 'user'
+        ORDER BY user_id, created_at DESC
+    """)
+    last_msgs = {row["user_id"]: row["content"] for row in cur.fetchall()}
+    for f in fans:
+        f["last_message"] = last_msgs.get(f["user_id"], "")
 
     cur.execute("SELECT COUNT(*) as c FROM fan_profiles")
     total_fans = cur.fetchone()["c"]
