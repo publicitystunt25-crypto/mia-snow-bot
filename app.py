@@ -888,44 +888,43 @@ def index():
     return "Mia Snow Bot is running.", 200
 
 
+def _do_backfill():
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT user_id FROM fan_profiles WHERE fb_name IS NULL OR fb_name = ''")
+        fans = cur.fetchall()
+        cur.close()
+        updated = 0
+        for fan in fans:
+            uid = fan["user_id"]
+            try:
+                resp = requests.get(
+                    f"https://graph.facebook.com/v19.0/{uid}",
+                    params={"fields": "name", "access_token": PAGE_ACCESS_TOKEN},
+                    timeout=5
+                )
+                name = resp.json().get("name", "")
+                if name:
+                    c = conn.cursor()
+                    c.execute("UPDATE fan_profiles SET fb_name = %s WHERE user_id = %s", (name, uid))
+                    conn.commit()
+                    c.close()
+                    updated += 1
+                    print(f"Backfill: {uid} → {name}")
+            except Exception as e:
+                print(f"Backfill error {uid}: {e}")
+            time.sleep(0.3)
+        conn.close()
+        print(f"Backfill complete: {updated}/{len(fans)} updated")
+    except Exception as e:
+        print(f"Backfill failed: {e}")
+
+
 @app.route("/admin/backfill-names-x7k9")
 def backfill_names():
-
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT user_id FROM fan_profiles WHERE fb_name IS NULL OR fb_name = ''")
-    fans = cur.fetchall()
-    cur.close()
-
-    updated = 0
-    skipped = 0
-    log = []
-    for fan in fans:
-        uid = fan["user_id"]
-        try:
-            resp = requests.get(
-                f"https://graph.facebook.com/v19.0/{uid}",
-                params={"fields": "name", "access_token": PAGE_ACCESS_TOKEN},
-                timeout=5
-            )
-            name = resp.json().get("name", "")
-            if name:
-                c = conn.cursor()
-                c.execute("UPDATE fan_profiles SET fb_name = %s WHERE user_id = %s", (name, uid))
-                conn.commit()
-                c.close()
-                log.append(f"{uid} → {name}")
-                updated += 1
-            else:
-                skipped += 1
-        except Exception as e:
-            log.append(f"{uid} → ERROR: {e}")
-            skipped += 1
-        time.sleep(0.2)
-
-    conn.close()
-    result = f"Done. {updated} updated, {skipped} skipped.\n\n" + "\n".join(log)
-    return Response(result, mimetype="text/plain")
+    threading.Thread(target=_do_backfill, daemon=True).start()
+    return Response("Backfill started — check Render logs for progress.", mimetype="text/plain")
 
 
 @app.route("/privacy")
