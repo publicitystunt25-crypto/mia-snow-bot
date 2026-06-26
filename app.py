@@ -1011,6 +1011,7 @@ def webhook():
                         fetched_name, fb_url = fetch_fb_name(sender_id)
                         upsert_fan_profile(sender_id, fb_name=fetched_name, fb_url=fb_url)
                     save_message(sender_id, "user", text)
+                    save_message(sender_id, "assistant", "😊")
                     send_message(sender_id, "😊")
                     continue
 
