@@ -281,6 +281,17 @@ def update_fan_after_message(user_id, messages):
                 updates["nickname"] = name
                 break
 
+    # Extract location from fan messages if not already saved
+    if not profile.get("location"):
+        import re
+        for msg in messages:
+            m = re.search(r"(?:i'm from|im from|i am from|from|i live in|i'm in|im in|based in|based out of|i stay in|i stay out of)\s+([A-Z][a-zA-Z\s]+?)(?:\s*[,\.!?]|$)", msg, re.IGNORECASE)
+            if m:
+                loc = m.group(1).strip().title()
+                if len(loc) > 2 and loc.lower() not in ["here", "the", "a", "an", "my", "your"]:
+                    updates["location"] = loc
+                    break
+
     # Detect links sent
     if "spotify.com" in combined:
         updates["sent_spotify"] = True
