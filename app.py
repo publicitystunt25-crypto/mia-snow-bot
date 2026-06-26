@@ -751,7 +751,7 @@ function filterTable() {
       badge(f.sent_merch, 'M'),
       badge(f.sent_blast_list, 'BL'),
     ].join('');
-    const lastActive = f.last_message_at ? new Date(f.last_message_at).toLocaleString('en-US', {month:'numeric',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}) : '—';
+    const lastActive = f.last_message_at ? new Date(f.last_message_at).toLocaleString('en-US', {month:'numeric',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'America/New_York'}) : '—';
     const blockBtn = f.is_blocked
       ? `<button class="unblock" onclick="setBlock('${f.user_id}', false)">Unblock</button>`
       : `<button class="block" onclick="setBlock('${f.user_id}', true)">Block</button>`;
