@@ -138,6 +138,7 @@ client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 # ── Message batching ──────────────────────────────────────────────────────────
 _pending = {}
 _pending_lock = threading.Lock()
+_active_threads = set()  # user_ids currently being processed
 
 # ── Comment reply prompt ──────────────────────────────────────────────────────
 COMMENT_PROMPT = """You are Mia Snow, a melodic R&B and melodic rap artist from Jacksonville, FL. Someone just commented on one of your Facebook posts.
@@ -551,7 +552,8 @@ def get_mia_reply(user_id):
 
 
 def handle_reply(sender_id):
-    time.sleep(5)
+    try:
+        time.sleep(5)
 
     if is_paused(sender_id) or is_blocked(sender_id):
         with _pending_lock:
@@ -594,6 +596,9 @@ def handle_reply(sender_id):
 
     save_message(sender_id, "assistant", reply)
     send_message(sender_id, reply)
+    finally:
+        with _pending_lock:
+            _active_threads.discard(sender_id)
 
 
 def reply_to_comment(comment_id, text):
@@ -1098,14 +1103,16 @@ def webhook():
                     upsert_fan_profile(sender_id, fb_name=real_name)
 
             with _pending_lock:
-                already_queued = sender_id in _pending
-                if already_queued:
+                already_queued = sender_id in _pending or sender_id in _active_threads
+                if sender_id in _pending:
                     if text not in _pending[sender_id]:
                         _pending[sender_id].append(text)
                 else:
                     _pending[sender_id] = [text]
 
             if not already_queued:
+                with _pending_lock:
+                    _active_threads.add(sender_id)
                 threading.Thread(target=handle_reply, args=(sender_id,), daemon=True).start()
 
         # ── Handle post comments ──────────────────────────────────────────────
