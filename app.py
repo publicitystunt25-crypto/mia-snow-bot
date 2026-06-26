@@ -735,7 +735,7 @@ function filterTable() {
   tbody.innerHTML = fans.map(f => {
     const score = f.fan_score || 1;
     const scoreClass = score >= 7 ? 'high' : score >= 4 ? 'mid' : 'low';
-    const name = f.nickname || f.fb_name || f.user_id;
+    const name = f.fb_name || f.user_id;
     const nameHtml = name;
     const flags = [
       f.is_vip ? '<span class="vip">⭐ VIP</span>' : '',
@@ -751,7 +751,7 @@ function filterTable() {
       badge(f.sent_merch, 'M'),
       badge(f.sent_blast_list, 'BL'),
     ].join('');
-    const lastActive = f.last_message_at ? new Date(f.last_message_at).toLocaleDateString() : '—';
+    const lastActive = f.last_message_at ? new Date(f.last_message_at).toLocaleString('en-US', {month:'numeric',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}) : '—';
     const blockBtn = f.is_blocked
       ? `<button class="unblock" onclick="setBlock('${f.user_id}', false)">Unblock</button>`
       : `<button class="block" onclick="setBlock('${f.user_id}', true)">Block</button>`;
