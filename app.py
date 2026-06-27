@@ -2,6 +2,8 @@ import os
 import time
 import random
 import threading
+
+_REACTION_EMOJIS = ["😊", "🥰", "😍", "🤍", "😘", "👀", "😌", "💕"]
 import requests
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -1049,7 +1051,7 @@ def webhook():
 
             if not text:
                 if not msg_obj.get("is_echo"):
-                    send_message(sender_id, "😊")
+                    send_message(sender_id, random.choice(_REACTION_EMOJIS))
                 continue
 
             if not msg_obj.get("is_echo"):
@@ -1057,7 +1059,7 @@ def webhook():
                 # If message is only emojis, send an emoji back
                 emoji_only = re.fullmatch(r'[\U00010000-\U0010ffff☀-⟿︀-️\s]+', text)
                 if emoji_only:
-                    send_message(sender_id, "😊")
+                    send_message(sender_id, random.choice(_REACTION_EMOJIS))
                     continue
 
                 # No prior history = out of context message (likely story reply) — send smiley and wait
@@ -1067,9 +1069,10 @@ def webhook():
                     if not profile:
                         fetched_name, fb_url = fetch_fb_name(sender_id)
                         upsert_fan_profile(sender_id, fb_name=fetched_name, fb_url=fb_url)
+                    reaction = random.choice(_REACTION_EMOJIS)
                     save_message(sender_id, "user", text)
-                    save_message(sender_id, "assistant", "😊")
-                    send_message(sender_id, "😊")
+                    save_message(sender_id, "assistant", reaction)
+                    send_message(sender_id, reaction)
                     continue
 
             # ── Echo: Mia typing from page ────────────────────────────────────
