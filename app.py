@@ -599,6 +599,10 @@ def handle_reply(sender_id):
     finally:
         with _pending_lock:
             _active_threads.discard(sender_id)
+            # If new messages came in while we were processing, start a new thread
+            if sender_id in _pending and _pending[sender_id]:
+                _active_threads.add(sender_id)
+                threading.Thread(target=handle_reply, args=(sender_id,), daemon=True).start()
 
 
 def reply_to_comment(comment_id, text):
