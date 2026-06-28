@@ -400,6 +400,26 @@ def update_fan_after_message(user_id, messages):
     conn.close()
 
 
+def unanswered_message_count(user_id):
+    """Count how many consecutive user messages have come in since the last assistant reply."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT role FROM messages WHERE user_id = %s ORDER BY id DESC LIMIT 20",
+        (user_id,)
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    count = 0
+    for (role,) in rows:
+        if role == "user":
+            count += 1
+        else:
+            break
+    return count
+
+
 # ── Conversation history ──────────────────────────────────────────────────────
 
 def get_history(user_id):
@@ -610,14 +630,29 @@ def handle_reply(sender_id):
         profile = get_fan_profile(sender_id)
         funnel_complete = profile and profile.get("sent_blast_list")
 
+        # Check if we're in the "let them reach out twice" window
+        # Applies when funnel is done AND they've been talking for 2+ days
+        in_quiet_period = False
+        if funnel_complete and profile.get("first_message_at"):
+            import datetime as _dt
+            try:
+                age = (_dt.datetime.utcnow().replace(tzinfo=_dt.timezone.utc) - profile["first_message_at"]).total_seconds()
+                if age >= 172800:  # 2+ days
+                    in_quiet_period = True
+            except Exception:
+                pass
+
+        if in_quiet_period:
+            unanswered = unanswered_message_count(sender_id)
+            # Only respond once they've reached out a second time (2+ unanswered messages)
+            if unanswered < 2:
+                return  # stay quiet, let them reach out again
+
         history = get_history(sender_id)
         reply = get_mia_reply(sender_id)
 
-        # After funnel is complete, Mia is harder to reach — longer delays, shorter replies
+        # After funnel is complete, Mia is harder to reach — longer delays, warm but brief
         if funnel_complete:
-            # Randomly skip responding entirely ~30% of the time (she's living her life)
-            if random.random() < 0.30:
-                return
             delay = random.randint(120, 600)  # 2-10 min delay after funnel complete
             # Warm "just saw this" openers so the delay feels natural
             late_openers = [
