@@ -554,6 +554,7 @@ def get_mia_reply(user_id):
             facts.append("Already sent merch link — don't send again")
         if profile.get("sent_blast_list"):
             facts.append("Already sent blast list link — don't send again")
+            facts.append("FUNNEL COMPLETE: You've already connected with this person and shared your music and blast list. Keep replies short and warm — 1 sentence max. You're living your life, not sitting by the phone. You still love them but you're busy and that's real. Don't start new topics or ask questions. Just respond warmly to whatever they say and keep it moving.")
         # Music feedback nudge — if music was shared but feedback not yet asked
         if profile.get("sent_spotify") and not profile.get("asked_about_music_feedback"):
             facts.append("MUSIC FEEDBACK DUE: You shared your music with this person already. If it comes up naturally, ask what they thought and which song was their favorite. Don't force it — only bring it up if the conversation allows it.")
@@ -606,10 +607,32 @@ def handle_reply(sender_id):
 
         update_fan_after_message(sender_id, messages)
 
+        profile = get_fan_profile(sender_id)
+        funnel_complete = profile and profile.get("sent_blast_list")
+
         history = get_history(sender_id)
         reply = get_mia_reply(sender_id)
 
-        if len(history) <= len(messages):
+        # After funnel is complete, Mia is harder to reach — longer delays, shorter replies
+        if funnel_complete:
+            # Randomly skip responding entirely ~30% of the time (she's living her life)
+            if random.random() < 0.30:
+                return
+            delay = random.randint(120, 600)  # 2-10 min delay after funnel complete
+            # Warm "just saw this" openers so the delay feels natural
+            late_openers = [
+                "omg i just saw this 🤍 ",
+                "been running around all day, just got a sec — ",
+                "sorry for the late reply fr, it's been crazy — ",
+                "you know i always come back tho 😌 ",
+                "just got a min — ",
+                "",  # sometimes no opener, just respond normally
+                "",
+            ]
+            opener = random.choice(late_openers)
+            if opener:
+                reply = opener + reply[0].lower() + reply[1:]
+        elif len(history) <= len(messages):
             delay = random.randint(8, 12)
         elif len(reply) > 100:
             delay = random.randint(28, 38)
