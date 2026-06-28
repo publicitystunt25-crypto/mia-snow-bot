@@ -400,6 +400,20 @@ def update_fan_after_message(user_id, messages):
     conn.close()
 
 
+def messages_today(user_id):
+    """Count total messages (user + assistant) exchanged today for this user."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT COUNT(*) FROM messages WHERE user_id = %s AND created_at >= NOW() - INTERVAL '24 hours'",
+        (user_id,)
+    )
+    count = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    return count
+
+
 def unanswered_message_count(user_id):
     """Count how many consecutive user messages have come in since the last assistant reply."""
     conn = get_conn()
@@ -648,6 +662,9 @@ def handle_reply(sender_id):
             if unanswered < 2:
                 return  # stay quiet, let them reach out again
 
+        today_count = messages_today(sender_id)
+        high_volume_day = today_count >= 20
+
         history = get_history(sender_id)
         reply = get_mia_reply(sender_id)
 
@@ -667,6 +684,8 @@ def handle_reply(sender_id):
             opener = random.choice(late_openers)
             if opener:
                 reply = opener + reply[0].lower() + reply[1:]
+        elif high_volume_day:
+            delay = 1200  # 20 min flat after 20+ messages in a day
         elif len(history) <= len(messages):
             delay = random.randint(8, 12)
         elif len(reply) > 100:
