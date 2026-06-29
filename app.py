@@ -656,7 +656,11 @@ def handle_reply(sender_id):
             except Exception:
                 pass
 
-        if in_quiet_period:
+        # Business messages always bypass quiet period — never ignore a collab/booking inquiry
+        combined_text = " ".join(messages).lower()
+        is_business = any(w in combined_text for w in ["collab", "music work", "feature", "booking", "book", "work together", "do sum music", "do some music", "studio", "record"])
+
+        if in_quiet_period and not is_business:
             unanswered = unanswered_message_count(sender_id)
             # Only respond once they've reached out a second time (2+ unanswered messages)
             if unanswered < 2:
