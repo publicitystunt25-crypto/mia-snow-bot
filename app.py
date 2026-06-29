@@ -660,11 +660,20 @@ def handle_reply(sender_id):
         combined_text = " ".join(messages).lower()
         is_business = any(w in combined_text for w in ["collab", "music work", "feature", "booking", "book", "work together", "do sum music", "do some music", "studio", "record"])
 
+        unanswered = unanswered_message_count(sender_id)
+        print(f"[handle_reply] {sender_id} unanswered={unanswered} funnel={funnel_complete} quiet={in_quiet_period} business={is_business}")
+
+        # Safety net — never ignore someone 5+ times in a row
+        if unanswered >= 5:
+            in_quiet_period = False
+
         if in_quiet_period and not is_business:
-            unanswered = unanswered_message_count(sender_id)
-            # Only respond once they've reached out a second time (2+ unanswered messages)
-            if unanswered < 2:
+            # Skip the first message in a new session — respond on the second reach out
+            if unanswered < 3:
+                print(f"[quiet_period] staying quiet for {sender_id}")
                 return  # stay quiet, let them reach out again
+
+        print(f"[handle_reply] responding to {sender_id} funnel={funnel_complete} in_quiet={in_quiet_period}")
 
         today_count = messages_today(sender_id)
         high_volume_day = today_count >= 20
