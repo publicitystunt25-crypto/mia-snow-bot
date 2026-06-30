@@ -1319,15 +1319,30 @@ def webhook():
 
             if not text:
                 if not msg_obj.get("is_echo"):
-                    send_message(sender_id, random.choice(_REACTION_EMOJIS))
+                    # Check recent history to prevent emoji loops
+                    recent = get_history(sender_id)
+                    recent_roles = [m["role"] for m in recent[-4:]] if recent else []
+                    emoji_exchanges = sum(1 for r in recent_roles if r == "assistant")
+                    if emoji_exchanges < 2:
+                        reaction = random.choice(_REACTION_EMOJIS)
+                        save_message(sender_id, "user", "[attachment]")
+                        save_message(sender_id, "assistant", reaction)
+                        send_message(sender_id, reaction)
                 continue
 
             if not msg_obj.get("is_echo"):
                 import re
-                # If message is only emojis, send an emoji back
+                # If message is only emojis, send an emoji back — but cap at 2 exchanges
                 emoji_only = re.fullmatch(r'[\U00010000-\U0010ffff☀-⟿︀-️\s]+', text)
                 if emoji_only:
-                    send_message(sender_id, random.choice(_REACTION_EMOJIS))
+                    recent = get_history(sender_id)
+                    # Count how many of the last 6 messages were assistant emoji replies
+                    recent_assistant = [m for m in (recent[-6:] if recent else []) if m["role"] == "assistant"]
+                    if len(recent_assistant) < 2:
+                        reaction = random.choice(_REACTION_EMOJIS)
+                        save_message(sender_id, "user", text)
+                        save_message(sender_id, "assistant", reaction)
+                        send_message(sender_id, reaction)
                     continue
 
                 # No prior history = out of context message (likely story reply) — send smiley and wait
