@@ -1139,7 +1139,7 @@ def dashboard_fans_api():
         return jsonify({"error": "unauthorized"}), 401
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT user_id, fb_name, nickname, location, vibe, fan_score, total_messages, sent_spotify, sent_youtube, sent_onlyfans, sent_merch, sent_blast_list, on_blast_list, is_vip, is_girl_code, is_blocked, listened_to_music, asked_about_music_feedback, first_message_at, last_message_at FROM fan_profiles ORDER BY last_message_at DESC NULLS LAST")
+    cur.execute("SELECT user_id, fb_name, nickname, location, vibe, fan_score, total_messages, sent_spotify, sent_youtube, sent_onlyfans, sent_merch, sent_blast_list, on_blast_list, is_vip, is_girl_code, is_blocked, first_message_at, last_message_at FROM fan_profiles ORDER BY last_message_at DESC NULLS LAST")
     fans = [dict(r) for r in cur.fetchall()]
     cur.close()
     conn.close()
