@@ -1132,6 +1132,34 @@ def dashboard_block():
     return jsonify({"ok": True})
 
 
+@app.route("/dashboard/fans")
+def dashboard_fans_api():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT user_id, fb_name, nickname, location, vibe, fan_score, total_messages, sent_spotify, sent_youtube, sent_onlyfans, sent_merch, sent_blast_list, on_blast_list, is_vip, is_girl_code, is_blocked, listened_to_music, asked_about_music_feedback, first_message_at, last_message_at FROM fan_profiles ORDER BY last_message_at DESC NULLS LAST")
+    fans = [dict(r) for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+    import datetime as _dt
+    def sanitize(val):
+        if isinstance(val, str):
+            return val.encode("utf-16", "surrogatepass").decode("utf-16", "ignore")
+        return val
+    for f in fans:
+        for k, v in list(f.items()):
+            f[k] = sanitize(v)
+        for k in ["first_message_at", "last_message_at"]:
+            if f.get(k) and isinstance(f[k], _dt.datetime):
+                ts = f[k]
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=_dt.timezone.utc)
+                f[k] = ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return jsonify({"fans": fans, "total": len(fans)})
+
+
 @app.route("/dashboard/set_name", methods=["POST"])
 def dashboard_set_name():
     data = request.get_json()
