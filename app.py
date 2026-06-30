@@ -131,6 +131,7 @@ If you or the fan says goodnight, good night, gn, or any variation of signing of
 If someone is genuinely aggressive, threatening, directly disrespectful, or repeatedly curses you out in an attacking way — just stop responding. Do not say anything. Do not say "take care", do not say "i'm not responding", do not say "alright i'm gonna leave it here" — just go silent. Never announce that you're done with the conversation. IMPORTANT: Do NOT trigger this for flirty comments, compliments, short one-word replies, or anything that is just playful or sexual in tone. "Juicy", "damn", "sheesh", "you fine" — those are NOT reasons to cut someone off. Only use this for actual threats or real disrespect.
 IMPORTANT: Do NOT use the "take care" cutoff on fans who are just skeptical, asking questions, or doubting if it's really you. That is NOT aggression. If someone keeps insisting it's not really you or thinks you're fake, lead them to IG instead — say something like "lol i don't be on here like that, hit me on IG @therealmiasnow and you'll see it's really me fr" — make it feel natural like you're just not that active on Facebook.
 Never end a sentence with "yeah?" — that is not how Mia talks.
+HARD RULE: Never say "i love you" or "love you" to anyone — ever. Not even in response to a fan saying it to you. You can say "i appreciate that", "that means a lot", "aww 🤍", "much love" — but never "i love you" or "love you" directly back. That crosses a line and gives the wrong impression.
 Never sound like a motivational speaker — avoid phrases like "laughter is healing", "keep spreading that", "you got that good energy", "people need that around them", or anything that sounds like an Instagram caption or life coach. Just talk like a real person.
 Never say "haha" — use "lol" or a laughing emoji instead to show laughter.
 Never say "yooo" or "yoooo" — say "Heyyy" instead when greeting someone.
@@ -972,11 +973,12 @@ function filterTable() {
       f.on_blast_list ? '<span style="color:#4ade80;font-size:11px">📋 Blast</span>' : '',
     ].filter(Boolean).join(' ');
     const links = [
-      badge(f.sent_spotify, 'S'),
-      badge(f.sent_youtube, 'Y'),
-      badge(f.sent_onlyfans, 'OF'),
-      badge(f.sent_merch, 'M'),
-      badge(f.sent_blast_list, 'BL'),
+      clickBadge(f.user_id, 'sent_spotify', f.sent_spotify, 'Music'),
+      clickBadge(f.user_id, 'sent_youtube', f.sent_youtube, 'YouTube'),
+      clickBadge(f.user_id, 'sent_onlyfans', f.sent_onlyfans, 'OF'),
+      clickBadge(f.user_id, 'sent_merch', f.sent_merch, 'Merch'),
+      clickBadge(f.user_id, 'sent_blast_list', f.sent_blast_list, 'Blast'),
+      clickBadge(f.user_id, 'listened_to_music', f.listened_to_music, 'Listened'),
     ].join('');
     const lastActive = f.last_message_at ? new Date(f.last_message_at).toLocaleString('en-US', {month:'numeric',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'America/New_York'}) : '—';
     const blockBtn = f.is_blocked
@@ -998,6 +1000,22 @@ function filterTable() {
 
 function badge(val, label) {
   return `<span class="badge ${val ? 'on' : 'off'}" title="${label}">${label[0]}</span>`;
+}
+
+function toggleFlag(user_id, flag, currentVal) {
+  const p = localStorage.getItem('dash_pass') || '';
+  fetch('/dashboard/set_flag', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({user_id, flag, value: !currentVal, password: p})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) loadDash();
+    else alert('Failed');
+  });
+}
+
+function clickBadge(user_id, flag, val, label) {
+  return `<span class="badge ${val ? 'on' : 'off'}" title="Click to toggle ${label}" style="cursor:pointer" onclick="toggleFlag('${user_id}','${flag}',${val})">${label[0]}</span>`;
 }
 
 function exportCSV() {
@@ -1129,6 +1147,26 @@ def dashboard_block():
     user_id = data.get("user_id")
     block = data.get("block", True)
     upsert_fan_profile(user_id, is_blocked=block)
+    return jsonify({"ok": True})
+
+
+@app.route("/dashboard/set_flag", methods=["POST"])
+def dashboard_set_flag():
+    data = request.get_json()
+    if data.get("password") != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    user_id = data.get("user_id")
+    flag = data.get("flag")
+    value = data.get("value", True)
+    allowed = ["sent_spotify", "sent_youtube", "sent_blast_list", "sent_onlyfans", "sent_merch", "listened_to_music", "on_blast_list", "is_vip"]
+    if not user_id or flag not in allowed:
+        return jsonify({"error": "invalid flag"}), 400
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(f"UPDATE fan_profiles SET {flag} = %s WHERE user_id = %s", (value, user_id))
+    conn.commit()
+    cur.close()
+    conn.close()
     return jsonify({"ok": True})
 
 
