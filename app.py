@@ -207,6 +207,7 @@ def init_db():
             bought_merch BOOLEAN DEFAULT FALSE,
             asked_about_shows BOOLEAN DEFAULT FALSE,
             asked_about_music_feedback BOOLEAN DEFAULT FALSE,
+            listened_to_music BOOLEAN DEFAULT FALSE,
             is_girl_code BOOLEAN DEFAULT FALSE,
             is_vip BOOLEAN DEFAULT FALSE,
             is_blocked BOOLEAN DEFAULT FALSE,
@@ -367,6 +368,20 @@ def update_fan_after_message(user_id, messages):
     elif any(w in combined for w in sexual_words):
         updates["vibe"] = "flirty"
     elif "music" in combined or "song" in combined or "spotify" in combined:
+        updates["vibe"] = "music_fan"
+
+    # Detect if fan has listened to music based on their messages
+    user_text = " ".join(messages).lower()
+    listened_phrases = [
+        "i listened", "just listened", "i checked it out", "checked it out",
+        "i fw it", "fw it", "i fw", "it's good", "its good", "i like it",
+        "i love it", "i love your music", "i fw your music", "i been listening",
+        "been listening", "heard it", "i heard it", "already heard", "i played it",
+        "played it", "i streamed", "streamed it", "watched the video", "watched your video",
+        "favorite song", "favourite song", "my favorite", "that song", "which song"
+    ]
+    if any(p in user_text for p in listened_phrases):
+        updates["listened_to_music"] = True
         updates["vibe"] = "music_fan"
 
     # Show interest
@@ -578,6 +593,16 @@ def get_mia_reply(user_id):
             facts.append("Member of The Girl Code group")
         if profile.get("is_vip"):
             facts.append("VIP super fan — treat with extra warmth")
+        # Vibe context
+        vibe = profile.get("vibe", "new")
+        if vibe == "music_fan":
+            facts.append("This person is already a music fan — they came in interested in music. Don't oversell it, just vibe naturally.")
+
+        # Listened status
+        if profile.get("listened_to_music"):
+            facts.append("CONFIRMED LISTENER: This person has already listened to your music. Do NOT send the music link again. Instead ask what they thought or which song was their favorite if you haven't already.")
+
+        # Links already sent
         sent_links = []
         if profile.get("sent_spotify"):
             sent_links.append("music link (https://linktr.ee/therealmiasnow1)")
@@ -590,7 +615,9 @@ def get_mia_reply(user_id):
         if profile.get("sent_blast_list"):
             sent_links.append("blast list link (https://forms.gle/veUFhGiHetDFr1kk6)")
         if sent_links:
-            facts.append(f"HARD RULE — Links already sent to this person: {', '.join(sent_links)}. Do NOT send any of these links again under any circumstances. If they ask about any of them, acknowledge it warmly but do not re-drop the link.")
+            already_listened = profile.get("listened_to_music")
+            music_note = " They have confirmed they listened so do NOT resend the music link." if already_listened and "music link" in " ".join(sent_links) else " Only resend the music link if it's clear from the conversation they have NOT listened yet."
+            facts.append(f"HARD RULE — Links already sent to this person: {', '.join(sent_links)}.{music_note} Do NOT resend any other links under any circumstances.")
         if profile.get("sent_blast_list"):
             facts.append("FUNNEL COMPLETE: You've already connected with this person and shared your music and blast list. Keep replies short and warm — 1 sentence max. You're living your life, not sitting by the phone. You still love them but you're busy and that's real. Don't start new topics or ask questions. Just respond warmly to whatever they say and keep it moving.")
         # Music feedback nudge — if music was shared but feedback not yet asked
