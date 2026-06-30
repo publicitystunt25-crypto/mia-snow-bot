@@ -942,7 +942,7 @@ function filterTable() {
   const sort = document.getElementById('sortBy').value;
 
   let fans = [...window._fans];
-  if (search) fans = fans.filter(f => (f.fb_name||f.nickname||'').toLowerCase().includes(search) || (f.location||'').toLowerCase().includes(search));
+  if (search) fans = fans.filter(f => (f.fb_name||f.nickname||'').toLowerCase().includes(search) || (f.location||'').toLowerCase().includes(search) || (f.user_id||'').includes(search));
   if (vibe) fans = fans.filter(f => f.vibe === vibe);
 
   const col = _sortCol || sort;
