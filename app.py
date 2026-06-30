@@ -898,9 +898,9 @@ function renderDash(data) {
         <option value="new">New</option>
       </select>
       <select id="sortBy" onchange="filterTable()">
+        <option value="last_message_at" selected>Sort: Last Active</option>
         <option value="fan_score">Sort: Fan Score</option>
         <option value="total_messages">Sort: Messages</option>
-        <option value="last_message_at">Sort: Last Active</option>
         <option value="first_message_at">Sort: First Seen</option>
       </select>
       <button class="export" onclick="exportCSV()">⬇ Export CSV</button>
