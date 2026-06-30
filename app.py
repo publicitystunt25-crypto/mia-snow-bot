@@ -578,16 +578,20 @@ def get_mia_reply(user_id):
             facts.append("Member of The Girl Code group")
         if profile.get("is_vip"):
             facts.append("VIP super fan — treat with extra warmth")
+        sent_links = []
         if profile.get("sent_spotify"):
-            facts.append("Already sent Spotify link — don't send again")
+            sent_links.append("music link (https://linktr.ee/therealmiasnow1)")
         if profile.get("sent_youtube"):
-            facts.append("Already sent YouTube link — don't send again")
+            sent_links.append("YouTube link")
         if profile.get("sent_onlyfans"):
-            facts.append("Already sent exclusive content link — don't send again")
+            sent_links.append("exclusive content link (https://linktr.ee/msnow1)")
         if profile.get("sent_merch"):
-            facts.append("Already sent merch link — don't send again")
+            sent_links.append("merch link")
         if profile.get("sent_blast_list"):
-            facts.append("Already sent blast list link — don't send again")
+            sent_links.append("blast list link (https://forms.gle/veUFhGiHetDFr1kk6)")
+        if sent_links:
+            facts.append(f"HARD RULE — Links already sent to this person: {', '.join(sent_links)}. Do NOT send any of these links again under any circumstances. If they ask about any of them, acknowledge it warmly but do not re-drop the link.")
+        if profile.get("sent_blast_list"):
             facts.append("FUNNEL COMPLETE: You've already connected with this person and shared your music and blast list. Keep replies short and warm — 1 sentence max. You're living your life, not sitting by the phone. You still love them but you're busy and that's real. Don't start new topics or ask questions. Just respond warmly to whatever they say and keep it moving.")
         # Music feedback nudge — if music was shared but feedback not yet asked
         if profile.get("sent_spotify") and not profile.get("asked_about_music_feedback"):
