@@ -1034,11 +1034,22 @@ def dashboard_data():
     cur.close()
     conn.close()
 
-    # Convert timestamps to strings with UTC marker so browser converts correctly
+    # Convert timestamps to ISO strings with UTC marker so browser converts to local time correctly
+    import datetime as _dt
     for f in fans:
         for k in ["first_message_at", "last_message_at", "paused_at"]:
             if k in f and f[k]:
-                f[k] = str(f[k]).replace(" ", "T") + "Z"
+                ts = f[k]
+                if isinstance(ts, _dt.datetime):
+                    # Make sure it's UTC-aware then format as ISO with Z
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=_dt.timezone.utc)
+                    f[k] = ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+                else:
+                    # Already a string — strip any existing offset and add Z
+                    s = str(ts).replace(" ", "T")
+                    s = s.split("+")[0].split("-0")[0].rstrip("Z") + "Z"
+                    f[k] = s
 
     return jsonify({
         "fans": fans,
