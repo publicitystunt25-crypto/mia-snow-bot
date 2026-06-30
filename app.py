@@ -1336,13 +1336,18 @@ def webhook():
                 emoji_only = re.fullmatch(r'[\U00010000-\U0010ffff☀-⟿︀-️\s]+', text)
                 if emoji_only:
                     recent = get_history(sender_id)
-                    # Count how many of the last 6 messages were assistant emoji replies
                     recent_assistant = [m for m in (recent[-6:] if recent else []) if m["role"] == "assistant"]
                     if len(recent_assistant) < 2:
                         reaction = random.choice(_REACTION_EMOJIS)
+                        # First emoji exchange — add a hey to open the door
+                        if not recent_assistant:
+                            greetings = ["hey 😊", "heyyy 🤍", "hey you 👀", "hey 😌"]
+                            reply = random.choice(greetings)
+                        else:
+                            reply = reaction
                         save_message(sender_id, "user", text)
-                        save_message(sender_id, "assistant", reaction)
-                        send_message(sender_id, reaction)
+                        save_message(sender_id, "assistant", reply)
+                        send_message(sender_id, reply)
                     continue
 
                 # No prior history = out of context message (likely story reply) — send smiley and wait
