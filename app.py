@@ -958,11 +958,11 @@ function filterTable() {
   tbody.innerHTML = fans.map(f => {
     const score = f.fan_score || 1;
     const scoreClass = score >= 7 ? 'high' : score >= 4 ? 'mid' : 'low';
-    const name = f.fb_name || f.nickname || f.user_id;
-    const displayName = (f.fb_name || f.nickname) ? name : `<span style="color:#666;font-size:11px">${f.user_id}</span>`;
+    const name = f.fb_name || f.nickname || '';
+    const displayName = name ? `<a href="https://www.facebook.com/messages/t/${f.user_id}" target="_blank" style="color:inherit">${name}</a>` : `<a href="https://www.facebook.com/messages/t/${f.user_id}" target="_blank" style="color:#555;font-style:italic">unnamed</a>`;
     const nameHtml = `<span style="display:flex;align-items:center;gap:6px">
-      <a href="https://www.facebook.com/messages/t/${f.user_id}" target="_blank" style="color:inherit">${displayName}</a>
-      <span onclick="editName('${f.user_id}', '${(f.fb_name||f.nickname||'').replace(/'/g,"\\'")}', this)" style="cursor:pointer;opacity:0.4;font-size:11px" title="Edit name">✏️</span>
+      ${displayName}
+      <span onclick="editName('${f.user_id}', '${name.replace(/'/g,"\\'")}', this)" style="cursor:pointer;opacity:0.4;font-size:11px" title="Edit name">✏️</span>
     </span>`;
     const flags = [
       f.is_vip ? '<span class="vip">⭐ VIP</span>' : '',
