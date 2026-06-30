@@ -942,7 +942,7 @@ function filterTable() {
   const sort = document.getElementById('sortBy').value;
 
   let fans = [...window._fans];
-  if (search) fans = fans.filter(f => (f.fb_name||'').toLowerCase().includes(search) || (f.location||'').toLowerCase().includes(search));
+  if (search) fans = fans.filter(f => (f.fb_name||f.nickname||'').toLowerCase().includes(search) || (f.location||'').toLowerCase().includes(search));
   if (vibe) fans = fans.filter(f => f.vibe === vibe);
 
   const col = _sortCol || sort;
@@ -958,8 +958,12 @@ function filterTable() {
   tbody.innerHTML = fans.map(f => {
     const score = f.fan_score || 1;
     const scoreClass = score >= 7 ? 'high' : score >= 4 ? 'mid' : 'low';
-    const name = f.fb_name || f.user_id;
-    const nameHtml = `<a href="https://www.facebook.com/messages/t/${f.user_id}" target="_blank" style="color:inherit">${name}</a>`;
+    const name = f.fb_name || f.nickname || f.user_id;
+    const displayName = (f.fb_name || f.nickname) ? name : `<span style="color:#666;font-size:11px">${f.user_id}</span>`;
+    const nameHtml = `<span style="display:flex;align-items:center;gap:6px">
+      <a href="https://www.facebook.com/messages/t/${f.user_id}" target="_blank" style="color:inherit">${displayName}</a>
+      <span onclick="editName('${f.user_id}', '${(f.fb_name||f.nickname||'').replace(/'/g,"\\'")}', this)" style="cursor:pointer;opacity:0.4;font-size:11px" title="Edit name">✏️</span>
+    </span>`;
     const flags = [
       f.is_vip ? '<span class="vip">⭐ VIP</span>' : '',
       f.is_blocked ? '<span class="blocked">🚫 Blocked</span>' : '',
@@ -999,6 +1003,20 @@ function badge(val, label) {
 function exportCSV() {
   const p = localStorage.getItem('dash_pass') || '';
   window.location = '/dashboard/export?password=' + encodeURIComponent(p);
+}
+
+function editName(user_id, currentName, el) {
+  const newName = prompt('Enter name for this fan:', currentName);
+  if (newName === null) return;
+  const p = localStorage.getItem('dash_pass') || '';
+  fetch('/dashboard/set_name', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({user_id, name: newName.trim(), password: p})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) loadDash();
+    else alert('Failed to save name');
+  });
 }
 
 function setBlock(user_id, block) {
@@ -1111,6 +1129,24 @@ def dashboard_block():
     user_id = data.get("user_id")
     block = data.get("block", True)
     upsert_fan_profile(user_id, is_blocked=block)
+    return jsonify({"ok": True})
+
+
+@app.route("/dashboard/set_name", methods=["POST"])
+def dashboard_set_name():
+    data = request.get_json()
+    if data.get("password") != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    user_id = data.get("user_id")
+    name = data.get("name", "").strip()
+    if not user_id:
+        return jsonify({"error": "missing user_id"}), 400
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE fan_profiles SET fb_name = %s WHERE user_id = %s", (name, user_id))
+    conn.commit()
+    cur.close()
+    conn.close()
     return jsonify({"ok": True})
 
 
