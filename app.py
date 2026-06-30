@@ -1034,9 +1034,18 @@ def dashboard_data():
     cur.close()
     conn.close()
 
+    def sanitize(val):
+        """Remove lone surrogate characters that break JSON serialization."""
+        if isinstance(val, str):
+            return val.encode("utf-16", "surrogatepass").decode("utf-16", "ignore")
+        return val
+
     # Convert timestamps to ISO strings with UTC marker so browser converts to local time correctly
     import datetime as _dt
     for f in fans:
+        # Sanitize all string fields to remove broken emoji/unicode
+        for k, v in list(f.items()):
+            f[k] = sanitize(v)
         for k in ["first_message_at", "last_message_at", "paused_at"]:
             if k in f and f[k]:
                 ts = f[k]
