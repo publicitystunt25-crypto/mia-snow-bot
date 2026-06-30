@@ -896,7 +896,7 @@ function renderDash(data) {
   filterTable();
 }
 
-let _sortCol = 'fan_score';
+let _sortCol = 'last_message_at';
 let _sortDir = -1;
 
 function sortTable(col) {
@@ -1001,7 +1001,7 @@ def dashboard_data():
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT * FROM fan_profiles ORDER BY fan_score DESC, last_message_at DESC")
+    cur.execute("SELECT * FROM fan_profiles ORDER BY last_message_at DESC NULLS LAST")
     fans = [dict(r) for r in cur.fetchall()]
 
     # Attach last fan message to each profile
