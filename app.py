@@ -959,7 +959,7 @@ function filterTable() {
     const score = f.fan_score || 1;
     const scoreClass = score >= 7 ? 'high' : score >= 4 ? 'mid' : 'low';
     const name = f.fb_name || f.nickname || '';
-    const displayName = name ? `<a href="https://www.facebook.com/messages/t/${f.user_id}" target="_blank" style="color:inherit">${name}</a>` : `<a href="https://www.facebook.com/messages/t/${f.user_id}" target="_blank" style="color:#555;font-style:italic">unnamed</a>`;
+    const displayName = name ? `<a href="https://www.facebook.com/messages/t/${f.user_id}" target="_blank" style="color:inherit">${name}</a>` : `<a href="https://www.facebook.com/messages/t/${f.user_id}" target="_blank" style="color:#666;font-size:11px">${f.user_id}</a>`;
     const nameHtml = `<span style="display:flex;align-items:center;gap:6px">
       ${displayName}
       <span onclick="editName('${f.user_id}', '${name.replace(/'/g,"\\'")}', this)" style="cursor:pointer;opacity:0.4;font-size:11px" title="Edit name">✏️</span>
