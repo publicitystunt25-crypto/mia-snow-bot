@@ -1333,8 +1333,10 @@ def webhook():
 
             if not msg_obj.get("is_echo"):
                 import re
+                print(f"[webhook] incoming text from {sender_id}: {repr(text)}")
                 # If message is only emojis, send an emoji back — but cap at 2 exchanges
                 emoji_only = re.fullmatch(r'[\U00010000-\U0010ffff☀-⟿︀-️\s]+', text)
+                print(f"[webhook] emoji_only={bool(emoji_only)} for {sender_id}")
                 if emoji_only:
                     recent = get_history(sender_id)
                     recent_assistant = [m for m in (recent[-6:] if recent else []) if m["role"] == "assistant"]
