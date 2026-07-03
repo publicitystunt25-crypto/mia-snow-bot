@@ -701,8 +701,8 @@ def handle_reply(sender_id):
             in_quiet_period = False
 
         if in_quiet_period and not is_business:
-            # Respond after 2 unanswered messages
-            if unanswered < 2:
+            # Respond after 1 unanswered message
+            if unanswered < 1:
                 print(f"[quiet_period] staying quiet for {sender_id}")
                 return  # stay quiet, let them reach out again
 
