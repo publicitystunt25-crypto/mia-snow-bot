@@ -627,7 +627,7 @@ def get_mia_reply(user_id):
             facts.append("MUSIC FEEDBACK DUE: You shared your music with this person already. If it comes up naturally, ask what they thought and which song was their favorite. Don't force it — only bring it up if the conversation allows it.")
             conn2 = get_conn()
             c2 = conn2.cursor()
-            c2.execute("UPDATE fan_profiles SET asked_about_music_feedback = TRUE WHERE user_id = %s", (sender_id,))
+            c2.execute("UPDATE fan_profiles SET asked_about_music_feedback = TRUE WHERE user_id = %s", (user_id,))
             conn2.commit()
             c2.close()
             conn2.close()
@@ -639,7 +639,7 @@ def get_mia_reply(user_id):
         max_tokens=300,
         system=[
             {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
-            {"type": "text", "text": profile_context} if profile_context else {"type": "text", "text": ""},
+            *([{"type": "text", "text": profile_context}] if profile_context else []),
         ],
         messages=history,
     )
@@ -691,7 +691,7 @@ def handle_reply(sender_id):
 
         # Business messages always bypass quiet period — never ignore a collab/booking inquiry
         combined_text = " ".join(messages).lower()
-        is_business = any(w in combined_text for w in ["collab", "music work", "feature", "booking", "book", "work together", "do sum music", "do some music", "studio", "record"])
+        is_business = any(w in combined_text for w in ["collab", "music work", "feature", "booking", "book", "work together", "do sum music", "do some music", "studio", "record", "i got songs", "got songs", "i make music", "i rap", "i sing", "i produce", "got beats", "i got beats", "i write", "send you something", "send u something"])
 
         unanswered = unanswered_message_count(sender_id)
         print(f"[handle_reply] {sender_id} unanswered={unanswered} funnel={funnel_complete} quiet={in_quiet_period} business={is_business}")
