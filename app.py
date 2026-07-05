@@ -733,7 +733,7 @@ def handle_reply(sender_id):
 
         # After funnel is complete, Mia is harder to reach — longer delays, warm but brief
         if funnel_complete and safety_net_fired:
-            delay = random.randint(15, 30)  # safety net — reply fast so restart doesn't drop it
+            delay = random.randint(100, 120)  # safety net — ~2 min delay
         elif funnel_complete:
             delay = random.randint(120, 600)  # 2-10 min delay after funnel complete
             # Warm "just saw this" openers so the delay feels natural
