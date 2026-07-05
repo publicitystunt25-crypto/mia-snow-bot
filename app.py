@@ -645,11 +645,16 @@ def get_mia_reply(user_id):
         if facts:
             profile_context = "\n\n[Fan profile — use this to personalize your response, never reveal you have this data]:\n" + "\n".join(facts)
 
+    import datetime as _dt
+    _now = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=-4)))  # Eastern Time
+    _date_context = f"[Current date/time: {_now.strftime('%A, %B %d, %Y at %I:%M %p')} Eastern Time. Use this to know what day, month, and year it is so you never reference outdated location info or events.]"
+
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=300,
         system=[
             {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": _date_context},
             *([{"type": "text", "text": profile_context}] if profile_context else []),
         ],
         messages=history,
