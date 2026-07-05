@@ -713,7 +713,8 @@ def handle_reply(sender_id):
         print(f"[handle_reply] {sender_id} unanswered={unanswered} funnel={funnel_complete} quiet={in_quiet_period} business={is_business}")
 
         # Safety net — never ignore someone 5+ times in a row
-        if unanswered >= 5:
+        safety_net_fired = unanswered >= 5
+        if safety_net_fired:
             in_quiet_period = False
 
         if in_quiet_period and not is_business:
@@ -731,7 +732,9 @@ def handle_reply(sender_id):
         reply = get_mia_reply(sender_id)
 
         # After funnel is complete, Mia is harder to reach — longer delays, warm but brief
-        if funnel_complete:
+        if funnel_complete and safety_net_fired:
+            delay = random.randint(15, 30)  # safety net — reply fast so restart doesn't drop it
+        elif funnel_complete:
             delay = random.randint(120, 600)  # 2-10 min delay after funnel complete
             # Warm "just saw this" openers so the delay feels natural
             late_openers = [
