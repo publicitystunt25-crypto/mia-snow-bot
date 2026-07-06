@@ -761,6 +761,7 @@ def handle_reply(sender_id):
         high_volume_day = today_count >= 20
 
         history = get_history(sender_id)
+        total_msg_count = profile.get("total_messages", 0) if profile else 0
         reply = get_mia_reply(sender_id)
 
         # After funnel is complete, Mia is harder to reach — longer delays, warm but brief
@@ -781,6 +782,10 @@ def handle_reply(sender_id):
             opener = random.choice(late_openers)
             if opener:
                 reply = opener + reply[0].lower() + reply[1:]
+        elif total_msg_count >= 60:
+            delay = random.randint(480, 720)  # 8-12 min after 60+ messages
+        elif total_msg_count >= 30:
+            delay = random.randint(180, 360)  # 3-6 min after 30+ messages
         elif high_volume_day:
             delay = 1200  # 20 min flat after 20+ messages in a day
         elif len(history) <= len(messages):
