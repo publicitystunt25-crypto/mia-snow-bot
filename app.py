@@ -678,6 +678,37 @@ def handle_reply(sender_id):
         if not messages:
             return
 
+        # Goodnight check — if Mia said goodnight in the last 8 hours, stay silent until next day
+        import datetime as _dt
+        _et = _dt.timezone(_dt.timedelta(hours=-4))
+        _now_et = _dt.datetime.now(_et)
+        recent_history = get_history(sender_id)
+        _goodnight_words = {"goodnight", "good night", "gn", "nite", "good nite"}
+        _said_goodnight_at = None
+        for _m in reversed(recent_history[-20:]):
+            if _m["role"] == "assistant":
+                _txt = _m["content"].lower().strip()
+                if any(w in _txt for w in _goodnight_words):
+                    # Try to find when this was saved — use last_message_at as proxy
+                    _said_goodnight_at = profile.get("last_message_at") if profile else None
+                    break
+            elif _m["role"] == "user":
+                # If fan sent a message after Mia's goodnight, only block if within same night
+                break
+
+        # Block replies if goodnight was said and it's still the same night (within 8 hours)
+        if _said_goodnight_at:
+            try:
+                if _said_goodnight_at.tzinfo is None:
+                    _said_goodnight_at = _said_goodnight_at.replace(tzinfo=_dt.timezone.utc)
+                _said_et = _said_goodnight_at.astimezone(_et)
+                _hours_since = (_now_et - _said_et).total_seconds() / 3600
+                if _hours_since < 8:
+                    print(f"[goodnight] staying silent for {sender_id} — {_hours_since:.1f}h since goodnight")
+                    return
+            except Exception:
+                pass
+
         # Ensure fan profile exists
         profile = get_fan_profile(sender_id)
         if not profile:
