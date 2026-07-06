@@ -647,7 +647,7 @@ def get_mia_reply(user_id):
 
         # Listened status
         if profile.get("listened_to_music"):
-            facts.append("CONFIRMED LISTENER: This person has already listened to your music. Do NOT send the music link again. Instead ask what they thought or which song was their favorite if you haven't already.")
+            facts.append("CONFIRMED LISTENER: This person has already listened to your music. Do NOT send the music link again. Do NOT push them toward the music or act like they haven't heard it. They already listened — treat them accordingly and just vibe. If you haven't asked which song was their favorite yet, ask naturally. If they didn't specify a favorite that's fine too — don't keep pushing.")
 
         # Links already sent
         sent_links = []
