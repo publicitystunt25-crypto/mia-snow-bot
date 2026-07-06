@@ -429,6 +429,20 @@ def update_fan_after_message(user_id, messages):
     conn.close()
 
 
+def session_start_time(user_id):
+    """Get the timestamp of the first message in today's session."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT MIN(created_at) FROM messages WHERE user_id = %s AND created_at >= NOW() - INTERVAL '24 hours'",
+        (user_id,)
+    )
+    result = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    return result
+
+
 def messages_today(user_id):
     """Count total messages (user + assistant) exchanged today for this user."""
     conn = get_conn()
@@ -764,6 +778,16 @@ def handle_reply(sender_id):
 
         history = get_history(sender_id)
         total_msg_count = profile.get("total_messages", 0) if profile else 0
+
+        # Time-based session slowdown
+        import datetime as _dt2
+        session_start = session_start_time(sender_id)
+        session_minutes = 0
+        if session_start:
+            if session_start.tzinfo is None:
+                session_start = session_start.replace(tzinfo=_dt2.timezone.utc)
+            session_minutes = (_dt2.datetime.now(_dt2.timezone.utc) - session_start).total_seconds() / 60
+
         reply = get_mia_reply(sender_id)
 
         # After funnel is complete, Mia is harder to reach — longer delays, warm but brief
@@ -784,10 +808,10 @@ def handle_reply(sender_id):
             opener = random.choice(late_openers)
             if opener:
                 reply = opener + reply[0].lower() + reply[1:]
-        elif total_msg_count >= 60:
-            delay = random.randint(480, 720)  # 8-12 min after 60+ messages
-        elif total_msg_count >= 30:
-            delay = random.randint(180, 360)  # 3-6 min after 30+ messages
+        elif session_minutes >= 60 or total_msg_count >= 60:
+            delay = random.randint(480, 720)  # 8-12 min after 1 hour or 60+ messages
+        elif session_minutes >= 10 or total_msg_count >= 30:
+            delay = random.randint(180, 360)  # 3-6 min after 10 min or 30+ messages
         elif high_volume_day:
             delay = 1200  # 20 min flat after 20+ messages in a day
         elif len(history) <= len(messages):
