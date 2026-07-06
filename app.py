@@ -611,8 +611,8 @@ def get_mia_reply(user_id):
             facts.append(f"Fan's name: {profile['fb_name']}")
         if profile.get("nickname"):
             facts.append(f"Goes by: {profile['nickname']}")
-        elif (profile.get("total_messages") or 0) >= 2 and not profile.get("fb_name"):
-            facts.append("NAME NEEDED: You don't know this person's name yet. Within your next 1-2 replies, naturally work in asking what to call them — something like 'what's your name tho?' or 'wait i don't even know what to call you lol' or 'aye what's your name?' — keep it casual and natural, not formal. Only ask once.")
+        elif (profile.get("total_messages") or 0) >= 2 and not profile.get("fb_name") and not profile.get("nickname"):
+            facts.append("NAME NEEDED: You don't know this person's name yet and they haven't told you. Within your next 1-2 replies, work it in naturally — something like 'most people call me Snow or Mia, what can i call you?' — keep it casual like you're just introducing yourself, not interrogating them. Only ask once. Do NOT ask if they already told you their name earlier in the conversation.")
         if profile.get("location"):
             facts.append(f"From: {profile['location']}")
         if profile.get("job"):
