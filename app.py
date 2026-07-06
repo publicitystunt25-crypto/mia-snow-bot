@@ -843,6 +843,12 @@ def handle_reply(sender_id):
         if is_paused(sender_id) or is_blocked(sender_id):
             return
 
+        # Safety filter — never send meta/instruction words as a message
+        _blocked_replies = {"silence", "(silence)", "silent", "[silence]", "i'm going silent", "going silent", "staying silent"}
+        if reply.strip().lower() in _blocked_replies or reply.strip().lower().startswith("i'm staying silent") or reply.strip().lower().startswith("i'm going silent"):
+            print(f"[blocked_reply] caught bad reply for {sender_id}: {repr(reply)}")
+            return
+
         save_message(sender_id, "assistant", reply)
         send_message(sender_id, reply)
     finally:
