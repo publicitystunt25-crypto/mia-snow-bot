@@ -400,6 +400,21 @@ def update_fan_after_message(user_id, messages):
         updates["listened_to_music"] = True
         updates["vibe"] = "music_fan"
 
+    # Extract favorite song if fan mentions one
+    if not profile.get("favorite_song"):
+        import re as _re
+        fav_patterns = [
+            r"(?:my favorite|i love|i fw|i like|favorite song is|favourite song is|that song)[^\w]+([\w\s'&]+?)(?:\s+is|\s+was|\s+hit|\.|$)",
+            r"(?:i fw|love|like)\s+([\w\s'&]+?)\s+(?:the most|fr|no cap|on god|fasho)",
+        ]
+        for _p in fav_patterns:
+            _m = _re.search(_p, user_text, _re.IGNORECASE)
+            if _m:
+                candidate = _m.group(1).strip()
+                if 2 < len(candidate) < 40 and candidate.lower() not in ["it", "your music", "the music", "music", "that", "this"]:
+                    updates["favorite_song"] = candidate
+                    break
+
     # Show interest
     if any(w in combined for w in ["show", "tour", "perform", "concert", "city"]):
         updates["asked_about_shows"] = True
@@ -620,7 +635,7 @@ def get_mia_reply(user_id):
         if profile.get("interests"):
             facts.append(f"Interests: {profile['interests']}")
         if profile.get("favorite_song"):
-            facts.append(f"Favorite song: {profile['favorite_song']}")
+            facts.append(f"ALREADY ANSWERED: This person already told you their favorite song is '{profile['favorite_song']}'. NEVER ask which song they like or which is their favorite again — they already told you. Acknowledge it if it comes up naturally but do NOT ask.")
         if profile.get("is_girl_code"):
             facts.append("Member of The Girl Code group")
         if profile.get("is_vip"):
@@ -653,7 +668,7 @@ def get_mia_reply(user_id):
         if profile.get("sent_blast_list"):
             facts.append("FUNNEL COMPLETE: You've already connected with this person and shared your music and blast list. Keep replies short and warm — 1 sentence max. You're living your life, not sitting by the phone. You still love them but you're busy and that's real. Don't start new topics or ask questions. Just respond warmly to whatever they say and keep it moving.")
         # Music feedback nudge — if music was shared but feedback not yet asked
-        if profile.get("sent_spotify") and not profile.get("asked_about_music_feedback"):
+        if profile.get("sent_spotify") and not profile.get("asked_about_music_feedback") and not profile.get("favorite_song"):
             facts.append("MUSIC FEEDBACK DUE: You shared your music with this person already. If it comes up naturally, ask what they thought and which song was their favorite. Don't force it — only bring it up if the conversation allows it.")
             conn2 = get_conn()
             c2 = conn2.cursor()
