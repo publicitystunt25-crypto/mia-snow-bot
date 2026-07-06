@@ -723,7 +723,8 @@ def handle_reply(sender_id):
                 _txt = _m["content"].lower().strip()
                 if any(w in _txt for w in _goodnight_words):
                     # Try to find when this was saved — use last_message_at as proxy
-                    _said_goodnight_at = profile.get("last_message_at") if profile else None
+                    _gn_profile = get_fan_profile(sender_id)
+                    _said_goodnight_at = _gn_profile.get("last_message_at") if _gn_profile else None
                     break
             elif _m["role"] == "user":
                 # If fan sent a message after Mia's goodnight, only block if within same night
