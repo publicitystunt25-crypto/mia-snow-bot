@@ -1478,11 +1478,8 @@ def webhook():
                 fetched_name, fb_url = fetch_fb_name(sender_id)
                 real_name = fetched_name or sender_name
                 upsert_fan_profile(sender_id, fb_name=real_name, fb_url=fb_url)
-            elif not profile.get("fb_name"):
-                fetched_name, _ = fetch_fb_name(sender_id)
-                real_name = fetched_name or sender_name
-                if real_name:
-                    upsert_fan_profile(sender_id, fb_name=real_name)
+            elif not profile.get("fb_name") and sender_name:
+                upsert_fan_profile(sender_id, fb_name=sender_name)
 
             with _pending_lock:
                 already_queued = sender_id in _pending or sender_id in _active_threads
