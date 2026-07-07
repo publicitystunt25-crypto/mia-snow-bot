@@ -1739,11 +1739,14 @@ def webhook():
             if change.get("field") != "feed":
                 continue
             value = change.get("value", {})
+            print(f"[feed_change] item={value.get('item')} parent_id={value.get('parent_id')} post_id={value.get('post_id')} from={value.get('from')}")
             if value.get("item") != "comment":
                 continue
             if value.get("parent_id") != value.get("post_id"):
+                print(f"[feed_change] skipping reply comment (parent!=post)")
                 continue
             if value.get("from", {}).get("id") == entry.get("id"):
+                print(f"[feed_change] skipping page's own comment")
                 continue
 
             comment_id = value.get("comment_id")
