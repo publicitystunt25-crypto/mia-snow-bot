@@ -695,6 +695,136 @@ def get_mia_reply(user_id):
     return response.content[0].text
 
 
+def get_convo_action(sender_id, profile, unanswered_count, is_business):
+    """
+    Returns ('respond', delay_or_None), ('skip', None), or ('apology', delay).
+    Manages the conversation lifecycle: normal → slow → silence → scarce → reset.
+    """
+    import datetime as _dt
+    _utc = _dt.timezone.utc
+    _now = _dt.datetime.now(_utc)
+
+    if is_business:
+        return ('respond', None)
+
+    phase = profile.get('convo_phase') or 1
+    silence_until = profile.get('silence_until')
+    apology_sent_at = profile.get('apology_sent_at')
+    phase_bot_replies = profile.get('phase_bot_replies') or 0
+    skip_remaining = profile.get('skip_messages_remaining') or 0
+    cycle_start = profile.get('cycle_start_msg_count') or 0
+    total_msgs = profile.get('total_messages') or 0
+    cycle_msgs = max(0, total_msgs - cycle_start)
+    scarce_day_replies_count = profile.get('scarce_day_replies') or 0
+    scarce_day_start = profile.get('scarce_day_start')
+
+    def _norm(ts):
+        return ts.replace(tzinfo=_utc) if ts and ts.tzinfo is None else ts
+
+    silence_until = _norm(silence_until)
+    apology_sent_at = _norm(apology_sent_at)
+    scarce_day_start = _norm(scarce_day_start)
+
+    def db_update(**kwargs):
+        _conn = get_conn()
+        _cur = _conn.cursor()
+        set_clause = ', '.join(f"{k} = %s" for k in kwargs)
+        _cur.execute(f"UPDATE fan_profiles SET {set_clause} WHERE user_id = %s", list(kwargs.values()) + [sender_id])
+        _conn.commit()
+        _cur.close()
+        _conn.close()
+
+    # --- 1-week reset after apology ---
+    if apology_sent_at and (_now - apology_sent_at).total_seconds() >= 1209600:  # 2 weeks
+        print(f"[convo_phase] {sender_id} — 2 weeks since apology, resetting cycle")
+        db_update(
+            convo_phase=1,
+            silence_until=None,
+            apology_sent_at=None,
+            phase_bot_replies=0,
+            skip_messages_remaining=0,
+            cycle_start_msg_count=total_msgs,
+            scarce_day_replies=0,
+            scarce_day_start=None
+        )
+        return ('respond', None)
+
+    # --- PHASE 6: SCARCE (3 msgs every 3 days) ---
+    if phase == 6:
+        if skip_remaining > 0:
+            db_update(skip_messages_remaining=max(0, skip_remaining - 1))
+            if unanswered_count >= 3 and not apology_sent_at:
+                db_update(apology_sent_at=_now)
+                return ('apology', 120)
+            return ('skip', None)
+
+        # New 3-day window?
+        if scarce_day_start is None or (_now - scarce_day_start).total_seconds() >= 259200:
+            db_update(scarce_day_start=_now, scarce_day_replies=0)
+            scarce_day_replies_count = 0
+
+        if scarce_day_replies_count >= 3:
+            if unanswered_count >= 3 and not apology_sent_at:
+                db_update(apology_sent_at=_now)
+                return ('apology', 120)
+            return ('skip', None)
+
+        db_update(scarce_day_replies=scarce_day_replies_count + 1)
+        if unanswered_count >= 3 and not apology_sent_at:
+            db_update(apology_sent_at=_now)
+            return ('apology', 60)
+        return ('respond', random.randint(60, 180))
+
+    # --- PHASE 5: POST-SILENCE (5 messages, 45 min each) ---
+    if phase == 5:
+        if skip_remaining > 0:
+            db_update(skip_messages_remaining=max(0, skip_remaining - 1))
+            return ('skip', None)
+
+        if phase_bot_replies >= 5:
+            print(f"[convo_phase] {sender_id} — phase 5 done, entering scarce (phase 6)")
+            db_update(convo_phase=6, skip_messages_remaining=2, phase_bot_replies=0)
+            return ('skip', None)
+
+        db_update(phase_bot_replies=phase_bot_replies + 1)
+        return ('respond', 2700)  # 45 min
+
+    # --- SILENCE WINDOW (phase 4) ---
+    if silence_until and _now < silence_until:
+        hours_left = (silence_until - _now).total_seconds() / 3600
+        print(f"[convo_phase] {sender_id} — silence window, {hours_left:.1f}h left")
+        if unanswered_count >= 3 and not apology_sent_at:
+            db_update(apology_sent_at=_now)
+            return ('apology', 60)
+        return ('skip', None)
+
+    # Silence just ended — enter phase 5
+    if phase == 4:
+        print(f"[convo_phase] {sender_id} — silence ended, entering phase 5")
+        db_update(convo_phase=5, phase_bot_replies=1)
+        return ('respond', 2700)  # 45 min
+
+    # --- PHASES 1-3: Normal message count progression ---
+    if cycle_msgs >= 40:
+        print(f"[convo_phase] {sender_id} — {cycle_msgs} cycle msgs, entering 12hr silence")
+        db_update(convo_phase=4, silence_until=_now + _dt.timedelta(hours=12))
+        return ('skip', None)
+    elif cycle_msgs >= 35:
+        if phase < 4:
+            db_update(convo_phase=3)
+        return ('respond', 2700)   # 45 min
+    elif cycle_msgs >= 25:
+        if phase < 3:
+            db_update(convo_phase=3)
+        return ('respond', 1200)   # 20 min
+    elif cycle_msgs >= 15:
+        if phase < 2:
+            db_update(convo_phase=2)
+        return ('respond', 300)    # 5 min
+    else:
+        return ('respond', None)   # normal delays
+
+
 def handle_reply(sender_id):
     try:
         time.sleep(5)
@@ -801,32 +931,51 @@ def handle_reply(sender_id):
                 session_start = session_start.replace(tzinfo=_dt2.timezone.utc)
             session_minutes = (_dt2.datetime.now(_dt2.timezone.utc) - session_start).total_seconds() / 60
 
+        # Conversation lifecycle phase check
+        convo_action, phase_delay = get_convo_action(sender_id, profile, unanswered, is_business)
+        print(f"[convo_phase] {sender_id} action={convo_action} phase_delay={phase_delay}")
+
+        if convo_action == 'skip':
+            return
+
+        if convo_action == 'apology':
+            _apology_options = [
+                "omg i'm so sorry i been so bad at responding fr 😩 been running around like crazy",
+                "hey my bad for being ghost, it's been a lot going on fr 🤍 i see you tho",
+                "ugh i hate that i been mia, been nonstop fr. i appreciate you checking in tho 🤍",
+                "my bad fr i been terrible at responding lately, life been hectic. i see you tho 🖤",
+                "omg i'm sorry fr, i been in my own world lately. i appreciate your patience 🤍",
+            ]
+            time.sleep(phase_delay)
+            if not is_paused(sender_id) and not is_blocked(sender_id):
+                _apology_text = random.choice(_apology_options)
+                save_message(sender_id, "assistant", _apology_text)
+                send_message(sender_id, _apology_text)
+            return
+
         reply = get_mia_reply(sender_id)
 
-        # After funnel is complete, Mia is harder to reach — longer delays, warm but brief
-        if funnel_complete and safety_net_fired:
-            delay = random.randint(100, 120)  # safety net — ~2 min delay
+        # Delay — phase system takes priority, then normal logic
+        if phase_delay is not None:
+            delay = phase_delay
+        elif funnel_complete and safety_net_fired:
+            delay = random.randint(100, 120)
         elif funnel_complete:
-            delay = random.randint(120, 600)  # 2-10 min delay after funnel complete
-            # Warm "just saw this" openers so the delay feels natural
+            delay = random.randint(120, 600)
             late_openers = [
                 "omg i just saw this 🤍 ",
                 "been running around all day, just got a sec — ",
                 "sorry for the late reply fr, it's been crazy — ",
                 "you know i always come back tho 😌 ",
                 "just got a min — ",
-                "",  # sometimes no opener, just respond normally
+                "",
                 "",
             ]
             opener = random.choice(late_openers)
             if opener:
                 reply = opener + reply[0].lower() + reply[1:]
-        elif session_minutes >= 60 or total_msg_count >= 60:
-            delay = random.randint(480, 720)  # 8-12 min after 1 hour or 60+ messages
-        elif session_minutes >= 10 or total_msg_count >= 30:
-            delay = random.randint(180, 360)  # 3-6 min after 10 min or 30+ messages
         elif high_volume_day:
-            delay = 1200  # 20 min flat after 20+ messages in a day
+            delay = 1200
         elif len(history) <= len(messages):
             delay = random.randint(8, 12)
         elif len(reply) > 100:
