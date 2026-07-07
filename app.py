@@ -805,6 +805,13 @@ def get_convo_action(sender_id, profile, unanswered_count, is_business):
         return ('respond', 2700)  # 45 min
 
     # --- PHASES 1-3: Normal message count progression ---
+    # Existing fans (had messages before this system) start at 20-min tier
+    if phase == 1 and cycle_start == 0 and total_msgs > 0:
+        new_start = max(0, total_msgs - 25)
+        db_update(cycle_start_msg_count=new_start, convo_phase=3)
+        print(f"[convo_phase] {sender_id} — existing fan, initializing at 20-min tier (total={total_msgs})")
+        return ('respond', 1200)
+
     if cycle_msgs >= 40:
         print(f"[convo_phase] {sender_id} — {cycle_msgs} cycle msgs, entering 12hr silence")
         db_update(convo_phase=4, silence_until=_now + _dt.timedelta(hours=12))
