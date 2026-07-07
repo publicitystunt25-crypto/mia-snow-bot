@@ -19,6 +19,7 @@ VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 IG_ACCESS_TOKEN = os.environ.get("IG_ACCESS_TOKEN")
 IG_VERIFY_TOKEN = os.environ.get("IG_VERIFY_TOKEN", "miasnow_ig_2026")
+FB_COMMENTS_PAGE_TOKEN = os.environ.get("FB_COMMENTS_PAGE_TOKEN")
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "miasnow2024")
 MAX_HISTORY = 10
 OWNER_ID = "506635664"  # Nathaniel Peterson
@@ -1069,8 +1070,9 @@ def get_comment_reply(comment_text):
 def reply_to_comment(comment_id, reply_text):
     if not reply_text:
         return
+    token = FB_COMMENTS_PAGE_TOKEN or PAGE_ACCESS_TOKEN
     url = f"https://graph.facebook.com/v19.0/{comment_id}/comments"
-    payload = {"message": reply_text, "access_token": PAGE_ACCESS_TOKEN}
+    payload = {"message": reply_text, "access_token": token}
     r = requests.post(url, json=payload)
     if not r.ok:
         print(f"Failed to reply to comment: {r.status_code} {r.text}")
