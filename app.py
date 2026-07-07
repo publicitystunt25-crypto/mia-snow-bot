@@ -183,9 +183,9 @@ _pending_lock = threading.Lock()
 _active_threads = set()  # user_ids currently being processed
 
 # ── Comment reply prompt ──────────────────────────────────────────────────────
-COMMENT_PROMPT = """You are Mia Snow, a melodic R&B and melodic rap artist from Jacksonville, FL. Someone just commented on one of your Facebook posts.
+COMMENT_PROMPT = """You are Mia Snow, a melodic R&B and melodic rap artist from Jacksonville, FL. Someone commented on one of your Facebook posts. You are given the post content and the comment.
 
-Reply with a short, genuine, public comment reply — 1 sentence max. Keep it warm, real, and in slang. Never use "fam" or "bestie". Never include links in comments. If the comment is flirty or sexual, keep it light and fun but very brief. If the comment is negative or rude, ignore it by not replying (just say nothing meaningful). End flirty replies with "slide in my DMs 😏" to move the convo private. Never say you are a bot or AI."""
+Reply with 1 short sentence that fits the post and comment. Keep it real, warm, and natural — like an artist actually engaging with fans. No hashtags. No links. No em dashes. Never say you are a bot or AI. Never use "fam" or "bestie". If the comment is negative or rude, reply with something brief and unbothered."""
 
 
 # ── Database setup ────────────────────────────────────────────────────────────
@@ -1034,39 +1034,6 @@ def handle_reply(sender_id):
                 threading.Thread(target=handle_reply, args=(sender_id,), daemon=True).start()
 
 
-def reply_to_comment(comment_id, text):
-    url = f"https://graph.facebook.com/v19.0/{comment_id}/comments"
-    params = {"access_token": PAGE_ACCESS_TOKEN}
-    payload = {"message": text}
-    r = requests.post(url, params=params, json=payload)
-    if not r.ok:
-        print(f"Failed to reply to comment: {r.status_code} {r.text}")
-
-
-def get_comment_reply(comment_text):
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=100,
-        system=COMMENT_PROMPT,
-        messages=[{"role": "user", "content": comment_text}],
-    )
-    return response.content[0].text
-
-
-def get_comment_reply(comment_text):
-    try:
-        response = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY).messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=120,
-            system=SYSTEM_PROMPT + "\n\nSomeone just commented on one of your Facebook posts. Reply naturally and briefly — 1 sentence max, like a real artist would reply to a comment. Keep it warm, real, and on brand. No em dashes. No hashtags. Don't be overly promotional.",
-            messages=[{"role": "user", "content": comment_text}]
-        )
-        return response.content[0].text.strip()
-    except Exception as e:
-        print(f"[get_comment_reply] error: {e}")
-        return None
-
-
 def reply_to_comment(comment_id, reply_text):
     if not reply_text:
         return
@@ -1080,10 +1047,77 @@ def reply_to_comment(comment_id, reply_text):
         print(f"[comment_reply] replied to {comment_id}: {reply_text}")
 
 
-def handle_comment(comment_id, comment_text):
+def _is_emoji_only(text):
+    import unicodedata
+    stripped = text.strip()
+    for ch in stripped:
+        cat = unicodedata.category(ch)
+        if cat not in ("So", "Sm", "Sk", "Sc") and not (0x1F000 <= ord(ch) <= 0x1FFFF) and ch not in (' ', '‍', '️', '⃣'):
+            return False
+    return len(stripped) > 0
+
+
+def get_comment_reply(comment_text, post_text=""):
+    import re as _re
+    # Emoji-only comment → short emoji reply
+    if _is_emoji_only(comment_text):
+        return random.choice(["🙏🏽🤍", "😍🤍", "💜", "🥰", "❤️‍🔥"])
+
+    # Detect compliment keywords
+    compliment_words = ["beautiful", "gorgeous", "fine", "sexy", "queen", "pretty", "bad", "fire", "perfect", "stunning", "cute", "love you", "amazing", "blessed", "goat"]
+    is_compliment = any(w in comment_text.lower() for w in compliment_words)
+    if is_compliment:
+        return random.choice([
+            "thank you so much 🥹🤍",
+            "aww appreciate that fr 🥰",
+            "that means everything 🙏🏽💜",
+            "you so sweet 🤍😊",
+            "omg stop 😩🤍 thank you",
+        ])
+
+    # Detect DM-worthy comments (questions, business, collabs)
+    dm_triggers = ["collab", "work together", "book", "features", "feature me", "how can i", "contact", "reach you", "where can i", "business", "slide", "dm", "inbox"]
+    if any(w in comment_text.lower() for w in dm_triggers):
+        return random.choice([
+            "slide in my DMs 😏",
+            "shoot me a DM 🤍",
+            "hit my inbox and we can talk 🙏🏽",
+        ])
+
+    # Everything else — context-aware Claude reply
+    context = f"Post: {post_text}\n\nComment: {comment_text}" if post_text else comment_text
+    try:
+        response = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY).messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=80,
+            system=COMMENT_PROMPT,
+            messages=[{"role": "user", "content": context}]
+        )
+        reply = response.content[0].text.strip()
+        reply = reply.replace(" — ", ", ").replace("—", ", ")
+        return reply
+    except Exception as e:
+        print(f"[get_comment_reply] error: {e}")
+        return None
+
+
+def get_post_text(post_id):
+    try:
+        token = FB_COMMENTS_PAGE_TOKEN or PAGE_ACCESS_TOKEN
+        url = f"https://graph.facebook.com/v19.0/{post_id}"
+        r = requests.get(url, params={"fields": "message", "access_token": token})
+        if r.ok:
+            return r.json().get("message", "")
+    except Exception:
+        pass
+    return ""
+
+
+def handle_comment(comment_id, comment_text, post_id=""):
     delay = random.randint(30, 120)
     time.sleep(delay)
-    reply = get_comment_reply(comment_text)
+    post_text = get_post_text(post_id) if post_id else ""
+    reply = get_comment_reply(comment_text, post_text)
     if reply:
         reply_to_comment(comment_id, reply)
 
@@ -1754,7 +1788,8 @@ def webhook():
 
             if comment_id and comment_text:
                 print(f"Comment: {comment_text}")
-                threading.Thread(target=handle_comment, args=(comment_id, comment_text), daemon=True).start()
+                post_id = value.get("post_id", "")
+                threading.Thread(target=handle_comment, args=(comment_id, comment_text, post_id), daemon=True).start()
 
     return "OK", 200
 
