@@ -1003,6 +1003,8 @@ def handle_reply(sender_id):
             return
 
         # Safety filter — never send meta/instruction words as a message
+        reply = reply.replace(" — ", ", ").replace("—", ", ")
+
         _blocked_replies = {"silence", "(silence)", "silent", "[silence]", "i'm going silent", "going silent", "staying silent"}
         if reply.strip().lower() in _blocked_replies or reply.strip().lower().startswith("i'm staying silent") or reply.strip().lower().startswith("i'm going silent"):
             print(f"[blocked_reply] caught bad reply for {sender_id}: {repr(reply)}")
