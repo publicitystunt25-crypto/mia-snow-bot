@@ -1052,11 +1052,38 @@ def get_comment_reply(comment_text):
     return response.content[0].text
 
 
+def get_comment_reply(comment_text):
+    try:
+        response = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY).messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=120,
+            system=SYSTEM_PROMPT + "\n\nSomeone just commented on one of your Facebook posts. Reply naturally and briefly — 1 sentence max, like a real artist would reply to a comment. Keep it warm, real, and on brand. No em dashes. No hashtags. Don't be overly promotional.",
+            messages=[{"role": "user", "content": comment_text}]
+        )
+        return response.content[0].text.strip()
+    except Exception as e:
+        print(f"[get_comment_reply] error: {e}")
+        return None
+
+
+def reply_to_comment(comment_id, reply_text):
+    if not reply_text:
+        return
+    url = f"https://graph.facebook.com/v19.0/{comment_id}/comments"
+    payload = {"message": reply_text, "access_token": PAGE_ACCESS_TOKEN}
+    r = requests.post(url, json=payload)
+    if not r.ok:
+        print(f"Failed to reply to comment: {r.status_code} {r.text}")
+    else:
+        print(f"[comment_reply] replied to {comment_id}: {reply_text}")
+
+
 def handle_comment(comment_id, comment_text):
-    delay = random.randint(30, 60)
+    delay = random.randint(30, 120)
     time.sleep(delay)
     reply = get_comment_reply(comment_text)
-    reply_to_comment(comment_id, reply)
+    if reply:
+        reply_to_comment(comment_id, reply)
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
