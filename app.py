@@ -1595,6 +1595,23 @@ def privacy():
     return app.send_static_file("privacy_policy.html")
 
 
+@app.route("/auth-callback")
+def auth_callback():
+    return """
+    <html><body>
+    <h2>Copy the token from the URL</h2>
+    <p>Look at your browser URL bar — copy everything after <b>#access_token=</b> up to the next <b>&</b></p>
+    <script>
+        var hash = window.location.hash;
+        var match = hash.match(/access_token=([^&]+)/);
+        if (match) {
+            document.body.innerHTML += '<p><b>Your token:</b><br><textarea rows=4 cols=80>' + match[1] + '</textarea></p>';
+        }
+    </script>
+    </body></html>
+    """
+
+
 @app.route("/webhook", methods=["GET"])
 def verify():
     mode = request.args.get("hub.mode")
