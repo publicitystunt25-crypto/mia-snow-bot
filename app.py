@@ -17,6 +17,8 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 PAGE_ACCESS_TOKEN = os.environ.get("PAGE_ACCESS_TOKEN")
 VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN")
 DATABASE_URL = os.environ.get("DATABASE_URL")
+IG_ACCESS_TOKEN = os.environ.get("IG_ACCESS_TOKEN")
+IG_VERIFY_TOKEN = os.environ.get("IG_VERIFY_TOKEN", "miasnow_ig_2026")
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "miasnow2024")
 MAX_HISTORY = 10
 OWNER_ID = "506635664"  # Nathaniel Peterson
@@ -1706,6 +1708,157 @@ def webhook():
                 threading.Thread(target=handle_comment, args=(comment_id, comment_text), daemon=True).start()
 
     return "OK", 200
+
+
+def send_ig_message(recipient_id, text):
+    url = f"https://graph.instagram.com/v19.0/me/messages"
+    payload = {
+        "recipient": {"id": recipient_id},
+        "message": {"text": text},
+        "access_token": IG_ACCESS_TOKEN
+    }
+    r = requests.post(url, json=payload)
+    if not r.ok:
+        print(f"Failed to send IG message: {r.status_code} {r.text}")
+
+
+def send_ig_comment_reply(comment_id, text):
+    url = f"https://graph.instagram.com/v19.0/{comment_id}/replies"
+    payload = {"message": text, "access_token": IG_ACCESS_TOKEN}
+    r = requests.post(url, json=payload)
+    if not r.ok:
+        print(f"Failed to send IG comment reply: {r.status_code} {r.text}")
+
+
+@app.route("/instagram-webhook", methods=["GET"])
+def ig_verify():
+    mode = request.args.get("hub.mode")
+    token = request.args.get("hub.verify_token")
+    challenge = request.args.get("hub.challenge")
+    if mode == "subscribe" and token == IG_VERIFY_TOKEN:
+        print("Instagram webhook verified!")
+        return challenge, 200
+    return "Verification failed", 403
+
+
+@app.route("/instagram-webhook", methods=["POST"])
+def ig_webhook():
+    data = request.get_json()
+    print(f"[ig_webhook] {json.dumps(data)[:300]}")
+
+    for entry in data.get("entry", []):
+        # ── Instagram DMs ──
+        for event in entry.get("messaging", []):
+            sender_id = event.get("sender", {}).get("id")
+            msg = event.get("message", {})
+            text = msg.get("text", "").strip()
+
+            if not sender_id or not text:
+                continue
+            if msg.get("is_echo"):
+                continue
+
+            print(f"[ig_dm] from {sender_id}: {text}")
+
+            # Reuse existing reply pipeline with IG sender
+            with _pending_lock:
+                already_queued = sender_id in _pending or sender_id in _active_threads
+                if sender_id in _pending:
+                    if text not in _pending[sender_id]:
+                        _pending[sender_id].append(text)
+                else:
+                    _pending[sender_id] = [text]
+
+            if not already_queued:
+                with _pending_lock:
+                    _active_threads.add(sender_id)
+                threading.Thread(
+                    target=handle_ig_reply,
+                    args=(sender_id,),
+                    daemon=True
+                ).start()
+
+        # ── Instagram Comments ──
+        for change in entry.get("changes", []):
+            field = change.get("field")
+            value = change.get("value", {})
+            if field != "comments":
+                continue
+            comment_id = value.get("id")
+            comment_text = value.get("text", "")
+            commenter_id = value.get("from", {}).get("id")
+            ig_account_id = entry.get("id")
+
+            if not comment_id or not comment_text:
+                continue
+            if commenter_id == ig_account_id:
+                continue  # skip own comments
+
+            print(f"[ig_comment] {commenter_id}: {comment_text}")
+            threading.Thread(
+                target=handle_ig_comment,
+                args=(comment_id, comment_text, commenter_id),
+                daemon=True
+            ).start()
+
+    return "OK", 200
+
+
+def handle_ig_reply(sender_id):
+    try:
+        with _pending_lock:
+            messages = list(_pending.pop(sender_id, []))
+        if not messages:
+            return
+
+        # Ensure profile exists
+        profile = get_fan_profile(sender_id)
+        if not profile:
+            upsert_fan_profile(sender_id)
+            profile = get_fan_profile(sender_id)
+
+        for msg in messages:
+            save_message(sender_id, "user", msg)
+
+        update_fan_after_message(sender_id, messages)
+        profile = get_fan_profile(sender_id)
+
+        time.sleep(random.randint(8, 20))
+
+        reply = get_mia_reply(sender_id)
+        if not reply:
+            return
+
+        reply = reply.replace(" — ", ", ").replace("—", ", ")
+
+        import re as _re
+        _reply_text = _re.sub(r'[^\w\s]', '', reply, flags=_re.UNICODE).strip()
+        if not _reply_text:
+            return
+
+        save_message(sender_id, "assistant", reply)
+        send_ig_message(sender_id, reply)
+
+    finally:
+        with _pending_lock:
+            _active_threads.discard(sender_id)
+            if sender_id in _pending and _pending[sender_id]:
+                _active_threads.add(sender_id)
+                threading.Thread(target=handle_ig_reply, args=(sender_id,), daemon=True).start()
+
+
+def handle_ig_comment(comment_id, comment_text, commenter_id):
+    time.sleep(random.randint(30, 120))
+    profile = get_fan_profile(commenter_id)
+    if not profile:
+        upsert_fan_profile(commenter_id)
+    save_message(commenter_id, "user", comment_text)
+    reply = get_mia_reply(commenter_id)
+    if not reply:
+        return
+    reply = reply.replace(" — ", ", ").replace("—", ", ")
+    save_message(commenter_id, "assistant", reply)
+    send_ig_comment_reply(comment_id, reply)
 
 
 init_db()
