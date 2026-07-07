@@ -1001,11 +1001,12 @@ def handle_reply(sender_id):
             print(f"[blocked_reply] caught bad reply for {sender_id}: {repr(reply)}")
             return
 
-        # Block emoji-only replies — strip all emoji/symbols and check if any real word remains
+        # If the fan sent real words, the reply must contain real words too
         import re as _re
-        _text_only = _re.sub(r'[^\w\s]', '', reply, flags=_re.UNICODE).strip()
-        if not _text_only:
-            print(f"[blocked_reply] emoji-only reply blocked for {sender_id}: {repr(reply)}")
+        _fan_text = _re.sub(r'[^\w\s]', '', " ".join(messages), flags=_re.UNICODE).strip()
+        _reply_text = _re.sub(r'[^\w\s]', '', reply, flags=_re.UNICODE).strip()
+        if _fan_text and not _reply_text:
+            print(f"[blocked_reply] fan sent words but reply is emoji-only for {sender_id}: {repr(reply)}")
             return
 
         save_message(sender_id, "assistant", reply)
