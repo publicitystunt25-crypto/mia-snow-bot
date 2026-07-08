@@ -181,6 +181,7 @@ client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 _pending = {}
 _pending_lock = threading.Lock()
 _active_threads = set()  # user_ids currently being processed
+_comment_thread_replies = {}  # parent_comment_id -> reply count
 
 # ── Comment reply prompt ──────────────────────────────────────────────────────
 COMMENT_PROMPT = """You are Mia Snow, a melodic R&B and melodic rap artist from Jacksonville, FL. Someone commented on one of your Facebook posts. You are given the post content and the comment.
@@ -1075,13 +1076,22 @@ def get_comment_reply(comment_text, post_text=""):
             "omg stop 😩🤍 thank you",
         ])
 
-    # Detect DM-worthy comments (questions, business, collabs)
-    dm_triggers = ["collab", "work together", "book", "features", "feature me", "how can i", "contact", "reach you", "where can i", "business", "slide", "dm", "inbox"]
+    # Detect music mentions — drop the link
+    music_triggers = ["song", "music", "track", "banger", "stream", "spotify", "listen", "heard you", "your music", "your song", "your track", "love your music", "love your song", "fw your", "fw the music", "that song", "this song", "fire song", "hard", "slaps", "go crazy", "dropping", "new music", "album", "ep", "single"]
+    if any(w in comment_text.lower() for w in music_triggers):
+        return random.choice([
+            f"appreciate that 🤍 go stream it fr — https://linktr.ee/therealmiasnow1",
+            f"thank you 🥹 check the rest out too — https://linktr.ee/therealmiasnow1",
+            f"means a lot 🙏🏽 more where that came from — https://linktr.ee/therealmiasnow1",
+        ])
+
+    # Detect inbox-worthy comments (questions, business, collabs)
+    dm_triggers = ["collab", "work together", "book", "features", "feature me", "how can i", "contact", "reach you", "where can i", "business", "inbox", "message you"]
     if any(w in comment_text.lower() for w in dm_triggers):
         return random.choice([
-            "slide in my DMs 😏",
-            "shoot me a DM 🤍",
-            "hit my inbox and we can talk 🙏🏽",
+            "hit my inbox and we can talk 🤍",
+            "shoot me a message in my inbox 🙏🏽",
+            "slide in my inbox 😏",
         ])
 
     # Everything else — context-aware Claude reply
@@ -1776,19 +1786,38 @@ def webhook():
             print(f"[feed_change] item={value.get('item')} parent_id={value.get('parent_id')} post_id={value.get('post_id')} from={value.get('from')}")
             if value.get("item") != "comment":
                 continue
-            if value.get("parent_id") != value.get("post_id"):
-                print(f"[feed_change] skipping reply comment (parent!=post)")
-                continue
             if value.get("from", {}).get("id") == entry.get("id"):
                 print(f"[feed_change] skipping page's own comment")
                 continue
 
             comment_id = value.get("comment_id")
             comment_text = value.get("message", "")
+            parent_id = value.get("parent_id", "")
+            post_id = value.get("post_id", "")
+            is_reply = parent_id and parent_id != post_id
 
-            if comment_id and comment_text:
+            if not comment_id or not comment_text:
+                continue
+
+            if is_reply:
+                # Reply to a comment — only engage if warrants conversation, max 3 replies per thread
+                thread_key = parent_id
+                reply_count = _comment_thread_replies.get(thread_key, 0)
+                if reply_count >= 3:
+                    print(f"[comment_reply_thread] max replies reached for thread {thread_key}")
+                    continue
+                reply_triggers = ["song", "music", "track", "stream", "collab", "inbox", "book", "love", "real", "facts", "fr", "when", "how", "where", "why", "what", "fire", "hard", "slaps", "lowkey", "agree", "true", "deadass", "no cap", "word", "exactly", "appreciate", "thank"]
+                comment_lower = comment_text.lower()
+                warrants_reply = any(w in comment_lower for w in reply_triggers) and not _is_emoji_only(comment_text)
+                if warrants_reply:
+                    _comment_thread_replies[thread_key] = reply_count + 1
+                    print(f"[comment_reply_thread] reply {reply_count+1}/3 for thread {thread_key}: {comment_text}")
+                    threading.Thread(target=handle_comment, args=(comment_id, comment_text, post_id), daemon=True).start()
+                else:
+                    print(f"[comment_reply_thread] skipping low-value reply: {comment_text}")
+            else:
+                # Top-level comment
                 print(f"Comment: {comment_text}")
-                post_id = value.get("post_id", "")
                 threading.Thread(target=handle_comment, args=(comment_id, comment_text, post_id), daemon=True).start()
 
     return "OK", 200
