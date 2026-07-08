@@ -1513,24 +1513,54 @@ def fix_names_route():
     conn.commit()
 
     # Step 2 — re-scan message history and extract real names
-    cur.execute("SELECT user_id, fb_name, nickname FROM fan_profiles WHERE nickname IS NULL AND fb_name IS NULL OR fb_name = ''")
+    cur.execute("SELECT user_id, fb_name, nickname FROM fan_profiles WHERE nickname IS NULL OR nickname = ''")
     fans = cur.fetchall()
+
+    name_ask_phrases = [
+        "what can i call you", "what's your name", "whats your name",
+        "what do i call you", "who am i talking to", "and you are",
+        "can i get your name", "what they call you", "what do they call you"
+    ]
 
     fixed = []
     for fan in fans:
         user_id = fan["user_id"]
         cur.execute(
-            "SELECT content FROM messages WHERE user_id = %s AND role = 'user' ORDER BY id ASC",
+            "SELECT role, content FROM messages WHERE user_id = %s ORDER BY id ASC",
             (user_id,)
         )
-        messages = [row["content"] for row in cur.fetchall()]
-        for msg in messages:
-            name = _extract_name(msg)
-            if name:
-                cur.execute("UPDATE fan_profiles SET nickname = %s WHERE user_id = %s", (name, user_id))
-                conn.commit()
-                fixed.append(f"{user_id} → {name}")
-                break
+        all_msgs = cur.fetchall()
+
+        name = None
+        # Method 1: look for fan reply right after Mia asks for their name
+        for i, row in enumerate(all_msgs):
+            if row["role"] == "assistant" and any(p in row["content"].lower() for p in name_ask_phrases):
+                # Check the next 1-2 user messages after this
+                for j in range(i + 1, min(i + 3, len(all_msgs))):
+                    if all_msgs[j]["role"] == "user":
+                        reply = all_msgs[j]["content"].strip()
+                        # Short reply (1-3 words) after a name question = likely their name
+                        words = reply.split()
+                        if 1 <= len(words) <= 3 and len(reply) > 1 and reply.lower() not in SKIP_NAMES:
+                            candidate = words[0].strip(".,!?")
+                            if len(candidate) > 1 and candidate.lower() not in SKIP_NAMES:
+                                name = candidate.title()
+                        break
+                if name:
+                    break
+
+        # Method 2: fallback to explicit intro phrases with Title Case
+        if not name:
+            for row in all_msgs:
+                if row["role"] == "user":
+                    name = _extract_name(row["content"])
+                    if name:
+                        break
+
+        if name:
+            cur.execute("UPDATE fan_profiles SET nickname = %s WHERE user_id = %s", (name, user_id))
+            conn.commit()
+            fixed.append(f"{user_id} → {name}")
 
     cur.close()
     conn.close()
