@@ -1123,11 +1123,14 @@ def get_post_text(post_id):
     return ""
 
 
-def handle_comment(comment_id, comment_text, post_id=""):
+def handle_comment(comment_id, comment_text, post_id="", commenter_name=""):
     delay = random.randint(30, 120)
     time.sleep(delay)
     post_text = get_post_text(post_id) if post_id else ""
     reply = get_comment_reply(comment_text, post_text)
+    if reply and commenter_name:
+        first_name = commenter_name.split()[0]
+        reply = f"@{first_name} {reply}"
     if reply:
         reply_to_comment(comment_id, reply)
 
@@ -1794,6 +1797,7 @@ def webhook():
             comment_text = value.get("message", "")
             parent_id = value.get("parent_id", "")
             post_id = value.get("post_id", "")
+            commenter_name = value.get("from", {}).get("name", "")
             is_reply = parent_id and parent_id != post_id
 
             if not comment_id or not comment_text:
@@ -1812,13 +1816,13 @@ def webhook():
                 if warrants_reply:
                     _comment_thread_replies[thread_key] = reply_count + 1
                     print(f"[comment_reply_thread] reply {reply_count+1}/3 for thread {thread_key}: {comment_text}")
-                    threading.Thread(target=handle_comment, args=(comment_id, comment_text, post_id), daemon=True).start()
+                    threading.Thread(target=handle_comment, args=(comment_id, comment_text, post_id, commenter_name), daemon=True).start()
                 else:
                     print(f"[comment_reply_thread] skipping low-value reply: {comment_text}")
             else:
                 # Top-level comment
                 print(f"Comment: {comment_text}")
-                threading.Thread(target=handle_comment, args=(comment_id, comment_text, post_id), daemon=True).start()
+                threading.Thread(target=handle_comment, args=(comment_id, comment_text, post_id, commenter_name), daemon=True).start()
 
     return "OK", 200
 
