@@ -1532,20 +1532,24 @@ def fix_names_route():
         all_msgs = cur.fetchall()
 
         name = None
-        # Method 1: look for fan reply right after Mia asks for their name
+        # Method 1: look for fan reply after Mia asks for their name
         for i, row in enumerate(all_msgs):
             if row["role"] == "assistant" and any(p in row["content"].lower() for p in name_ask_phrases):
-                # Check the next 1-2 user messages after this
-                for j in range(i + 1, min(i + 3, len(all_msgs))):
+                # Check the next 3 user messages after this
+                user_replies_checked = 0
+                for j in range(i + 1, len(all_msgs)):
                     if all_msgs[j]["role"] == "user":
+                        user_replies_checked += 1
                         reply = all_msgs[j]["content"].strip()
-                        # Short reply (1-3 words) after a name question = likely their name
                         words = reply.split()
-                        if 1 <= len(words) <= 3 and len(reply) > 1 and reply.lower() not in SKIP_NAMES:
-                            candidate = words[0].strip(".,!?")
+                        # Short reply (1-4 words) = likely a name answer
+                        if 1 <= len(words) <= 4 and len(reply) > 1:
+                            candidate = words[0].strip(".,!?🤍❤️😊")
                             if len(candidate) > 1 and candidate.lower() not in SKIP_NAMES:
                                 name = candidate.title()
-                        break
+                                break
+                        if user_replies_checked >= 3:
+                            break
                 if name:
                     break
 
