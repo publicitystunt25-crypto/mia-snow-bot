@@ -1503,12 +1503,8 @@ def fix_names_route():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Step 1 — clear garbage nicknames
-    placeholders = ",".join(["%s"] * len(SKIP_NAMES))
-    cur.execute(
-        f"UPDATE fan_profiles SET nickname = NULL WHERE LOWER(nickname) IN ({placeholders})",
-        list(SKIP_NAMES)
-    )
+    # Step 1 — clear ALL nicknames so we can re-extract cleanly
+    cur.execute("UPDATE fan_profiles SET nickname = NULL WHERE nickname IS NOT NULL")
     cleared = cur.rowcount
     conn.commit()
 
