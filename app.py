@@ -1464,6 +1464,39 @@ def dashboard():
     return DASHBOARD_HTML
 
 
+@app.route("/admin/fix-names")
+def fix_names_route():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return "unauthorized", 401
+
+    garbage = [
+        "in", "trying", "at", "on", "not", "single", "ready", "worth", "rock",
+        "already", "originally", "understanding", "out", "off", "up", "down",
+        "to", "it", "this", "going", "working", "looking", "feeling", "getting",
+        "thank", "thanks", "have", "will", "would", "could", "should", "might",
+        "must", "shall", "may", "can", "did", "does", "had", "has", "was",
+        "were", "been", "being", "am", "are", "is", "just", "real", "sure",
+        "ok", "okay", "cool", "hey", "hi", "sup", "yea", "yep", "nah", "lol",
+        "omg", "wow", "good", "fine", "here", "from", "doing", "that", "with",
+        "for", "but", "and", "the", "as", "envy", "handsome", "dee", "leek",
+        "john", "rock", "surprise", "surprised"
+    ]
+
+    conn = get_conn()
+    cur = conn.cursor()
+    placeholders = ",".join(["%s"] * len(garbage))
+    cur.execute(
+        f"UPDATE fan_profiles SET nickname = NULL WHERE LOWER(nickname) IN ({placeholders})",
+        garbage
+    )
+    cleared = cur.rowcount
+    conn.commit()
+    cur.close()
+    conn.close()
+    return f"Cleared {cleared} garbage nicknames."
+
+
 @app.route("/admin/fix-profiles")
 def fix_profiles_route():
     password = request.args.get("password", "")
