@@ -1035,11 +1035,26 @@ def handle_reply(sender_id):
                 threading.Thread(target=handle_reply, args=(sender_id,), daemon=True).start()
 
 
-def reply_to_comment(comment_id, reply_text):
+def reply_to_comment(comment_id, reply_text, commenter_id="", commenter_name=""):
     if not reply_text:
         return
     token = FB_COMMENTS_PAGE_TOKEN or PAGE_ACCESS_TOKEN
     url = f"https://graph.facebook.com/v19.0/{comment_id}/comments"
+    # Try structured mention tag to trigger notification
+    if commenter_id and commenter_name:
+        first_name = commenter_name.split()[0]
+        mention = f"@[{commenter_id}] "
+        full_message = mention + reply_text
+        tag_payload = {
+            "message": full_message,
+            "message_tags": [{"id": commenter_id, "name": commenter_name, "type": "user", "offset": 0, "length": len(mention.strip())}],
+            "access_token": token
+        }
+        r = requests.post(url, json=tag_payload)
+        if r.ok:
+            print(f"[comment_reply] tagged reply to {comment_id}: {full_message}")
+            return
+        # Fall back to plain reply if tag fails
     payload = {"message": reply_text, "access_token": token}
     r = requests.post(url, json=payload)
     if not r.ok:
@@ -1123,16 +1138,13 @@ def get_post_text(post_id):
     return ""
 
 
-def handle_comment(comment_id, comment_text, post_id="", commenter_name=""):
+def handle_comment(comment_id, comment_text, post_id="", commenter_name="", commenter_id=""):
     delay = random.randint(30, 120)
     time.sleep(delay)
     post_text = get_post_text(post_id) if post_id else ""
     reply = get_comment_reply(comment_text, post_text)
-    if reply and commenter_name:
-        first_name = commenter_name.split()[0]
-        reply = f"@{first_name} {reply}"
     if reply:
-        reply_to_comment(comment_id, reply)
+        reply_to_comment(comment_id, reply, commenter_id=commenter_id, commenter_name=commenter_name)
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -1798,6 +1810,7 @@ def webhook():
             parent_id = value.get("parent_id", "")
             post_id = value.get("post_id", "")
             commenter_name = value.get("from", {}).get("name", "")
+            commenter_id = value.get("from", {}).get("id", "")
             is_reply = parent_id and parent_id != post_id
 
             if not comment_id or not comment_text:
@@ -1816,13 +1829,13 @@ def webhook():
                 if warrants_reply:
                     _comment_thread_replies[thread_key] = reply_count + 1
                     print(f"[comment_reply_thread] reply {reply_count+1}/3 for thread {thread_key}: {comment_text}")
-                    threading.Thread(target=handle_comment, args=(comment_id, comment_text, post_id, commenter_name), daemon=True).start()
+                    threading.Thread(target=handle_comment, args=(comment_id, comment_text, post_id, commenter_name, commenter_id), daemon=True).start()
                 else:
                     print(f"[comment_reply_thread] skipping low-value reply: {comment_text}")
             else:
                 # Top-level comment
                 print(f"Comment: {comment_text}")
-                threading.Thread(target=handle_comment, args=(comment_id, comment_text, post_id, commenter_name), daemon=True).start()
+                threading.Thread(target=handle_comment, args=(comment_id, comment_text, post_id, commenter_name, commenter_id), daemon=True).start()
 
     return "OK", 200
 
