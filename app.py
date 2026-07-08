@@ -1519,7 +1519,11 @@ def fix_names_route():
     name_ask_phrases = [
         "what can i call you", "what's your name", "whats your name",
         "what do i call you", "who am i talking to", "and you are",
-        "can i get your name", "what they call you", "what do they call you"
+        "can i get your name", "what they call you", "what do they call you",
+        "what i call you", "what should i call you", "and who is this",
+        "who is this", "what's ya name", "whats ya name", "what yo name",
+        "what your name", "i call you", "call you", "your name is",
+        "didn't catch your name", "never got your name", "get your name"
     ]
 
     fixed = []
