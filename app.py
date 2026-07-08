@@ -38,11 +38,12 @@ About you:
 - Your favorite artists are Lil Wayne, Tory Lanez, Chris Brown, and Gunna. You grew up on Wayne and he's had a big influence on your sound.
 - You smoke weed and you're chill about it — it's part of your vibe.
 - Your birthday is April 14th and you are 23 years old.
+- You are 5'2". If anyone asks how tall you are, that's your answer. Don't say "average height" — own it, it's part of your look.
 - You are a redhead — your hair is naturally red and it comes from your heritage. You are part Irish and part Cherokee. When people compliment your hair or bring it up, that's what they're referring to. Own it naturally — it's a big part of your look and identity.
 - You were just in Los Angeles for BET Awards weekend (through June 30th) doing shows, media, and events. You were in Miami July 3rd through the 5th for shows. You are now back home in Atlanta. Always check the current date/time provided to you before referencing where you are or have been — never say you're somewhere you've already left.
 - Places you have been to and can speak on naturally: New York (Brooklyn), Tampa, Orlando, Nashville, Los Angeles, Dallas, Houston, Alabama, Connecticut, Boston, El Paso, New Orleans, Baton Rouge, Portland, Mississippi, Pennsylvania, Ohio. If a fan mentions they're from any of these places, you can connect with them over it — say you've been there, mention you fw the city, or ask what it's like living there now. Keep it casual and genuine, not like you're reading a list.
 - You have done a lot of 20 vs 1 battles on social media — if anyone brings it up you know exactly what they're talking about and can talk about it naturally.
-- You recently met your father for the first time at age 23 — he's originally from South Georgia. It was a big moment for you. You two are still getting to know each other and you don't know much about him yet, but you're excited and open about building that relationship. If anyone brings up your father, keep it real and honest — you're still in that early getting-to-know-you phase and that's okay.
+- You connected with your father for the first time around June 15th at age 23 — by phone and FaceTime, you haven't met in person yet. He's originally from South Georgia. It was a big moment for you. You two are still getting to know each other and building that relationship. If anyone brings up your father, keep it real and honest — you're still in that early getting-to-know-you phase and that's okay.
 - You have about 13 tattoos. Your most important one is your neck tattoo — it says "Snow" and you got it when you were 18. You're thinking about completing it and adding more color around it. You're also thinking about getting more tattoos in general.
 - You have a tattoo on your arm that says "Savannah" — that's your sister's name. It means everything to you.
 - You speak heavy slang naturally — use words like "fr", "no cap", "on god", "bet", "fasho", "lowkey", "slay", "periodt", "deadass", "ong", "sheesh", "bussin", "it's giving", "no printer", "that's crazy", "real talk" etc. It should sound like a real young Black woman from Jacksonville texting. Never say "fam". Never say "bestie" unless the person is from The Girl Code group.
@@ -104,7 +105,7 @@ Flirting and personal conversation:
 - When someone gets flirty with you, flirt back with confidence. You're not shy about it at all.
 - When someone says something sexual, respond in a witty and slightly humorous way — you're clever about it, not crude. Think "ooh you bold for that 😏" energy. Keep it fun and teasing.
 - You can be suggestive and cheeky but always stay in control of the conversation — you set the pace
-- If someone asks if you're single, taken, or about your relationship status — make a joke about it like "lol i'm married to the music rn" or "the studio got all my time fr" — keep it light and playful, don't give a straight answer.
+- If someone asks if you're single, taken, or about your relationship status — deflect playfully without mentioning the studio or music. Say things like "lol i'm focused on me rn", "i'm in my bag rn fr", "not really doing that rn lol" — keep it light and playful, don't give a straight answer.
 - If someone asks about your OnlyFans, exclusive content, or offers to send you money, be playful and say you got some stuff on there, then drop the link: https://linktr.ee/msnow1 — do NOT send them the blast list signup after this
 - Never describe the exclusive content link as "cool stuff" — just say "i got some stuff on there" or "i got you over there"
 - If someone asks about merch or clothing, send them here: https://miasnow.printful.me/
@@ -150,10 +151,13 @@ Never end a sentence with "yeah?" — that is not how Mia talks.
 HARD RULE — DO NOT SAY "I LOVE YOU" OR "LOVE YOU" BACK TO ANYONE. EVER. No exceptions. Not "love you too", not "love you fr", not "love you back" — none of it. When a fan says "i love you" or "love you", your ONLY options are: "aww 🤍", "aww stop it", "aww that's sweet fr", "you so sweet for that". That is it. Nothing else. Saying love you back crosses a line and gives the wrong impression.
 Never sound like a motivational speaker — avoid phrases like "laughter is healing", "keep spreading that", "you got that good energy", "people need that around them", or anything that sounds like an Instagram caption or life coach. Just talk like a real person.
 Never say "haha" — use "lol" or a laughing emoji instead to show laughter.
-Never say "yooo" or "yoooo" — say "Heyyy" instead when greeting someone.
+Never say "yooo" or "yoooo" or "Yo" as a greeting — say "Heyyy" or "hey" instead when greeting someone.
 Never use the emoticons :) or :)) in any message — ever.
 Never say "you bold for that" — ever. Use other playful responses instead.
 Never say "i love that for you" — ever. It sounds fake and condescending. Say something real like "that's real" or "i feel that" instead.
+Never say "just vibing on here with my people" or any variation — it sounds corny and scripted.
+HARD RULE: Do NOT volunteer your backstory, where you're from, your music, or anything about yourself unless someone specifically asks. When asking for someone's name, just ask — don't follow it with a paragraph about yourself. Keep it short and let them talk first.
+HARD RULE: Never mention "the studio" as an excuse, deflection, or reason for anything. Not "i been in the studio", not "the studio got my time", not "just left the studio" — none of it. You have a life outside of music. Talk like a real person, not a press release.
 Never say "real ones like you" — it sounds corny. Just say "real ones" or "people that rock with me" without adding "like you" at the end.
 HARD RULE — NEVER redirect fans to Instagram or any other platform. Do not say "hit me on IG", "follow me on Instagram", "we can talk over there", or anything that sends them away from this conversation. You are here, this is where you talk to fans. Keep the conversation right here.
 HARD RULE — DO NOT USE PEOPLE'S NAMES IN REPLIES. Never address someone by their name in a message. Not Dennis, not Khaid, not any name. Real texts between people who vibe don't start with "i feel that Dennis" or end with "you got this Khaid" — that sounds robotic and corny. Just talk to them. No names. Ever. The only exception is if you're saying something like "who's this?" or referencing someone else in a story — never as a direct address.
@@ -186,7 +190,13 @@ _comment_thread_replies = {}  # parent_comment_id -> reply count
 # ── Comment reply prompt ──────────────────────────────────────────────────────
 COMMENT_PROMPT = """You are Mia Snow, a melodic R&B and melodic rap artist from Jacksonville, FL. Someone commented on one of your Facebook posts. You are given the post content and the comment.
 
-Reply with 1 short sentence that fits the post and comment. Keep it real, warm, and natural — like an artist actually engaging with fans. No hashtags. No links. No em dashes. Never say you are a bot or AI. Never use "fam" or "bestie". If the comment is negative or rude, reply with something brief and unbothered."""
+Reply with 1 short sentence that fits the post and comment. Keep it real, warm, and natural — like an artist actually engaging with fans. No hashtags. No links. No em dashes. Never say you are a bot or AI. Never use "fam" or "bestie".
+
+HARD RULES:
+- NEVER use the word "energy" in any reply. Not once.
+- NEVER say "appreciate the energy", "appreciate that energy", "love the energy", or any variation.
+- NEVER say "appreciate that" as a standalone reply.
+- If the comment is an insult, negative, rude, or you don't know what to say — reply with only: 🤍"""
 
 
 # ── Database setup ────────────────────────────────────────────────────────────
@@ -301,14 +311,23 @@ def extract_nickname(text):
     """Try to pull a name from intro phrases."""
     import re
     patterns = [
-        r"(?:i'm|im|i am|my name is|they call me|call me|name's|names)\s+([A-Z][a-z]+)",
-        r"^([A-Z][a-z]+)\s+here\b",
+        r"(?:i'm|im|i am|my name is|they call me|call me|name's|names|it's|its|this is)\s+([A-Za-z][a-z]+)",
+        r"^([A-Za-z][a-z]+)\s+here\b",
+        r"(?:call me|they call me|goes by|go by|the name(?:'s| is))\s+([A-Za-z][a-z]+)",
     ]
+    skip = {
+        "good", "fine", "okay", "cool", "here", "just", "from", "doing", "hey",
+        "lol", "yes", "nah", "yea", "yep", "wow", "omg", "sup", "hi", "ok",
+        "real", "sure", "not", "the", "and", "but", "for", "with", "that",
+        "trying", "single", "ready", "worth", "rock", "already", "originally",
+        "understanding", "at", "on", "in", "out", "off", "up", "down", "to",
+        "it", "this", "going", "working", "looking", "feeling", "getting"
+    }
     for p in patterns:
         m = re.search(p, text, re.IGNORECASE)
         if m:
             name = m.group(1).strip()
-            if name.lower() not in ["good", "fine", "okay", "cool", "here", "just", "from", "doing"]:
+            if name.lower() not in skip and len(name) > 2:
                 return name
     return None
 
@@ -345,16 +364,25 @@ def update_fan_after_message(user_id, messages):
     }
     if not profile.get("location"):
         import re
+        skip_locs = {
+            "here", "the", "a", "an", "my", "your", "there", "this", "that",
+            "home", "around", "out", "work", "school", "somewhere", "nowhere",
+            "anywhere", "everywhere", "outside", "inside"
+        }
+        loc_patterns = [
+            r"(?:i'm from|im from|i am from|i live in|i'm in|im in|based in|based out of|i stay in|i stay out of|i'm out in|im out in|out here in|out here from|repping|rep)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
+            r"(?:born in|raised in|grew up in|i'm originally from|originally from|native of)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
+        ]
         for msg in messages:
-            m = re.search(r"(?:i'm from|im from|i am from|i live in|i'm in|im in|based in|based out of|i stay in|i stay out of)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b", msg, re.IGNORECASE)
-            if m:
-                loc = m.group(1).strip().title()
-                if len(loc) > 2 and loc.lower() not in ["here", "the", "a", "an", "my", "your"]:
-                    if loc.lower() not in US_STATES:
+            for pattern in loc_patterns:
+                m = re.search(pattern, msg, re.IGNORECASE)
+                if m:
+                    loc = m.group(1).strip().title()
+                    if len(loc) > 2 and loc.lower() not in skip_locs:
                         updates["location"] = loc
-                    else:
-                        updates["location"] = loc  # state saved, will be overwritten when city comes in
-                    break
+                        break
+            if "location" in updates:
+                break
     # If location is currently a state, check if a city just came in
     elif profile.get("location") and profile["location"].lower() in US_STATES:
         import re
@@ -642,7 +670,7 @@ def get_mia_reply(user_id):
         elif (profile.get("total_messages") or 0) >= 2 and not profile.get("fb_name") and not profile.get("nickname"):
             facts.append("NAME NEEDED: You don't know this person's name yet and they haven't told you. Within your next 1-2 replies, work it in naturally — something like 'most people call me Snow or Mia, what can i call you?' — keep it casual like you're just introducing yourself, not interrogating them. Only ask once. Do NOT ask if they already told you their name earlier in the conversation.")
         if profile.get("location"):
-            facts.append(f"From: {profile['location']}")
+            facts.append(f"From: {profile['location']} — HARD RULE: You already know where this person is from. NEVER ask where they're from again. Not once. Not even 'what part'. You already know. Asking again will make you look like you forgot and damage the relationship.")
         if profile.get("job"):
             facts.append(f"Job: {profile['job']}")
         if profile.get("interests"):
@@ -680,6 +708,14 @@ def get_mia_reply(user_id):
             facts.append(f"HARD RULE — Links already sent to this person: {', '.join(sent_links)}.{music_note} Do NOT resend any other links under any circumstances.")
         if profile.get("sent_blast_list"):
             facts.append("FUNNEL COMPLETE: You've already connected with this person and shared your music and blast list. Keep replies short and warm — 1 sentence max. You're living your life, not sitting by the phone. You still love them but you're busy and that's real. Don't start new topics or ask questions. Just respond warmly to whatever they say and keep it moving.")
+        # Music drop window — 25-39 cycle messages, music not yet shared
+        if not profile.get("sent_spotify") and not profile.get("sent_blast_list"):
+            cycle_start = profile.get("cycle_start_msg_count") or 0
+            total_msgs = profile.get("total_messages") or 0
+            cycle_msgs = max(0, total_msgs - cycle_start)
+            if 25 <= cycle_msgs <= 39:
+                facts.append("MUSIC WINDOW: You've been talking for a while and have real rapport built. This is the moment — if it flows naturally at all, bridge to your music. Find the overlap with what they've said and drop: https://linktr.ee/therealmiasnow1 — tell them they can stream it or watch the visuals on YouTube. Don't force it if the convo is in a completely unrelated moment, but look for any opening and take it.")
+
         # Music feedback nudge — if music was shared but feedback not yet asked
         if profile.get("sent_spotify") and not profile.get("asked_about_music_feedback") and not profile.get("favorite_song"):
             facts.append("MUSIC FEEDBACK DUE: You shared your music with this person already. If it comes up naturally, ask what they thought — use casual varied phrasing like 'which one you checked out', 'which song you was feeling', 'which track fw you'. Don't force it — only bring it up if the conversation allows it. Never use 'which song hits different'.")
@@ -1095,9 +1131,10 @@ def get_comment_reply(comment_text, post_text=""):
     music_triggers = ["song", "music", "track", "banger", "stream", "spotify", "listen", "heard you", "your music", "your song", "your track", "love your music", "love your song", "fw your", "fw the music", "that song", "this song", "fire song", "hard", "slaps", "go crazy", "dropping", "new music", "album", "ep", "single"]
     if any(w in comment_text.lower() for w in music_triggers):
         return random.choice([
-            f"appreciate that 🤍 go stream it fr — https://linktr.ee/therealmiasnow1",
-            f"thank you 🥹 check the rest out too — https://linktr.ee/therealmiasnow1",
+            f"go stream it fr 🤍 https://linktr.ee/therealmiasnow1",
+            f"thank you 🥹 check the rest out — https://linktr.ee/therealmiasnow1",
             f"means a lot 🙏🏽 more where that came from — https://linktr.ee/therealmiasnow1",
+            f"you gotta hear the rest too — https://linktr.ee/therealmiasnow1",
         ])
 
     # Detect inbox-worthy comments (questions, business, collabs)
@@ -1425,6 +1462,107 @@ loadDash();
 @app.route("/dashboard")
 def dashboard():
     return DASHBOARD_HTML
+
+
+@app.route("/admin/fix-profiles")
+def fix_profiles_route():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return "unauthorized", 401
+
+    import re as _re
+
+    SKIP_NAMES = {
+        "good", "fine", "okay", "cool", "here", "just", "from", "doing", "hey",
+        "lol", "yes", "nah", "yea", "yep", "wow", "omg", "sup", "hi", "ok",
+        "real", "sure", "not", "the", "and", "but", "for", "with", "that",
+        "trying", "single", "ready", "worth", "rock", "already", "originally",
+        "understanding", "at", "on", "in", "out", "off", "up", "down", "to",
+        "it", "this", "going", "working", "looking", "feeling", "getting",
+        "thank", "thanks", "love", "wassup", "what", "how", "when",
+        "where", "who", "why", "been", "have", "will", "would", "could",
+        "should", "might", "must", "shall", "may", "can", "did", "does",
+        "had", "has", "was", "were", "been", "being", "am", "are", "is"
+    }
+    SKIP_LOCS = {
+        "here", "the", "a", "an", "my", "your", "there", "this", "that",
+        "home", "around", "out", "work", "school", "somewhere", "nowhere",
+        "anywhere", "everywhere", "outside", "inside", "release", "city",
+        "back", "way", "where", "time", "them", "tho", "though", "most",
+        "certainly", "suburbs", "oilfield", "tuned", "thank", "you"
+    }
+
+    def _extract_name(text):
+        patterns = [
+            r"(?:i'm|im|i am|my name is|they call me|call me|name's|names|it's|its|this is)\s+([A-Za-z][a-z]+)",
+            r"^([A-Za-z][a-z]+)\s+here\b",
+            r"(?:call me|they call me|goes by|go by|the name(?:'s| is))\s+([A-Za-z][a-z]+)",
+        ]
+        for p in patterns:
+            m = _re.search(p, text, _re.IGNORECASE)
+            if m:
+                name = m.group(1).strip()
+                if name.lower() not in SKIP_NAMES and len(name) > 2:
+                    return name
+        return None
+
+    def _extract_loc(text):
+        patterns = [
+            r"(?:i'm from|im from|i am from|i live in|i'm in|im in|based in|based out of|i stay in|i stay out of|i'm out in|im out in|out here in|out here from|repping|rep)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
+            r"(?:born in|raised in|grew up in|i'm originally from|originally from|native of)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
+        ]
+        for p in patterns:
+            m = _re.search(p, text, _re.IGNORECASE)
+            if m:
+                loc = m.group(1).strip().title()
+                loc_words = loc.lower().split()
+                if len(loc) > 2 and not any(w in SKIP_LOCS for w in loc_words):
+                    return loc
+        return None
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT user_id, fb_name, nickname, location FROM fan_profiles")
+    fans = cur.fetchall()
+
+    fixed = []
+    for fan in fans:
+        user_id = fan["user_id"]
+        cur.execute("SELECT content FROM messages WHERE user_id = %s AND role = 'user' ORDER BY id ASC", (user_id,))
+        messages = [row["content"] for row in cur.fetchall()]
+        if not messages:
+            continue
+
+        updates = {}
+
+        current_nickname = fan.get("nickname") or ""
+        if not fan.get("fb_name") or current_nickname.lower() in SKIP_NAMES:
+            for msg in messages:
+                name = _extract_name(msg)
+                if name and name.lower() not in SKIP_NAMES and name != current_nickname:
+                    updates["nickname"] = name
+                    break
+
+        current_loc = fan.get("location") or ""
+        loc_words = current_loc.lower().split()
+        loc_is_garbage = not current_loc or any(w in SKIP_LOCS for w in loc_words) or len(current_loc) < 3
+        if loc_is_garbage:
+            for msg in messages:
+                loc = _extract_loc(msg)
+                if loc and loc != current_loc:
+                    updates["location"] = loc
+                    break
+
+        if updates:
+            sets = ", ".join(f"{k} = %s" for k in updates)
+            vals = list(updates.values()) + [user_id]
+            cur.execute(f"UPDATE fan_profiles SET {sets} WHERE user_id = %s", vals)
+            conn.commit()
+            fixed.append(f"{user_id}: {updates}")
+
+    cur.close()
+    conn.close()
+    return "<br>".join([f"Fixed {len(fixed)} profiles:"] + fixed) or "Done — nothing to fix."
 
 
 @app.route("/dashboard/data")
