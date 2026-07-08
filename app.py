@@ -1487,16 +1487,16 @@ def fix_names_route():
     }
 
     def _extract_name(text):
+        # No IGNORECASE — name must be capitalized by the user (Title Case)
         patterns = [
-            r"(?:i'm|im|i am|my name is|they call me|call me|name's|names|it's|its|this is)\s+([A-Za-z][a-z]+)",
-            r"^([A-Za-z][a-z]+)\s+here\b",
-            r"(?:call me|they call me|goes by|go by|the name(?:'s| is))\s+([A-Za-z][a-z]+)",
+            r"(?:my name is|they call me|call me|name's|go by|goes by|the name is|the name's)\s+([A-Z][a-z]{2,})",
+            r"^([A-Z][a-z]{2,})\s+here\b",
         ]
         for p in patterns:
-            m = _re.search(p, text, _re.IGNORECASE)
+            m = _re.search(p, text)
             if m:
                 name = m.group(1).strip()
-                if name.lower() not in SKIP_NAMES and len(name) > 2:
+                if name.lower() not in SKIP_NAMES:
                     return name
         return None
 
