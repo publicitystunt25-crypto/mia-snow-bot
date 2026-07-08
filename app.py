@@ -308,12 +308,11 @@ def fetch_fb_name(user_id):
 
 
 def extract_nickname(text):
-    """Try to pull a name from intro phrases."""
+    """Try to pull a name from intro phrases. Requires Title Case to avoid grabbing random words."""
     import re
     patterns = [
-        r"(?:i'm|im|i am|my name is|they call me|call me|name's|names|it's|its|this is)\s+([A-Za-z][a-z]+)",
-        r"^([A-Za-z][a-z]+)\s+here\b",
-        r"(?:call me|they call me|goes by|go by|the name(?:'s| is))\s+([A-Za-z][a-z]+)",
+        r"(?:my name is|they call me|call me|name's|go by|goes by|the name is|the name's)\s+([A-Z][a-z]{2,})",
+        r"^([A-Z][a-z]{2,})\s+here\b",
     ]
     skip = {
         "good", "fine", "okay", "cool", "here", "just", "from", "doing", "hey",
@@ -324,7 +323,7 @@ def extract_nickname(text):
         "it", "this", "going", "working", "looking", "feeling", "getting"
     }
     for p in patterns:
-        m = re.search(p, text, re.IGNORECASE)
+        m = re.search(p, text)  # no IGNORECASE — name must be capitalized
         if m:
             name = m.group(1).strip()
             if name.lower() not in skip and len(name) > 2:
@@ -1569,16 +1568,16 @@ def fix_profiles_route():
     }
 
     def _extract_name(text):
+        # Require name to be Title Case as written — filters out random lowercase words
         patterns = [
-            r"(?:i'm|im|i am|my name is|they call me|call me|name's|names|it's|its|this is)\s+([A-Za-z][a-z]+)",
-            r"^([A-Za-z][a-z]+)\s+here\b",
-            r"(?:call me|they call me|goes by|go by|the name(?:'s| is))\s+([A-Za-z][a-z]+)",
+            r"(?:my name is|they call me|call me|name's|go by|goes by|the name is|the name's)\s+([A-Z][a-z]{2,})",
+            r"^([A-Z][a-z]{2,})\s+here\b",
         ]
         for p in patterns:
-            m = _re.search(p, text, _re.IGNORECASE)
+            m = _re.search(p, text)  # no IGNORECASE — must be capitalized
             if m:
                 name = m.group(1).strip()
-                if name.lower() not in SKIP_NAMES and len(name) > 2:
+                if name.lower() not in SKIP_NAMES:
                     return name
         return None
 
