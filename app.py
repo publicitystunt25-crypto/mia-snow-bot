@@ -1544,7 +1544,11 @@ def fix_names_route():
                         words = reply.split()
                         # Short reply (1-4 words) = likely a name answer
                         if 1 <= len(words) <= 4 and len(reply) > 1:
-                            candidate = words[0].strip(".,!?🤍❤️😊")
+                            # If reply starts with "i'm / im / i am", grab the next word
+                            if words[0].lower() in ("i'm", "im", "i") and len(words) > 1:
+                                candidate = words[1].strip(".,!?🤍❤️😊")
+                            else:
+                                candidate = words[0].strip(".,!?🤍❤️😊")
                             if len(candidate) > 1 and candidate.lower() not in SKIP_NAMES:
                                 name = candidate.title()
                                 break
