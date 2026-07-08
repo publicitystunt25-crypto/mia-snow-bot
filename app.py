@@ -1470,7 +1470,9 @@ def fix_names_route():
     if password != DASHBOARD_PASSWORD:
         return "unauthorized", 401
 
-    garbage = [
+    import re as _re
+
+    SKIP_NAMES = {
         "in", "trying", "at", "on", "not", "single", "ready", "worth", "rock",
         "already", "originally", "understanding", "out", "off", "up", "down",
         "to", "it", "this", "going", "working", "looking", "feeling", "getting",
@@ -1480,21 +1482,62 @@ def fix_names_route():
         "ok", "okay", "cool", "hey", "hi", "sup", "yea", "yep", "nah", "lol",
         "omg", "wow", "good", "fine", "here", "from", "doing", "that", "with",
         "for", "but", "and", "the", "as", "envy", "handsome", "dee", "leek",
-        "john", "rock", "surprise", "surprised"
-    ]
+        "john", "rock", "surprise", "surprised", "where", "who", "why", "what",
+        "how", "when", "so", "no", "yes", "my", "your", "we", "they", "he",
+        "she", "you", "i", "me", "him", "her", "us", "them"
+    }
+
+    def _extract_name(text):
+        patterns = [
+            r"(?:i'm|im|i am|my name is|they call me|call me|name's|names|it's|its|this is)\s+([A-Za-z][a-z]+)",
+            r"^([A-Za-z][a-z]+)\s+here\b",
+            r"(?:call me|they call me|goes by|go by|the name(?:'s| is))\s+([A-Za-z][a-z]+)",
+        ]
+        for p in patterns:
+            m = _re.search(p, text, _re.IGNORECASE)
+            if m:
+                name = m.group(1).strip()
+                if name.lower() not in SKIP_NAMES and len(name) > 2:
+                    return name
+        return None
 
     conn = get_conn()
-    cur = conn.cursor()
-    placeholders = ",".join(["%s"] * len(garbage))
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # Step 1 — clear garbage nicknames
+    placeholders = ",".join(["%s"] * len(SKIP_NAMES))
     cur.execute(
         f"UPDATE fan_profiles SET nickname = NULL WHERE LOWER(nickname) IN ({placeholders})",
-        garbage
+        list(SKIP_NAMES)
     )
     cleared = cur.rowcount
     conn.commit()
+
+    # Step 2 — re-scan message history and extract real names
+    cur.execute("SELECT user_id, fb_name, nickname FROM fan_profiles WHERE nickname IS NULL AND fb_name IS NULL OR fb_name = ''")
+    fans = cur.fetchall()
+
+    fixed = []
+    for fan in fans:
+        user_id = fan["user_id"]
+        cur.execute(
+            "SELECT content FROM messages WHERE user_id = %s AND role = 'user' ORDER BY id ASC",
+            (user_id,)
+        )
+        messages = [row["content"] for row in cur.fetchall()]
+        for msg in messages:
+            name = _extract_name(msg)
+            if name:
+                cur.execute("UPDATE fan_profiles SET nickname = %s WHERE user_id = %s", (name, user_id))
+                conn.commit()
+                fixed.append(f"{user_id} → {name}")
+                break
+
     cur.close()
     conn.close()
-    return f"Cleared {cleared} garbage nicknames."
+
+    lines = [f"Cleared {cleared} garbage nicknames.", f"Re-extracted {len(fixed)} real names:"] + fixed
+    return "<br>".join(lines)
 
 
 @app.route("/admin/fix-profiles")
