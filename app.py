@@ -15,6 +15,7 @@ app = Flask(__name__)
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 ANTHROPIC_COMMENTS_API_KEY = os.environ.get("ANTHROPIC_COMMENTS_API_KEY", ANTHROPIC_API_KEY)
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 PAGE_ACCESS_TOKEN = os.environ.get("PAGE_ACCESS_TOKEN")
 VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN")
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -229,6 +230,14 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS message_embeddings (
+            message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+            embedding vector(1536)
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS message_embeddings_idx ON message_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS paused_users (
             user_id TEXT PRIMARY KEY,
@@ -550,9 +559,90 @@ def unanswered_message_count(user_id):
     return count
 
 
-# ── Conversation history ──────────────────────────────────────────────────────
+# ── Embeddings ────────────────────────────────────────────────────────────────
 
-def get_history(user_id):
+def get_embedding(text):
+    """Get OpenAI embedding vector for a piece of text."""
+    try:
+        import openai
+        oa = openai.OpenAI(api_key=OPENAI_API_KEY)
+        response = oa.embeddings.create(
+            model="text-embedding-3-small",
+            input=text[:2000]  # cap at 2000 chars
+        )
+        return response.data[0].embedding
+    except Exception as e:
+        print(f"[embedding] error: {e}")
+        return None
+
+
+def save_embedding(message_id, embedding):
+    """Store embedding vector for a message."""
+    if not embedding:
+        return
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO message_embeddings (message_id, embedding) VALUES (%s, %s) ON CONFLICT (message_id) DO NOTHING",
+            (message_id, embedding)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[embedding] save error: {e}")
+
+
+def get_relevant_history(user_id, current_message, limit=8):
+    """Get most relevant past messages using vector similarity + always include last 5."""
+    try:
+        embedding = get_embedding(current_message)
+        conn = get_conn()
+        cur = conn.cursor()
+
+        # Always get last 5 messages for immediate context
+        cur.execute(
+            "SELECT id, role, content FROM messages WHERE user_id = %s ORDER BY id DESC LIMIT 5",
+            (user_id,)
+        )
+        recent = [(r[0], r[1], r[2]) for r in cur.fetchall()]
+        recent_ids = {r[0] for r in recent}
+
+        # Get semantically relevant messages if we have an embedding
+        relevant = []
+        if embedding:
+            cur.execute("""
+                SELECT m.id, m.role, m.content
+                FROM messages m
+                JOIN message_embeddings e ON e.message_id = m.id
+                WHERE m.user_id = %s AND m.id != ALL(%s)
+                ORDER BY e.embedding <=> %s::vector
+                LIMIT %s
+            """, (user_id, list(recent_ids), embedding, limit - 5))
+            relevant = [(r[0], r[1], r[2]) for r in cur.fetchall()]
+
+        cur.close()
+        conn.close()
+
+        # Combine: relevant (oldest first) + recent (oldest first)
+        all_msgs = sorted(relevant, key=lambda x: x[0]) + list(reversed(recent))
+        # Deduplicate keeping order
+        seen = set()
+        final = []
+        for msg_id, role, content in all_msgs:
+            if msg_id not in seen:
+                seen.add(msg_id)
+                final.append({"role": role, "content": content})
+        return final
+
+    except Exception as e:
+        print(f"[vector_history] error: {e}, falling back to recency")
+        # Fallback to regular history
+        return get_history_fallback(user_id)
+
+
+def get_history_fallback(user_id):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
@@ -565,21 +655,29 @@ def get_history(user_id):
     return [{"role": r, "content": c} for r, c in reversed(rows)]
 
 
+# ── Conversation history ──────────────────────────────────────────────────────
+
+def get_history(user_id):
+    return get_history_fallback(user_id)
+
+
 def save_message(user_id, role, content):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO messages (user_id, role, content) VALUES (%s, %s, %s)",
+        "INSERT INTO messages (user_id, role, content) VALUES (%s, %s, %s) RETURNING id",
         (user_id, role, content)
     )
-    cur.execute("""
-        DELETE FROM messages WHERE user_id = %s AND id NOT IN (
-            SELECT id FROM messages WHERE user_id = %s ORDER BY id DESC LIMIT %s
-        )
-    """, (user_id, user_id, MAX_HISTORY))
+    message_id = cur.fetchone()[0]
     conn.commit()
     cur.close()
     conn.close()
+    # Embed in background thread so it doesn't slow down the reply
+    if OPENAI_API_KEY:
+        threading.Thread(
+            target=lambda: save_embedding(message_id, get_embedding(content)),
+            daemon=True
+        ).start()
 
 
 # ── Pause / resume ────────────────────────────────────────────────────────────
@@ -671,8 +769,24 @@ def notify_owner(fan_id, reason):
 
 
 def get_mia_reply(user_id):
-    history = get_history(user_id)
     profile = get_fan_profile(user_id)
+    # Use vector history if OpenAI key available, otherwise fall back to recency
+    last_user_msg = ""
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT content FROM messages WHERE user_id = %s AND role = 'user' ORDER BY id DESC LIMIT 1", (user_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row:
+            last_user_msg = row[0]
+    except Exception:
+        pass
+    if OPENAI_API_KEY and last_user_msg:
+        history = get_relevant_history(user_id, last_user_msg)
+    else:
+        history = get_history_fallback(user_id)
 
     # Build a short profile context to inject
     profile_context = ""
@@ -2256,6 +2370,43 @@ def handle_ig_comment(comment_id, comment_text, commenter_id):
     reply = reply.replace(" — ", ", ").replace("—", ", ")
     save_message(commenter_id, "assistant", reply)
     send_ig_comment_reply(comment_id, reply)
+
+
+@app.route("/admin/backfill-embeddings")
+def backfill_embeddings_route():
+    password = request.args.get("password", "")
+    if password != "miasnow2024":
+        return "Unauthorized", 401
+    if not OPENAI_API_KEY:
+        return "No OPENAI_API_KEY set", 400
+
+    def _do_backfill():
+        try:
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT id, content FROM messages
+                WHERE id NOT IN (SELECT message_id FROM message_embeddings)
+                ORDER BY id ASC
+            """)
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+            print(f"[backfill] {len(rows)} messages to embed")
+            done = 0
+            for msg_id, content in rows:
+                emb = get_embedding(content)
+                if emb:
+                    save_embedding(msg_id, emb)
+                    done += 1
+                if done % 100 == 0:
+                    print(f"[backfill] {done}/{len(rows)} done")
+            print(f"[backfill] complete: {done}/{len(rows)} embedded")
+        except Exception as e:
+            print(f"[backfill] error: {e}")
+
+    threading.Thread(target=_do_backfill, daemon=True).start()
+    return "Backfill started in background — check logs", 200
 
 
 init_db()
