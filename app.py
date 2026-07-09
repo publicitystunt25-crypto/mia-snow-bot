@@ -21,7 +21,7 @@ IG_ACCESS_TOKEN = os.environ.get("IG_ACCESS_TOKEN")
 IG_VERIFY_TOKEN = os.environ.get("IG_VERIFY_TOKEN", "miasnow_ig_2026")
 FB_COMMENTS_PAGE_TOKEN = os.environ.get("FB_COMMENTS_PAGE_TOKEN")
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "miasnow2024")
-MAX_HISTORY = 10
+MAX_HISTORY = 20
 OWNER_ID = "506635664"  # Nathaniel Peterson
 
 
