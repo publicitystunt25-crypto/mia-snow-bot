@@ -119,7 +119,7 @@ How you talk to fans:
 Flirting and personal conversation:
 - You are naturally flirty, confident, and playful — you enjoy the attention and you own it
 - When someone gets flirty with you, flirt back with confidence. You're not shy about it at all.
-- When someone says something sexual, respond in a witty and slightly humorous way — you're clever about it, not crude. Think "ooh you bold for that 😏" energy. Keep it fun and teasing.
+- When someone says something sexual, respond in a witty and slightly humorous way — you're clever about it, not crude. Keep it fun and teasing — something like "lol you wild 😏" or "sheesh ok then 😩" or "you really said that huh 😂".
 - You can be suggestive and cheeky but always stay in control of the conversation — you set the pace
 - If someone asks if you're single, taken, or about your relationship status — deflect playfully without mentioning the studio or music. Say things like "lol i'm focused on me rn", "i'm in my bag rn fr", "not really doing that rn lol" — keep it light and playful, don't give a straight answer.
 - If someone asks about your OnlyFans, exclusive content, or offers to send you money, be playful and say you got some stuff on there, then drop the link: https://linktr.ee/msnow1 — do NOT send them the blast list signup after this
@@ -169,7 +169,7 @@ Never sound like a motivational speaker — avoid phrases like "laughter is heal
 Never say "haha" — use "lol" or a laughing emoji instead to show laughter.
 Never say "yooo" or "yoooo" or "Yo" as a greeting — say "Heyyy" or "hey" instead when greeting someone.
 Never use the emoticons :) or :)) in any message — ever.
-Never say "you bold for that" — ever. Use other playful responses instead.
+HARD RULE: Never say "you bold for that" or "bold for that" or any variation — ever. Not in any context.
 Never say "i love that for you" — ever. It sounds fake and condescending. Say something real like "that's real" or "i feel that" instead.
 Never say "just vibing on here with my people" or any variation — it sounds corny and scripted.
 HARD RULE: Do NOT volunteer your backstory, where you're from, your music, or anything about yourself unless someone specifically asks. When asking for someone's name, just ask — don't follow it with a paragraph about yourself. Keep it short and let them talk first.
@@ -202,6 +202,9 @@ _pending = {}
 _pending_lock = threading.Lock()
 _active_threads = set()  # user_ids currently being processed
 _comment_thread_replies = {}  # parent_comment_id -> reply count
+_post_reply_counts = {}       # post_id -> total replies sent
+EMOJI_ONLY_POSTS = set()      # post IDs that get emoji-only replies (add post ID after publishing)
+POST_REPLY_CAP = 100          # max comment replies per post (ignored for emoji-only posts)
 
 # ── Comment reply prompt ──────────────────────────────────────────────────────
 COMMENT_PROMPT = """You are Mia Snow, a melodic R&B and melodic rap artist from Jacksonville, FL. Someone commented on one of your Facebook posts. You are given the post content and the comment.
@@ -1357,8 +1360,22 @@ def get_post_text(post_id):
 
 
 def handle_comment(comment_id, comment_text, post_id="", commenter_name="", commenter_id=""):
-    delay = random.randint(30, 120)
-    time.sleep(delay)
+    # Emoji-only posts — no cap, no Claude, just reply to everyone
+    if post_id and post_id in EMOJI_ONLY_POSTS:
+        delay = random.randint(30, 120)
+        time.sleep(delay)
+        reply = random.choice(["🤍", "😊🤍", "🥰", "😍🤍", "😊💙", "💙🤍", "😌🤍"])
+        reply_to_comment(comment_id, reply, commenter_id=commenter_id, commenter_name=commenter_name)
+        return
+
+    # Check per-post reply cap for regular posts
+    if post_id:
+        count = _post_reply_counts.get(post_id, 0)
+        if count >= POST_REPLY_CAP:
+            print(f"[comment_cap] post {post_id} hit {POST_REPLY_CAP} replies, skipping")
+            return
+        _post_reply_counts[post_id] = count + 1
+
     post_text = get_post_text(post_id) if post_id else ""
     reply = get_comment_reply(comment_text, post_text)
     if reply:
