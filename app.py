@@ -333,11 +333,11 @@ def fetch_fb_name(user_id):
 
 
 def extract_nickname(text):
-    """Try to pull a name from intro phrases. Requires Title Case to avoid grabbing random words."""
+    """Try to pull a name from intro phrases."""
     import re
     patterns = [
-        r"(?:my name is|they call me|call me|name's|go by|goes by|the name is|the name's)\s+([A-Z][a-z]{2,})",
-        r"^([A-Z][a-z]{2,})\s+here\b",
+        r"(?:my name is|they call me|call me|name's|go by|goes by|the name is|the name's|i'm|im|i am)\s+([A-Za-z][a-zA-Z]{1,})",
+        r"^([A-Za-z][a-zA-Z]{1,})\s+here\b",
     ]
     skip = {
         "good", "fine", "okay", "cool", "here", "just", "from", "doing", "hey",
@@ -345,14 +345,16 @@ def extract_nickname(text):
         "real", "sure", "not", "the", "and", "but", "for", "with", "that",
         "trying", "single", "ready", "worth", "rock", "already", "originally",
         "understanding", "at", "on", "in", "out", "off", "up", "down", "to",
-        "it", "this", "going", "working", "looking", "feeling", "getting"
+        "it", "this", "going", "working", "looking", "feeling", "getting",
+        "good", "great", "well", "straight", "blessed", "tired", "busy", "bored",
+        "home", "outside", "sleep", "sleep", "chillin", "chilling", "good"
     }
     for p in patterns:
-        m = re.search(p, text)  # no IGNORECASE — name must be capitalized
+        m = re.search(p, text, re.IGNORECASE)
         if m:
             name = m.group(1).strip()
             if name.lower() not in skip and len(name) > 2:
-                return name
+                return name.title()
     return None
 
 
@@ -672,8 +674,8 @@ def save_message(user_id, role, content):
     conn.commit()
     cur.close()
     conn.close()
-    # Embed in background thread so it doesn't slow down the reply
-    if OPENAI_API_KEY:
+    # Embed in background thread — only user messages, only if substantial
+    if OPENAI_API_KEY and role == "user" and len(content.strip()) >= 15:
         threading.Thread(
             target=lambda: save_embedding(message_id, get_embedding(content)),
             daemon=True
@@ -768,6 +770,27 @@ def notify_owner(fan_id, reason):
     send_message(OWNER_ID, msg)
 
 
+def scan_history_for_name(user_id, history):
+    """Scan pulled history messages for a name. If found, save to fan_profiles and return it."""
+    for msg in history:
+        if msg.get("role") != "user":
+            continue
+        name = extract_nickname(msg["content"])
+        if name:
+            try:
+                conn = get_conn()
+                cur = conn.cursor()
+                cur.execute("UPDATE fan_profiles SET nickname = %s WHERE user_id = %s AND (nickname IS NULL OR nickname = '')", (name, user_id))
+                conn.commit()
+                cur.close()
+                conn.close()
+                print(f"[name_scan] saved '{name}' for {user_id} from history")
+            except Exception as e:
+                print(f"[name_scan] error saving: {e}")
+            return name
+    return None
+
+
 def get_mia_reply(user_id):
     profile = get_fan_profile(user_id)
     # Use vector history if OpenAI key available, otherwise fall back to recency
@@ -788,6 +811,12 @@ def get_mia_reply(user_id):
     else:
         history = get_history_fallback(user_id)
 
+    # If nickname missing, scan the pulled history to find it before building context
+    if profile and not profile.get("nickname") and not profile.get("fb_name"):
+        found_name = scan_history_for_name(user_id, history)
+        if found_name:
+            profile["nickname"] = found_name
+
     # Build a short profile context to inject
     profile_context = ""
     if profile:
@@ -797,7 +826,23 @@ def get_mia_reply(user_id):
         if profile.get("nickname"):
             facts.append(f"Goes by: {profile['nickname']}")
         elif (profile.get("total_messages") or 0) >= 2 and not profile.get("fb_name") and not profile.get("nickname"):
-            facts.append("NAME NEEDED: You don't know this person's name yet and they haven't told you. Within your next 1-2 replies, work it in naturally — something like 'most people call me Snow or Mia, what can i call you?' — keep it casual like you're just introducing yourself, not interrogating them. Only ask once. Do NOT ask if they already told you their name earlier in the conversation.")
+            # Check if she already asked for their name in recent history
+            already_asked = False
+            try:
+                conn = get_conn()
+                cur = conn.cursor()
+                cur.execute("SELECT content FROM messages WHERE user_id = %s AND role = 'assistant' ORDER BY id DESC LIMIT 30", (user_id,))
+                past = [r[0].lower() for r in cur.fetchall()]
+                cur.close()
+                conn.close()
+                name_ask_phrases = ["what can i call you", "what's your name", "whats your name", "what do i call you", "what should i call you", "who am i talking to", "can i get your name", "what they call you"]
+                already_asked = any(phrase in msg for msg in past for phrase in name_ask_phrases)
+            except Exception:
+                pass
+            if not already_asked:
+                facts.append("NAME NEEDED: You don't know this person's name yet. Within your next 1-2 replies, work it in naturally — something like 'most people call me Snow or Mia, what can i call you?' — keep it casual. Only ask once. HARD RULE: If you already asked for their name earlier in this conversation and they didn't give it, DO NOT ask again. Move on.")
+            else:
+                facts.append("HARD RULE: You already asked this person their name and they haven't given it. DO NOT ask again. Ever. Just keep the conversation going naturally without their name.")
         if profile.get("location"):
             facts.append(f"From: {profile['location']} — HARD RULE: You already know where this person is from. NEVER ask where they're from again. Not once. Not even 'what part'. You already know. Asking again will make you look like you forgot and damage the relationship.")
         if profile.get("job"):
@@ -1007,13 +1052,15 @@ def get_convo_action(sender_id, profile, unanswered_count, is_business):
         if phase < 2:
             db_update(convo_phase=2)
         return ('respond', 300)    # 5 min
+    elif cycle_msgs >= 5:
+        return ('respond', 180)    # 3 min after first 5 messages
     else:
-        return ('respond', None)   # normal delays
+        return ('respond', None)   # normal delays (first 5 messages instant)
 
 
 def handle_reply(sender_id):
     try:
-        time.sleep(5)
+        time.sleep(30)
 
         if is_paused(sender_id) or is_blocked(sender_id):
             with _pending_lock:
