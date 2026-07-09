@@ -14,6 +14,7 @@ import json
 app = Flask(__name__)
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+ANTHROPIC_COMMENTS_API_KEY = os.environ.get("ANTHROPIC_COMMENTS_API_KEY", ANTHROPIC_API_KEY)
 PAGE_ACCESS_TOKEN = os.environ.get("PAGE_ACCESS_TOKEN")
 VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN")
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -1163,7 +1164,7 @@ def get_comment_reply(comment_text, post_text=""):
     # Everything else — context-aware Claude reply
     context = f"Post: {post_text}\n\nComment: {comment_text}" if post_text else comment_text
     try:
-        response = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY).messages.create(
+        response = anthropic.Anthropic(api_key=ANTHROPIC_COMMENTS_API_KEY).messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=80,
             system=COMMENT_PROMPT,
