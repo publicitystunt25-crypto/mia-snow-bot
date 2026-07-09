@@ -152,7 +152,7 @@ Stage 4 — Get feedback: after they've had a chance to listen, ask what they th
 Stage 5 — Convert: once the music connection is made, naturally work in the blast list — "if you wanna be first to know when i drop new stuff, get on my close network list fr" and drop: https://forms.gle/veUFhGiHetDFr1kk6. Then wrap up warmly and let the conversation close naturally.
 
 - If the person is from The Girl Code, go through the same funnel but take more time with Stage 1-2 — build the sisterhood connection before going to music.
-- If someone asks for your phone number, keep it flirty and playful — say things like "lol you gotta earn that", "that's not just handed out like that", "we not there yet lol", "you working for it tho i see you" — keep it warm and teasing, never rude or dismissive. Then move on naturally without dwelling on it.
+- If someone asks for your phone number, keep it flirty and playful — say things like "lol you gotta earn that", "that's not just handed out like that", "we not there yet lol", "i see you tho lol" — keep it warm and teasing, never rude or dismissive. Then move on naturally without dwelling on it.
 - If someone sends you their phone number, respond with "i just locked you in 🖤" and keep it moving.
 - If someone asks for your number, say something like "shoot me your number i'll lock you in" — flirty and warm, then move on.
 
@@ -819,8 +819,24 @@ def get_mia_reply(user_id):
     # If nickname missing, scan the pulled history to find it before building context
     if profile and not profile.get("nickname") and not profile.get("fb_name"):
         found_name = scan_history_for_name(user_id, history)
+        if not found_name:
+            # Scan full DB history too, not just vector-pulled
+            try:
+                conn = get_conn()
+                cur = conn.cursor()
+                cur.execute("SELECT content FROM messages WHERE user_id = %s AND role = 'user' ORDER BY id ASC", (user_id,))
+                all_user_msgs = [{"role": "user", "content": r[0]} for r in cur.fetchall()]
+                cur.close()
+                conn.close()
+                found_name = scan_history_for_name(user_id, all_user_msgs)
+            except Exception:
+                pass
         if found_name:
             profile["nickname"] = found_name
+
+    # Detect if the fan is saying they already gave their name
+    _already_told_phrases = ["i already told", "i told you", "told u", "i said my name", "i gave you my name", "you forgot", "you don't remember", "u forgot", "u don't remember", "i told u my name", "already told u"]
+    _fan_just_said_already_told = any(p in last_user_msg.lower() for p in _already_told_phrases)
 
     # Build a short profile context to inject
     profile_context = ""
@@ -830,24 +846,8 @@ def get_mia_reply(user_id):
             facts.append(f"Fan's name: {profile['fb_name']}")
         if profile.get("nickname"):
             facts.append(f"Goes by: {profile['nickname']}")
-        elif (profile.get("total_messages") or 0) >= 2 and not profile.get("fb_name") and not profile.get("nickname"):
-            # Check if she already asked for their name in recent history
-            already_asked = False
-            try:
-                conn = get_conn()
-                cur = conn.cursor()
-                cur.execute("SELECT content FROM messages WHERE user_id = %s AND role = 'assistant' ORDER BY id DESC LIMIT 30", (user_id,))
-                past = [r[0].lower() for r in cur.fetchall()]
-                cur.close()
-                conn.close()
-                name_ask_phrases = ["what can i call you", "what's your name", "whats your name", "what do i call you", "what should i call you", "who am i talking to", "can i get your name", "what they call you"]
-                already_asked = any(phrase in msg for msg in past for phrase in name_ask_phrases)
-            except Exception:
-                pass
-            if not already_asked:
-                facts.append("NAME NEEDED: You don't know this person's name yet. Within your next 1-2 replies, work it in naturally — something like 'most people call me Snow or Mia, what can i call you?' — keep it casual. Only ask once. HARD RULE: If you already asked for their name earlier in this conversation and they didn't give it, DO NOT ask again. Move on.")
-            else:
-                facts.append("HARD RULE: You already asked this person their name and they haven't given it. DO NOT ask again. Ever. Just keep the conversation going naturally without their name.")
+        elif _fan_just_said_already_told:
+            facts.append("CRITICAL: This person just said they already told you their name. DO NOT ask for their name again under ANY circumstances. Say 'my bad' naturally and keep moving — something like 'my bad fr, it's been a lot going on' — then just vibe. Never ask for their name again in this conversation. Ever.")
         if profile.get("location"):
             facts.append(f"From: {profile['location']} — HARD RULE: You already know where this person is from. NEVER ask where they're from again. Not once. Not even 'what part'. You already know. Asking again will make you look like you forgot and damage the relationship.")
         if profile.get("job"):
