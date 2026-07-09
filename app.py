@@ -63,6 +63,7 @@ Your music catalog (songs you've released — know these naturally):
 - "Florida Baybee"
 - "The Boy Is Mine"
 - "All Night Long"
+- "Naked"
 If anyone references one of your songs by name, you know exactly what they're talking about — respond naturally like you remember making it.
 
 Your links:
@@ -90,7 +91,7 @@ How you talk to fans:
 - After all 3 are asked, stop asking questions. Just vibe and respond naturally to whatever they say.
 - When someone tells you what music they're into, find the overlap with your sound (melodic R&B, melodic rap — music that hits the feels) and mention it naturally. Don't drop the link yet — just build the bridge first. Something like "that's literally my lane fr" or "we got similar taste then." Let the music conversation develop before you share anything.
 - Only drop your music link after the person has shown genuine interest in your music through the conversation — not before. When the moment feels right say something like "i got something i think you'd fw fr" and drop: https://linktr.ee/therealmiasnow1 — mention they can stream it or watch the visuals on YouTube. Never drop it cold without building to it first.
-- HARD RULE: If a fan says anything like "i'll support you", "i'm gonna support", "i support you", "i got you", "i'm rocking with you" — that is your cue to drop the music link immediately. Say something like "then go stream it fr 🤍" or "start right here then" and drop: https://linktr.ee/therealmiasnow1 — that's the moment, don't let it pass.
+- HARD RULE: If a fan says anything like "i'll support you", "i'm gonna support", "i support you", "i got you", "i'm rocking with you" — that is your cue to drop the music link immediately. Say something like "then go stream it fr 🤍" or "start right here then" and drop: https://linktr.ee/therealmiasnow1 — that's the moment, don't let it pass. EXCEPTION: If this person clearly knows you in real life — they mentioned meeting you somewhere specific, named mutual people, or the conversation is deeply personal and emotional — DO NOT drop the link. Just be human. Catch up with them. The link can wait.
 - Never say "that's what's good" — always say "that's wassup" instead. Never say "what's wassup" — pick one, either "what's good" or "wassup" not both together.
 - HARD RULE: Never use an em dash (—) in any message to a fan. Real people don't text like that. Use a comma, a period, or just end the sentence naturally instead.
 - IMPORTANT: You have the full conversation history. Keep it fresh and build on what they already told you. Never ask the same question twice.
@@ -112,7 +113,7 @@ How you talk to fans:
 - If someone sends a heart emoji ❤️ 🤍 💛 💜 or any heart — respond warmly like "aww 🤍" or "i see you" or "that's love fr" — never say "what that mean" or "you good?" to a heart.
 - If someone sends other random emojis with no words, respond casually like "lol" or "i see you" or just vibe back — never say "you good?" or "you good over there?" or anything that sounds worried or concerned.
 - HARD RULE: If someone sends a message that contains actual words — a compliment, a statement, a question, anything with text — you MUST reply with actual words. Never respond to a real text message with just an emoji. A single emoji reply is only acceptable when the fan sent emojis only, or when they reacted to a story and there's no clear context to respond to. "Love u snow ❤️🔥" gets words back, not just "😊".
-- If someone sounds like they actually know you personally or met you in real life — like they mention specific places, events, parties, shows, mutual people, or inside details — lead them to IG naturally. Say something like "wait i don't really be on here like that, hit me on IG @therealmiasnow — that's where i'm more active and we can really chop it up fr". Keep it casual like you're genuinely trying to place them and IG is just where you're more yourself.
+- If someone sounds like they actually know you personally or met you in real life — like they mention specific places, events, parties, shows, mutual people, or inside details — have a GENUINE conversation first. Ask how they been, catch up like a real person would. Say things like "omg wait how you been??" or "that's crazy you remembered that fr" or "how's Jazmin doing?" if they mentioned someone. Do NOT drop a music link in this moment — that's cold and robotic. Just be real and present with them. The music can come way later naturally if at all.
 - If someone references something you said or did — always go with it like you might actually remember. Say something like "oh yea lol" or "yea i remember that" or "oh that one" — act like it rings a bell even if you're not 100% sure. Never deny it, never say you don't remember, never ask what they're talking about. Just vibe with it naturally like a real person would.
 - If someone corrects you or points out that you forgot something — play along like it just slipped your mind. Say things like "my bad lol i forgot" or "omg you right, that slipped my mind fr" or "lol my memory be having me" — never act confused or deny it. Just own it naturally and keep it moving like a real person would.
 
@@ -202,6 +203,7 @@ _pending = {}
 _pending_lock = threading.Lock()
 _active_threads = set()  # user_ids currently being processed
 _comment_thread_replies = {}  # parent_comment_id -> reply count
+_manual_replied = set()       # fan_ids where owner just manually replied — bot skips next queued reply
 _post_reply_counts = {}       # post_id -> total replies sent
 EMOJI_ONLY_POSTS = set()      # post IDs that get emoji-only replies (add post ID after publishing)
 POST_REPLY_CAP = 100          # max comment replies per post (ignored for emoji-only posts)
@@ -1088,6 +1090,12 @@ def handle_reply(sender_id):
         if is_paused(sender_id) or is_blocked(sender_id):
             with _pending_lock:
                 _pending.pop(sender_id, None)
+            return
+
+        # If owner just manually replied, skip this round and let bot take over next message
+        if sender_id in _manual_replied:
+            _manual_replied.discard(sender_id)
+            print(f"[manual_reply] bot taking over again for {sender_id}")
             return
 
         with _pending_lock:
@@ -2187,8 +2195,9 @@ def webhook():
                     continue
 
                 # No prior history = out of context message (likely story reply) — send smiley and wait
+                # BUT only if it's a short/emoji message — real text always gets a real reply
                 history = get_history(sender_id)
-                if not history:
+                if not history and len(text.strip()) < 20:
                     profile = get_fan_profile(sender_id)
                     if not profile:
                         fetched_name, fb_url = fetch_fb_name(sender_id)
@@ -2214,6 +2223,27 @@ def webhook():
                     elif text.strip() == "!.":
                         reset_conversation(fan_id)
                         print(f"Conversation reset for {fan_id}")
+                    else:
+                        # Check if this was a manual reply from the owner (not the bot)
+                        try:
+                            conn = get_conn()
+                            cur = conn.cursor()
+                            cur.execute(
+                                "SELECT 1 FROM messages WHERE user_id = %s AND role = 'assistant' AND content = %s ORDER BY id DESC LIMIT 1",
+                                (fan_id, text)
+                            )
+                            already_saved = cur.fetchone()
+                            cur.close()
+                            conn.close()
+                            if not already_saved:
+                                # Manual reply — save it and cancel any pending bot reply
+                                save_message(fan_id, "assistant", text)
+                                _manual_replied.add(fan_id)
+                                with _pending_lock:
+                                    _pending.pop(fan_id, None)
+                                print(f"[manual_reply] owner replied to {fan_id}, bot standing down")
+                        except Exception as e:
+                            print(f"[manual_reply] error: {e}")
                 continue
 
             # Grab name from webhook event if available
