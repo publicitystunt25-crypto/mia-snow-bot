@@ -276,11 +276,13 @@ def init_db():
             is_vip BOOLEAN DEFAULT FALSE,
             is_blocked BOOLEAN DEFAULT FALSE,
             handoff_active BOOLEAN DEFAULT FALSE,
+            funnel_restarted BOOLEAN DEFAULT FALSE,
             notes TEXT,
             first_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS funnel_restarted BOOLEAN DEFAULT FALSE")
     conn.commit()
     cur.close()
     conn.close()
@@ -899,6 +901,8 @@ def get_mia_reply(user_id):
             conn2.commit()
             c2.close()
             conn2.close()
+        if profile.get('funnel_restarted') and not profile.get('listened_to_music'):
+            facts.append("YOUTUBE PUSH: You've talked to this person before but they haven't listened to your music yet. This cycle your goal is to get them to watch a YouTube video. When the moment is right, push YouTube specifically — something like 'you gotta watch the visuals fr' and drop: https://www.youtube.com/@Therealmiasnow — keep it natural, don't force it early.")
         if facts:
             profile_context = "\n\n[Fan profile — use this to personalize your response, never reveal you have this data]:\n" + "\n".join(facts)
 
@@ -975,6 +979,22 @@ def get_convo_action(sender_id, profile, unanswered_count, is_business):
 
     # --- PHASE 6: SCARCE (3 msgs every 3 days) ---
     if phase == 6:
+        # Restart funnel once for fans who never listened to music
+        if not profile.get('listened_to_music') and not profile.get('funnel_restarted'):
+            print(f"[convo_phase] {sender_id} — never listened, restarting funnel (once)")
+            db_update(
+                convo_phase=1,
+                silence_until=None,
+                apology_sent_at=None,
+                phase_bot_replies=0,
+                skip_messages_remaining=0,
+                cycle_start_msg_count=total_msgs,
+                scarce_day_replies=0,
+                scarce_day_start=None,
+                funnel_restarted=True
+            )
+            return ('respond', None)
+
         if skip_remaining > 0:
             db_update(skip_messages_remaining=max(0, skip_remaining - 1))
             if unanswered_count >= 3 and not apology_sent_at:
@@ -1285,50 +1305,35 @@ def _is_emoji_only(text):
     return len(stripped) > 0
 
 
+COMMENT_SYSTEM_ADDENDUM = """
+You are replying to a PUBLIC Facebook comment on one of your posts — not a DM. Keep these differences in mind:
+- Reply with 1 short sentence only, 2 max if truly needed. Never longer.
+- This is public so keep it clean and on brand — no explicit content
+- No em dashes ever
+- If it's a compliment, acknowledge it naturally — vary your responses, never use the same line twice
+- If they mention your music or a song, respond naturally and drop: https://linktr.ee/therealmiasnow1
+- If it's a collab/booking/business inquiry, tell them to hit your inbox
+- If it's aggressive or hateful, reply with only: 🤍
+- If it's playful or trolling, play along with wit — keep it light
+- Never ask them to follow you or go to another platform unprompted
+- Sound like you actually read their comment and are responding to THAT specifically, not a generic reply
+"""
+
 def get_comment_reply(comment_text, post_text=""):
-    import re as _re
-    # Emoji-only comment → short emoji reply
+    # Emoji-only comment → quick emoji reply, no need to call Claude
     if _is_emoji_only(comment_text):
         return random.choice(["🙏🏽🤍", "😍🤍", "💜", "🥰", "❤️‍🔥"])
 
-    # Detect compliment keywords
-    compliment_words = ["beautiful", "gorgeous", "fine", "sexy", "queen", "pretty", "bad", "fire", "perfect", "stunning", "cute", "love you", "amazing", "blessed", "goat"]
-    is_compliment = any(w in comment_text.lower() for w in compliment_words)
-    if is_compliment:
-        return random.choice([
-            "thank you so much 🥹🤍",
-            "aww appreciate that fr 🥰",
-            "that means everything 🙏🏽💜",
-            "you so sweet 🤍😊",
-            "omg stop 😩🤍 thank you",
-        ])
-
-    # Detect music mentions — drop the link
-    music_triggers = ["song", "music", "track", "banger", "stream", "spotify", "listen", "heard you", "your music", "your song", "your track", "love your music", "love your song", "fw your", "fw the music", "that song", "this song", "fire song", "hard", "slaps", "go crazy", "dropping", "new music", "album", "ep", "single"]
-    if any(w in comment_text.lower() for w in music_triggers):
-        return random.choice([
-            f"go stream it fr 🤍 https://linktr.ee/therealmiasnow1",
-            f"thank you 🥹 check the rest out — https://linktr.ee/therealmiasnow1",
-            f"means a lot 🙏🏽 more where that came from — https://linktr.ee/therealmiasnow1",
-            f"you gotta hear the rest too — https://linktr.ee/therealmiasnow1",
-        ])
-
-    # Detect inbox-worthy comments (questions, business, collabs)
-    dm_triggers = ["collab", "work together", "book", "features", "feature me", "how can i", "contact", "reach you", "where can i", "business", "inbox", "message you"]
-    if any(w in comment_text.lower() for w in dm_triggers):
-        return random.choice([
-            "hit my inbox and we can talk 🤍",
-            "shoot me a message in my inbox 🙏🏽",
-            "slide in my inbox 😏",
-        ])
-
-    # Everything else — context-aware Claude reply
-    context = f"Post: {post_text}\n\nComment: {comment_text}" if post_text else comment_text
+    context = f"Someone commented on your post.\n\nYour post: {post_text}\n\nTheir comment: {comment_text}" if post_text else f"Someone commented on your post.\n\nTheir comment: {comment_text}"
     try:
-        response = anthropic.Anthropic(api_key=ANTHROPIC_COMMENTS_API_KEY).messages.create(
+        comments_client = anthropic.Anthropic(api_key=ANTHROPIC_COMMENTS_API_KEY)
+        response = comments_client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=80,
-            system=COMMENT_PROMPT,
+            max_tokens=120,
+            system=[
+                {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
+                {"type": "text", "text": COMMENT_SYSTEM_ADDENDUM},
+            ],
             messages=[{"role": "user", "content": context}]
         )
         reply = response.content[0].text.strip()
