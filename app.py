@@ -2184,9 +2184,9 @@ def dashboard_data():
     new_fans_all_time = [{"day": r["month"], "new_fans": r["new_fans"]} for r in cur.fetchall()]
 
     cur.execute("""
-        SELECT EXTRACT(HOUR FROM first_message_at AT TIME ZONE %s) as hour, COUNT(*) as new_fans
+        SELECT EXTRACT(HOUR FROM (first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s) as hour, COUNT(*) as new_fans
         FROM fan_profiles
-        WHERE DATE(first_message_at AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
+        WHERE DATE((first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
         GROUP BY hour ORDER BY hour ASC
     """, (tz, tz, tz))
     new_fans_today_by_hour = [{"hour": int(r["hour"]), "new_fans": r["new_fans"]} for r in cur.fetchall()]
@@ -2206,9 +2206,9 @@ def dashboard_data():
     messages_all_time = [{"day": r["month"], "messages": r["messages"]} for r in cur.fetchall()]
 
     cur.execute("""
-        SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE %s) as hour, COUNT(*) as messages
+        SELECT EXTRACT(HOUR FROM (created_at AT TIME ZONE 'UTC') AT TIME ZONE %s) as hour, COUNT(*) as messages
         FROM messages
-        WHERE role = 'user' AND DATE(created_at AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
+        WHERE role = 'user' AND DATE((created_at AT TIME ZONE 'UTC') AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
         GROUP BY hour ORDER BY hour ASC
     """, (tz, tz, tz))
     messages_today_by_hour = [{"hour": int(r["hour"]), "messages": r["messages"]} for r in cur.fetchall()]
@@ -2234,9 +2234,9 @@ def dashboard_data():
     comments_all_time = [{"day": r["month"], "comments": r["comments"]} for r in cur.fetchall()]
 
     cur.execute("""
-        SELECT EXTRACT(HOUR FROM replied_at AT TIME ZONE %s) as hour, COUNT(*) as comments
+        SELECT EXTRACT(HOUR FROM (replied_at AT TIME ZONE 'UTC') AT TIME ZONE %s) as hour, COUNT(*) as comments
         FROM comment_replies
-        WHERE DATE(replied_at AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
+        WHERE DATE((replied_at AT TIME ZONE 'UTC') AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
         GROUP BY hour ORDER BY hour ASC
     """, (tz, tz, tz))
     comments_today_by_hour = [{"hour": int(r["hour"]), "comments": r["comments"]} for r in cur.fetchall()]
