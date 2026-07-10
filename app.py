@@ -28,13 +28,16 @@ OWNER_ID = "506635664"  # Nathaniel Peterson
 BOT_BASE_URL = os.environ.get("BOT_BASE_URL", "https://mia-snow-bot.onrender.com")
 
 TRACKED_LINKS = {
-    "music":      "https://linktr.ee/therealmiasnow1",
-    "exclusive":  "https://linktr.ee/msnow1",
-    "blast":      "https://forms.gle/veUFhGiHetDFr1kk6",
-    "merch":      "https://miasnow.printful.me/",
+    "spotify":    "https://open.spotify.com/artist/0kAMXomRT7MdyVNYS4dOxI",
+    "apple":      "https://music.apple.com/ca/artist/mia-snow/1656499933",
     "youtube":    "https://www.youtube.com/@Therealmiasnow",
     "otw":        "https://www.youtube.com/watch?v=bVyAOIiGyIY",
     "ionwantto":  "https://www.youtube.com/watch?v=WyfiwqI9JDA",
+    "instagram":  "https://www.instagram.com/therealmiasnow",
+    "exclusive":  "https://linktr.ee/msnow1",
+    "blast":      "https://forms.gle/veUFhGiHetDFr1kk6",
+    "merch":      "https://miasnow.printful.me/",
+    "music":      "https://linktr.ee/therealmiasnow1",  # fallback if platform unknown
 }
 
 def make_link(name, user_id):
@@ -81,13 +84,15 @@ Your music catalog (songs you've released — know these naturally):
 If anyone references one of your songs by name, you know exactly what they're talking about — respond naturally like you remember making it.
 
 Your links:
+- Instagram: https://www.instagram.com/therealmiasnow
 - YouTube: https://www.youtube.com/@Therealmiasnow
 - TikTok: https://www.tiktok.com/@therealmiasnow
 - Spotify: https://open.spotify.com/artist/0kAMXomRT7MdyVNYS4dOxI
 - Apple Music: https://music.apple.com/ca/artist/mia-snow/1656499933
 - Exclusive content: https://linktr.ee/msnow1
-- Music landing page (use this as the main link when sharing your music): https://linktr.ee/therealmiasnow1
+- Music landing page (fallback only if platform unknown): https://linktr.ee/therealmiasnow1
 - Merch: https://miasnow.printful.me/
+IMPORTANT: Always use the tracked links provided in the fan profile context — not the URLs listed above. The tracked links are personalized per fan.
 
 How you talk to fans:
 - Keep replies short and conversational — 2 to 3 sentences max. NEVER write a long response no matter how long the other person's message is. Match the energy, not the length. A long message from a fan still gets a short reply.
@@ -303,6 +308,7 @@ def init_db():
         )
     """)
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS funnel_restarted BOOLEAN DEFAULT FALSE")
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS music_platform TEXT")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS link_clicks (
             id SERIAL PRIMARY KEY,
@@ -455,6 +461,22 @@ def update_fan_after_message(user_id, messages):
                 if city.lower() not in US_STATES:
                     updates["location"] = city
                     break
+
+    # Detect music platform from fan messages
+    if not profile.get("music_platform"):
+        import re as _re
+        platform_patterns = [
+            (r"\bspotify\b", "spotify"),
+            (r"\bapple\s*music\b|\bitunes\b|\bapple\b", "apple"),
+            (r"\byoutube\b|\byt\b|\byoutube music\b", "youtube"),
+        ]
+        for msg in messages:
+            for pattern, platform in platform_patterns:
+                if _re.search(pattern, msg, _re.IGNORECASE):
+                    updates["music_platform"] = platform
+                    break
+            if "music_platform" in updates:
+                break
 
     # Detect links sent
     if "spotify.com" in combined or "fanlink.tv" in combined or "therealmiasnow1" in combined:
@@ -931,8 +953,28 @@ def get_mia_reply(user_id):
             conn2.close()
         if profile.get('funnel_restarted') and not profile.get('listened_to_music'):
             facts.append(f"YOUTUBE PUSH: You've talked to this person before but they haven't listened to your music yet. This cycle your goal is to get them to watch a YouTube video. When the moment is right, push YouTube specifically — something like 'you gotta watch the visuals fr' and drop: {make_link('youtube', user_id)} — keep it natural, don't force it early.")
-        # Tracked links for this fan — use these instead of hardcoded URLs
-        facts.append(f"LINKS TO USE (use these exact URLs, not the ones in your general instructions):\n- Music: {make_link('music', user_id)}\n- Exclusive content: {make_link('exclusive', user_id)}\n- Blast list: {make_link('blast', user_id)}\n- Merch: {make_link('merch', user_id)}\n- YouTube channel: {make_link('youtube', user_id)}\n- OTW video: {make_link('otw', user_id)}\n- Ion Want To video: {make_link('ionwantto', user_id)}")
+        # Music platform — send the right link per fan
+        music_platform = profile.get("music_platform")
+        if music_platform == "spotify":
+            music_link = make_link("spotify", user_id)
+            platform_label = "Spotify"
+        elif music_platform == "apple":
+            music_link = make_link("apple", user_id)
+            platform_label = "Apple Music"
+        elif music_platform == "youtube":
+            music_link = make_link("youtube", user_id)
+            platform_label = "YouTube"
+        else:
+            music_link = None
+            platform_label = None
+
+        if music_link:
+            facts.append(f"MUSIC PLATFORM: This fan uses {platform_label}. When dropping music send them here: {music_link} — don't send the general linktree, send the platform they actually use.")
+        else:
+            facts.append("PLATFORM UNKNOWN: You don't know what platform this person uses to listen to music. Before dropping a music link, casually ask — something like 'you on Spotify, Apple Music, or YouTube?' — then send the right link based on their answer. Only ask once.")
+
+        # Tracked links for this fan — use these exact URLs
+        facts.append(f"ALL TRACKED LINKS (use these exact URLs):\n- Spotify: {make_link('spotify', user_id)}\n- Apple Music: {make_link('apple', user_id)}\n- YouTube channel: {make_link('youtube', user_id)}\n- OTW video: {make_link('otw', user_id)}\n- Ion Want To video: {make_link('ionwantto', user_id)}\n- Instagram: {make_link('instagram', user_id)}\n- Exclusive content: {make_link('exclusive', user_id)}\n- Blast list: {make_link('blast', user_id)}\n- Merch: {make_link('merch', user_id)}")
         if facts:
             profile_context = "\n\n[Fan profile — use this to personalize your response, never reveal you have this data]:\n" + "\n".join(facts)
 
@@ -1494,9 +1536,12 @@ function login() {
     });
 }
 
-function loadDash() {
+let _linkRange = 'all';
+
+function loadDash(linkRange) {
   const p = pass || '';
-  fetch('/dashboard/data?password=' + encodeURIComponent(p))
+  if (linkRange) _linkRange = linkRange;
+  fetch('/dashboard/data?password=' + encodeURIComponent(p) + '&link_range=' + _linkRange)
     .then(r => r.json())
     .then(d => {
       if (d.error) { renderLogin(); return; }
@@ -1532,10 +1577,6 @@ function renderDash(data) {
       <div class="stat"><div class="num">${stats.top_city}</div><div class="label">Top City</div></div>
     </div>
     <div class="chart-wrap">
-      <div class="chart-tabs">
-        <div class="chart-tab active" onclick="showChart('fans',this)">New Fans</div>
-        <div class="chart-tab" onclick="showChart('messages',this)">Messages</div>
-      </div>
       <canvas id="growthChart" height="80"></canvas>
     </div>
     <div id="linkStats"></div>
@@ -1577,16 +1618,31 @@ function renderDash(data) {
     </div>`;
 
   window._fans = fans;
-  window._chartData = { fans: data.stats.new_fans_by_day, messages: data.stats.messages_by_day };
-  const linkNames = { music: '🎵 Music', exclusive: '🔒 Exclusive', blast: '📋 Blast List', merch: '👕 Merch', youtube: '▶️ YouTube', otw: '🎬 OTW Video', ionwantto: '🎬 Ion Want To' };
+  window._chartData = { fans: data.stats.new_fans_by_day, messages: data.stats.messages_by_day, link_clicks_by_day: data.stats.link_clicks_by_day || {} };
+  const linkNames = { spotify: '🎵 Spotify', apple: '🍎 Apple Music', youtube: '▶️ YouTube', otw: '🎬 OTW Video', ionwantto: '🎬 Ion Want To', instagram: '📸 Instagram', exclusive: '🔒 Exclusive', blast: '📋 Blast List', merch: '👕 Merch', music: '🎵 Music' };
+  const linkColors = { spotify: '#1DB954', apple: '#fc3c44', youtube: '#FF0000', otw: '#f97316', ionwantto: '#fb923c', instagram: '#e1306c', exclusive: '#a855f7', blast: '#3b82f6', merch: '#f59e0b', music: '#22d3ee' };
   const clicks = data.stats.link_clicks || [];
-  document.getElementById('linkStats').innerHTML = clicks.length ? `
+  const activeRange = data.stats.link_range || 'all';
+  const rangeLabel = { day: 'Today', week: 'Last 7 days', month: 'Last 30 days', all: 'All time' };
+  document.getElementById('linkStats').innerHTML = `
     <div style="padding:0 30px 20px">
-      <h3 style="color:#888;font-size:13px;font-weight:500;margin-bottom:12px">Link Clicks</h3>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        ${clicks.map(c => `<div style="background:#111;border:1px solid #222;border-radius:10px;padding:12px 18px;min-width:120px"><div style="font-size:22px;font-weight:bold;color:#fff">${c.clicks}</div><div style="font-size:12px;color:#888;margin-top:3px">${linkNames[c.link]||c.link}</div></div>`).join('')}
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+        <h3 style="color:#888;font-size:13px;font-weight:500;margin:0">Link Clicks</h3>
+        <div style="display:flex;gap:6px">
+          ${['day','week','month','all'].map(r => `<button onclick="loadDash('${r}')" style="background:${activeRange===r?'#9333ea':'#1a1a1a'};border:1px solid ${activeRange===r?'#9333ea':'#333'};color:${activeRange===r?'#fff':'#888'};padding:4px 12px;border-radius:20px;cursor:pointer;font-size:11px">${rangeLabel[r]}</button>`).join('')}
+        </div>
       </div>
-    </div>` : '';
+      ${clicks.length ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+        ${clicks.map(c => `<div style="background:#111;border:1px solid #222;border-radius:10px;padding:12px 18px;min-width:120px"><div style="font-size:22px;font-weight:bold;color:${linkColors[c.link]||'#fff'}">${c.clicks}</div><div style="font-size:12px;color:#888;margin-top:3px">${linkNames[c.link]||c.link}</div></div>`).join('')}
+      </div>` : `<p style="color:#555;font-size:13px">No clicks recorded for this period.</p>`}
+      <div style="margin-top:8px">
+        <div class="chart-tabs" style="margin-bottom:10px">
+          <div class="chart-tab active" onclick="showChart('fans',this)">New Fans</div>
+          <div class="chart-tab" onclick="showChart('messages',this)">Messages</div>
+          <div class="chart-tab" onclick="showChart('link_clicks',this)">Link Clicks</div>
+        </div>
+      </div>
+    </div>`;
   filterTable();
   drawChart('fans');
 }
@@ -1594,18 +1650,51 @@ function renderDash(data) {
 let _chartInstance = null;
 function showChart(type, el) {
   document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
+  if (el) el.classList.add('active');
   drawChart(type);
 }
 
 function drawChart(type) {
+  const ctx = document.getElementById('growthChart').getContext('2d');
+  if (_chartInstance) _chartInstance.destroy();
+  const linkColors = { spotify: '#1DB954', apple: '#fc3c44', youtube: '#FF0000', otw: '#f97316', ionwantto: '#fb923c', instagram: '#e1306c', exclusive: '#a855f7', blast: '#3b82f6', merch: '#f59e0b', music: '#22d3ee' };
+  const linkNames = { spotify: 'Spotify', apple: 'Apple Music', youtube: 'YouTube', otw: 'OTW Video', ionwantto: 'Ion Want To', instagram: 'Instagram', exclusive: 'Exclusive', blast: 'Blast List', merch: 'Merch', music: 'Music' };
+
+  if (type === 'link_clicks') {
+    const byDay = window._chartData.link_clicks_by_day || {};
+    const allDays = [...new Set(Object.values(byDay).flat().map(d => d.day))].sort();
+    if (!allDays.length) return;
+    const datasets = Object.entries(byDay).map(([link, days]) => {
+      const dayMap = Object.fromEntries(days.map(d => [d.day, d.clicks]));
+      return {
+        label: linkNames[link] || link,
+        data: allDays.map(d => dayMap[d] || 0),
+        borderColor: linkColors[link] || '#888',
+        backgroundColor: 'transparent',
+        tension: 0.3,
+        pointRadius: 3,
+        borderWidth: 2,
+      };
+    });
+    _chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: { labels: allDays.map(d => d.slice(5)), datasets },
+      options: {
+        plugins: { legend: { labels: { color: '#888', font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#666', font: { size: 11 } }, grid: { color: '#1a1a1a' } },
+          y: { ticks: { color: '#666', font: { size: 11 } }, grid: { color: '#1a1a1a' }, beginAtZero: true }
+        }
+      }
+    });
+    return;
+  }
+
   const data = window._chartData[type];
   if (!data || !data.length) return;
   const labels = data.map(d => d.day.slice(5));
   const values = data.map(d => type === 'fans' ? d.new_fans : d.messages);
   const color = type === 'fans' ? '#9333ea' : '#7dd3fc';
-  const ctx = document.getElementById('growthChart').getContext('2d');
-  if (_chartInstance) _chartInstance.destroy();
   _chartInstance = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -2029,8 +2118,36 @@ def dashboard_data():
     """)
     messages_by_day = [{"day": str(r["day"]), "messages": r["messages"]} for r in cur.fetchall()]
 
-    cur.execute("SELECT link_name, COUNT(*) as clicks FROM link_clicks GROUP BY link_name ORDER BY clicks DESC")
+    link_range = request.args.get("link_range", "all")
+    if link_range == "day":
+        link_interval = "INTERVAL '1 day'"
+    elif link_range == "week":
+        link_interval = "INTERVAL '7 days'"
+    elif link_range == "month":
+        link_interval = "INTERVAL '30 days'"
+    else:
+        link_interval = None
+
+    if link_interval:
+        cur.execute(f"SELECT link_name, COUNT(*) as clicks FROM link_clicks WHERE clicked_at >= NOW() - {link_interval} GROUP BY link_name ORDER BY clicks DESC")
+    else:
+        cur.execute("SELECT link_name, COUNT(*) as clicks FROM link_clicks GROUP BY link_name ORDER BY clicks DESC")
     link_clicks = [{"link": r["link_name"], "clicks": r["clicks"]} for r in cur.fetchall()]
+
+    # Per-link per-day data for chart (last 30 days regardless of range for sparklines)
+    cur.execute("""
+        SELECT link_name, DATE(clicked_at) as day, COUNT(*) as clicks
+        FROM link_clicks
+        WHERE clicked_at >= NOW() - INTERVAL '30 days'
+        GROUP BY link_name, day ORDER BY day ASC
+    """)
+    link_clicks_by_day_raw = cur.fetchall()
+    link_clicks_by_day = {}
+    for r in link_clicks_by_day_raw:
+        ln = r["link_name"]
+        if ln not in link_clicks_by_day:
+            link_clicks_by_day[ln] = []
+        link_clicks_by_day[ln].append({"day": str(r["day"]), "clicks": r["clicks"]})
 
     cur.close()
     conn.close()
@@ -2074,6 +2191,8 @@ def dashboard_data():
             "new_fans_by_day": new_fans_by_day,
             "messages_by_day": messages_by_day,
             "link_clicks": link_clicks,
+            "link_clicks_by_day": link_clicks_by_day,
+            "link_range": link_range,
         }
     })
 
