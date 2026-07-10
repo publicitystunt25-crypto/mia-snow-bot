@@ -2102,6 +2102,30 @@ def fix_profiles_route():
                     return loc
         return None
 
+    def _claude_extract_location(convo_lines):
+        """Feed a conversation snippet to Haiku and extract a clean location."""
+        try:
+            haiku = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            convo_text = "\n".join(convo_lines[-40:])  # last 40 messages for context
+            resp = haiku.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=30,
+                system=(
+                    "You extract a fan's location from a chat conversation. "
+                    "Reply with ONLY the city or state name (e.g. 'Atlanta', 'Houston', 'New York', 'Florida'). "
+                    "Handle slang: 'the A' = Atlanta, 'HTown' = Houston, '305' = Miami, 'Jax' = Jacksonville, 'Chi' = Chicago, 'the Lou' = St Louis, 'Nawlins' = New Orleans, 'the Bay' = Bay Area. "
+                    "If no location is clearly mentioned reply with exactly: NONE"
+                ),
+                messages=[{"role": "user", "content": f"What city or state is this fan from based on this conversation?\n\n{convo_text}"}]
+            )
+            result = resp.content[0].text.strip()
+            if result.upper() == "NONE" or not result or len(result) > 50:
+                return None
+            return result.title()
+        except Exception as e:
+            print(f"[fix_profiles] claude loc error: {e}")
+            return None
+
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("SELECT user_id, fb_name, nickname, location FROM fan_profiles")
@@ -2110,39 +2134,45 @@ def fix_profiles_route():
     fixed = []
     for fan in fans:
         user_id = fan["user_id"]
-        cur.execute("SELECT content FROM messages WHERE user_id = %s AND role = 'user' ORDER BY id ASC", (user_id,))
-        messages = [row["content"] for row in cur.fetchall()]
-        if not messages:
+        cur.execute(
+            "SELECT role, content FROM messages WHERE user_id = %s ORDER BY id ASC",
+            (user_id,)
+        )
+        rows = cur.fetchall()
+        if not rows:
             continue
 
+        user_messages = [r["content"] for r in rows if r["role"] == "user"]
         updates = {}
 
+        # Name extraction still uses regex (fast and reliable for names)
         current_nickname = fan.get("nickname") or ""
         if not fan.get("fb_name") or current_nickname.lower() in SKIP_NAMES:
-            for msg in messages:
+            for msg in user_messages:
                 name = _extract_name(msg)
                 if name and name.lower() not in SKIP_NAMES and name != current_nickname:
                     updates["nickname"] = name
                     break
 
+        # Location: use Claude on the full conversation
         current_loc = fan.get("location") or ""
         loc_words = current_loc.lower().split()
-        # also clear locations that end with a bad trailing word (e.g. "Georgia To", "Hollywood And")
         ends_bad = len(loc_words) >= 2 and loc_words[-1] in BAD_TRAILING
         loc_is_garbage = not current_loc or any(w in SKIP_LOCS for w in loc_words) or len(current_loc) < 3 or ends_bad
+
         if loc_is_garbage:
-            for msg in messages:
-                loc = _extract_loc(msg)
-                if loc and loc != current_loc:
-                    updates["location"] = loc
-                    break
+            # Build conversation lines for Claude: only include turns around "where you from" questions
+            convo_lines = [f"{'Mia' if r['role']=='assistant' else 'Fan'}: {r['content']}" for r in rows]
+            loc = _claude_extract_location(convo_lines)
+            if loc and loc.upper() != "NONE" and loc.lower() != current_loc.lower():
+                updates["location"] = loc
 
         if updates:
             sets = ", ".join(f"{k} = %s" for k in updates)
             vals = list(updates.values()) + [user_id]
             cur.execute(f"UPDATE fan_profiles SET {sets} WHERE user_id = %s", vals)
             conn.commit()
-            fixed.append(f"{user_id}: {updates}")
+            fixed.append(f"{fan.get('fb_name') or user_id}: {updates}")
 
     cur.close()
     conn.close()
