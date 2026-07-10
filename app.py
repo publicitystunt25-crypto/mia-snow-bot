@@ -2042,7 +2042,31 @@ def fix_profiles_route():
         "home", "around", "out", "work", "school", "somewhere", "nowhere",
         "anywhere", "everywhere", "outside", "inside", "release", "city",
         "back", "way", "where", "time", "them", "tho", "though", "most",
-        "certainly", "suburbs", "oilfield", "tuned", "thank", "you"
+        "certainly", "suburbs", "oilfield", "tuned", "thank", "you",
+        "love", "real", "good", "same", "life", "too", "now", "just",
+        "ready", "single", "free", "up", "down", "on", "off", "it",
+        "him", "her", "us", "them", "still", "always", "never",
+    }
+    # words that are valid as first word of a location but not standalone second word
+    BAD_TRAILING = {
+        "and", "to", "the", "or", "but", "for", "with", "from", "too",
+        "so", "now", "just", "also", "even", "only", "very", "really",
+        "v", "w", "n", "s", "e",  # single letter abbreviations
+    }
+    # known two-word locations that should NOT be trimmed
+    KNOWN_TWO_WORD = {
+        "new york", "new jersey", "new hampshire", "new mexico", "new orleans",
+        "north carolina", "south carolina", "north dakota", "south dakota",
+        "west virginia", "rhode island", "los angeles", "san francisco",
+        "san diego", "san antonio", "san jose", "las vegas", "el paso",
+        "fort worth", "fort lauderdale", "long beach", "virginia beach",
+        "colorado springs", "kansas city", "oklahoma city", "salt lake",
+        "baton rouge", "little rock", "grand rapids", "cedar rapids",
+        "des moines", "st louis", "st pete", "st augustine",
+        "newport news", "warner robins", "winston salem", "corpus christi",
+        "port arthur", "port saint", "palm beach", "palm springs",
+        "santa barbara", "santa ana", "santa clara", "santa monica",
+        "east orange", "east st", "east los", "jersey city",
     }
 
     def _extract_name(text):
@@ -2068,8 +2092,13 @@ def fix_profiles_route():
             m = _re.search(p, text, _re.IGNORECASE)
             if m:
                 loc = m.group(1).strip().title()
+                words = loc.lower().split()
+                # trim bad trailing word unless it's a known two-word place
+                if len(words) == 2 and loc.lower() not in KNOWN_TWO_WORD:
+                    if words[1] in BAD_TRAILING or len(words[1]) <= 1:
+                        loc = words[0].title()
                 loc_words = loc.lower().split()
-                if len(loc) > 2 and not any(w in SKIP_LOCS for w in loc_words):
+                if len(loc) >= 3 and not any(w in SKIP_LOCS for w in loc_words):
                     return loc
         return None
 
@@ -2098,7 +2127,9 @@ def fix_profiles_route():
 
         current_loc = fan.get("location") or ""
         loc_words = current_loc.lower().split()
-        loc_is_garbage = not current_loc or any(w in SKIP_LOCS for w in loc_words) or len(current_loc) < 3
+        # also clear locations that end with a bad trailing word (e.g. "Georgia To", "Hollywood And")
+        ends_bad = len(loc_words) >= 2 and loc_words[-1] in BAD_TRAILING
+        loc_is_garbage = not current_loc or any(w in SKIP_LOCS for w in loc_words) or len(current_loc) < 3 or ends_bad
         if loc_is_garbage:
             for msg in messages:
                 loc = _extract_loc(msg)
