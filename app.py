@@ -2149,6 +2149,129 @@ def fix_profiles_route():
 
 
 
+_rerun_profiles_status = {"running": False, "done": 0, "total": 0, "fixed": [], "error": None}
+
+def _run_rerun_profiles_bg():
+    global _rerun_profiles_status
+    try:
+        def _extract_name(text):
+            import re
+            SKIP_NAMES = {"mia", "snow", "mia snow", "therealmiasnow", "the real mia snow"}
+            for pat in [r"(?:my name is|i'm|i am|they call me|call me)\s+([A-Za-z]+)", r"^([A-Z][a-z]+)$"]:
+                m = re.search(pat, text, re.IGNORECASE | re.MULTILINE)
+                if m:
+                    name = m.group(1).strip()
+                    if name.lower() not in SKIP_NAMES:
+                        return name
+            return None
+
+        def _claude_extract_location(convo_lines):
+            try:
+                haiku = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+                convo_text = "\n".join(convo_lines)  # no cap — full history
+                resp = haiku.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=30,
+                    system=(
+                        "You extract a fan's location from a chat conversation between a fan and Mia (an artist). "
+                        "ONLY extract the FAN's location — ignore any city or place Mia mentions about herself. "
+                        "The answer MUST be a real, recognized US city or state name (e.g. 'Atlanta', 'Houston', 'New York', 'Florida', 'Chicago'). "
+                        "Do NOT return generic words, adjectives, partial sentences, or anything that is not a real place name. "
+                        "Handle slang: 'the A'=Atlanta, 'HTown'=Houston, '305'=Miami, 'Jax'=Jacksonville, 'Chi'=Chicago, 'the Lou'=St Louis, 'Nawlins'=New Orleans, 'the Bay'=Bay Area, 'DMV'=Washington DC area, 'Raq'=New York, 'MIA'=Miami. "
+                        "If you are not confident the fan mentioned a real city or state, reply with exactly: NONE"
+                    ),
+                    messages=[{"role": "user", "content": f"What city or state is this fan from?\n\n{convo_text}"}]
+                )
+                result = resp.content[0].text.strip()
+                if result.upper() == "NONE" or not result or len(result) > 50:
+                    return None
+                # reject obvious non-locations: starts with article, contains common verbs/adjectives
+                import re as _re
+                if _re.match(r'^(a|an|the)\s', result, _re.IGNORECASE):
+                    return None
+                BAD_WORDS = {"small", "hotel", "different", "good", "great", "music", "fan", "just", "lol", "missing", "love", "nice", "old", "new", "my", "your"}
+                if result.lower().split()[0] in BAD_WORDS:
+                    return None
+                return result.title()
+            except Exception as e:
+                print(f"[rerun_profiles_bg] claude error: {e}")
+                return None
+
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT user_id, fb_name, nickname, location FROM fan_profiles WHERE location IS NULL OR location = ''")
+        fans = cur.fetchall()
+        _rerun_profiles_status["total"] = len(fans)
+
+        for fan in fans:
+            try:
+                user_id = fan["user_id"]
+                updates = {}
+
+                current_nickname = fan.get("nickname") or ""
+                cur2 = conn.cursor(cursor_factory=RealDictCursor)
+                cur2.execute(
+                    "SELECT role, content FROM messages WHERE user_id = %s ORDER BY created_at ASC",
+                    (user_id,)
+                )
+                rows = cur2.fetchall()
+                cur2.close()
+
+                if not current_nickname:
+                    for r in rows:
+                        if r["role"] == "user":
+                            name = _extract_name(r["content"] or "")
+                            if name:
+                                updates["nickname"] = name
+                                break
+
+                convo_lines = [f"{'Mia' if r['role']=='assistant' else 'Fan'}: {r['content']}" for r in rows]
+                loc = _claude_extract_location(convo_lines)
+                if loc:
+                    updates["location"] = loc
+
+                if updates:
+                    sets = ", ".join(f"{k} = %s" for k in updates)
+                    vals = list(updates.values()) + [user_id]
+                    cur.execute(f"UPDATE fan_profiles SET {sets} WHERE user_id = %s", vals)
+                    conn.commit()
+                    label = fan.get('fb_name') or user_id
+                    _rerun_profiles_status["fixed"].append(f"{label}: {updates}")
+            except Exception as e:
+                print(f"[rerun_profiles_bg] error on {fan.get('user_id')}: {e}")
+            finally:
+                _rerun_profiles_status["done"] += 1
+
+        cur.close()
+        conn.close()
+    except Exception as e:
+        _rerun_profiles_status["error"] = str(e)
+    finally:
+        _rerun_profiles_status["running"] = False
+
+
+@app.route("/admin/fix-profiles-missing")
+def fix_profiles_missing_route():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return "unauthorized", 401
+
+    if _rerun_profiles_status["running"]:
+        done = _rerun_profiles_status["done"]
+        total = _rerun_profiles_status["total"]
+        fixed = len(_rerun_profiles_status["fixed"])
+        return f"Still running... {done}/{total} scanned, {fixed} updated so far. Refresh to check progress."
+
+    if _rerun_profiles_status["done"] > 0 and not _rerun_profiles_status["running"]:
+        if request.args.get("results") == "1":
+            results = _rerun_profiles_status["fixed"]
+            return "<br>".join([f"Done. Fixed {len(results)} profiles:"] + results) or "Done — nothing new found."
+
+    _rerun_profiles_status.update({"running": True, "done": 0, "total": 0, "fixed": [], "error": None})
+    threading.Thread(target=_run_rerun_profiles_bg, daemon=True).start()
+    return "Started re-scanning fans with no location. Refresh to check progress. Add ?results=1&password=Nathaniel when done."
+
+
 @app.route("/dashboard/data")
 def dashboard_data():
     password = request.args.get("password", "")
