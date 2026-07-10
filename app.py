@@ -1517,6 +1517,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   .chart-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
   .chart-tab { background: #1a1a1a; border: 1px solid #333; color: #888; padding: 5px 14px; border-radius: 20px; cursor: pointer; font-size: 12px; }
   .chart-tab.active { background: #9333ea; border-color: #9333ea; color: #fff; }
+  .range-btn { background: #111; border: 1px solid #2a2a2a; color: #666; padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 11px; }
+  .range-btn.active { background: #1a1a1a; border-color: #555; color: #ccc; }
   canvas { width: 100% !important; }
 </style>
 </head>
@@ -1577,9 +1579,20 @@ function renderDash(data) {
       <div class="stat"><div class="num">${stats.top_city}</div><div class="label">Top City</div></div>
     </div>
     <div class="chart-wrap">
+      <div class="chart-tabs" id="chartTabs">
+        <div class="chart-tab active" onclick="selectTab('fans',this)">New Fans</div>
+        <div class="chart-tab" onclick="selectTab('messages',this)">Messages</div>
+        <div class="chart-tab" onclick="selectTab('link_clicks',this)">Link Clicks</div>
+      </div>
+      <div id="rangeBar" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="range-btn active" onclick="selectRange('hour',this)">Today by Hour</button>
+        <button class="range-btn" onclick="selectRange('week',this)">Last 7 Days</button>
+        <button class="range-btn" onclick="selectRange('month',this)">Last 30 Days</button>
+        <button class="range-btn" onclick="selectRange('all',this)">All Time</button>
+      </div>
       <canvas id="growthChart" height="80"></canvas>
     </div>
-    <div id="linkStats"></div>
+    <div id="linkStats" style="display:none"></div>
     <div class="controls">
       <input type="text" id="search" placeholder="Search name or city..." oninput="filterTable()">
       <select id="vibeFilter" onchange="filterTable()">
@@ -1618,119 +1631,104 @@ function renderDash(data) {
     </div>`;
 
   window._fans = fans;
-  window._chartData = { fans: data.stats.new_fans_by_day, messages: data.stats.messages_by_day, link_clicks_by_day: data.stats.link_clicks_by_day || {}, fans_today_hourly: data.stats.new_fans_today_by_hour || [] };
-  const linkNames = { spotify: '🎵 Spotify', apple: '🍎 Apple Music', youtube: '▶️ YouTube', otw: '🎬 OTW Video', ionwantto: '🎬 Ion Want To', instagram: '📸 Instagram', exclusive: '🔒 Exclusive', blast: '📋 Blast List', merch: '👕 Merch', music: '🔗 Linktree (fallback)' };
+  window._chartData = {
+    fans_hour:    data.stats.new_fans_today_by_hour || [],
+    fans_week:    (data.stats.new_fans_by_day || []).slice(-7),
+    fans_month:   data.stats.new_fans_by_day || [],
+    fans_all:     data.stats.new_fans_all_time || [],
+    msgs_hour:    data.stats.messages_today_by_hour || [],
+    msgs_week:    (data.stats.messages_by_day || []).slice(-7),
+    msgs_month:   data.stats.messages_by_day || [],
+    msgs_all:     data.stats.messages_all_time || [],
+    links_by_day: data.stats.link_clicks_by_day || {},
+  };
+  window._linkClickTiles = data.stats.link_clicks || [];
+  window._linkRange = data.stats.link_range || 'all';
+
   const linkColors = { spotify: '#1DB954', apple: '#fc3c44', youtube: '#FF0000', otw: '#f97316', ionwantto: '#fb923c', instagram: '#e1306c', exclusive: '#a855f7', blast: '#3b82f6', merch: '#f59e0b', music: '#22d3ee' };
-  const clicks = data.stats.link_clicks || [];
-  const activeRange = data.stats.link_range || 'all';
-  const rangeLabel = { day: 'Today', week: 'Last 7 days', month: 'Last 30 days', all: 'All time' };
-  document.getElementById('linkStats').innerHTML = `
-    <div style="padding:0 30px 20px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
-        <h3 style="color:#888;font-size:13px;font-weight:500;margin:0">Link Clicks</h3>
-        <div style="display:flex;gap:6px">
-          ${['day','week','month','all'].map(r => `<button onclick="loadDash('${r}')" style="background:${activeRange===r?'#9333ea':'#1a1a1a'};border:1px solid ${activeRange===r?'#9333ea':'#333'};color:${activeRange===r?'#fff':'#888'};padding:4px 12px;border-radius:20px;cursor:pointer;font-size:11px">${rangeLabel[r]}</button>`).join('')}
-        </div>
-      </div>
-      ${clicks.length ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
-        ${clicks.map(c => `<div style="background:#111;border:1px solid #222;border-radius:10px;padding:12px 18px;min-width:120px"><div style="font-size:22px;font-weight:bold;color:${linkColors[c.link]||'#fff'}">${c.clicks}</div><div style="font-size:12px;color:#888;margin-top:3px">${linkNames[c.link]||c.link}</div></div>`).join('')}
-      </div>` : `<p style="color:#555;font-size:13px">No clicks recorded for this period.</p>`}
-      <div style="margin-top:8px">
-        <div class="chart-tabs" style="margin-bottom:10px">
-          <div class="chart-tab active" onclick="showChart('fans',this)">New Fans</div>
-          <div class="chart-tab" onclick="showChart('fans_today',this)">Today by Hour</div>
-          <div class="chart-tab" onclick="showChart('messages',this)">Messages</div>
-          <div class="chart-tab" onclick="showChart('link_clicks',this)">Link Clicks</div>
-        </div>
-      </div>
-    </div>`;
+  const linkNames  = { spotify: '🎵 Spotify', apple: '🍎 Apple Music', youtube: '▶️ YouTube', otw: '🎬 OTW Video', ionwantto: '🎬 Ion Want To', instagram: '📸 Instagram', exclusive: '🔒 Exclusive', blast: '📋 Blast List', merch: '👕 Merch', music: '🔗 Linktree (fallback)' };
+  window._linkColors = linkColors;
+  window._linkNames  = linkNames;
+
+  // render link click tiles
+  const clicks = window._linkClickTiles;
+  document.getElementById('linkStats').innerHTML = clicks.length ? `
+    <div style="padding:0 30px 16px;display:flex;gap:10px;flex-wrap:wrap">
+      ${clicks.map(c => `<div style="background:#111;border:1px solid #222;border-radius:10px;padding:12px 18px;min-width:120px"><div style="font-size:22px;font-weight:bold;color:${linkColors[c.link]||'#fff'}">${c.clicks}</div><div style="font-size:12px;color:#888;margin-top:3px">${linkNames[c.link]||c.link}</div></div>`).join('')}
+    </div>` : '';
+
   filterTable();
-  drawChart('fans');
+  window._activeTab   = 'fans';
+  window._activeRange = 'hour';
+  drawChart();
 }
 
 let _chartInstance = null;
-function showChart(type, el) {
+
+function selectTab(tab, el) {
   document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
   if (el) el.classList.add('active');
-  drawChart(type);
+  window._activeTab = tab;
+  // link_clicks tab uses loadDash range toggle, others use local range
+  document.getElementById('linkStats').style.display = tab === 'link_clicks' ? 'block' : 'none';
+  drawChart();
 }
 
-function drawChart(type) {
-  const ctx = document.getElementById('growthChart').getContext('2d');
+function selectRange(range, el) {
+  document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  window._activeRange = range;
+  if (window._activeTab === 'link_clicks') {
+    loadDash(range === 'hour' ? 'all' : range);
+  } else {
+    drawChart();
+  }
+}
+
+function drawChart() {
+  const tab   = window._activeTab   || 'fans';
+  const range = window._activeRange || 'hour';
+  const ctx   = document.getElementById('growthChart').getContext('2d');
   if (_chartInstance) _chartInstance.destroy();
-  const linkColors = { spotify: '#1DB954', apple: '#fc3c44', youtube: '#FF0000', otw: '#f97316', ionwantto: '#fb923c', instagram: '#e1306c', exclusive: '#a855f7', blast: '#3b82f6', merch: '#f59e0b', music: '#22d3ee' };
-  const linkNames = { spotify: 'Spotify', apple: 'Apple Music', youtube: 'YouTube', otw: 'OTW Video', ionwantto: 'Ion Want To', instagram: 'Instagram', exclusive: 'Exclusive', blast: 'Blast List', merch: 'Merch', music: 'Music' };
 
-  if (type === 'fans_today') {
-    const hourly = window._chartData.fans_today_hourly || [];
-    const hourMap = Object.fromEntries(hourly.map(d => [d.hour, d.new_fans]));
-    const hours = Array.from({length: 24}, (_, i) => i);
-    const fmt = h => h === 0 ? '12a' : h < 12 ? h+'a' : h === 12 ? '12p' : (h-12)+'p';
-    _chartInstance = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: hours.map(fmt),
-        datasets: [{ data: hours.map(h => hourMap[h] || 0), backgroundColor: '#9333ea99', borderColor: '#9333ea', borderWidth: 1, borderRadius: 4 }]
-      },
-      options: {
-        plugins: { legend: { display: false }, tooltip: { callbacks: { title: t => fmt(hours[t[0].dataIndex]) + ' today' } } },
-        scales: {
-          x: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: '#1a1a1a' } },
-          y: { ticks: { color: '#666', font: { size: 11 } }, grid: { color: '#1a1a1a' }, beginAtZero: true, precision: 0 }
-        }
-      }
-    });
-    return;
-  }
+  const fmtHour = h => h === 0 ? '12a' : h < 12 ? h+'a' : h === 12 ? '12p' : (h-12)+'p';
+  const scaleOpts = { x: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: '#1a1a1a' } }, y: { ticks: { color: '#666', font: { size: 11 } }, grid: { color: '#1a1a1a' }, beginAtZero: true } };
 
-  if (type === 'link_clicks') {
-    const byDay = window._chartData.link_clicks_by_day || {};
+  if (tab === 'link_clicks') {
+    const byDay = window._chartData.links_by_day || {};
     const allDays = [...new Set(Object.values(byDay).flat().map(d => d.day))].sort();
-    if (!allDays.length) return;
+    if (!allDays.length) { _chartInstance = null; return; }
+    const lc = window._linkColors; const ln = window._linkNames;
     const datasets = Object.entries(byDay).map(([link, days]) => {
-      const dayMap = Object.fromEntries(days.map(d => [d.day, d.clicks]));
-      return {
-        label: linkNames[link] || link,
-        data: allDays.map(d => dayMap[d] || 0),
-        borderColor: linkColors[link] || '#888',
-        backgroundColor: 'transparent',
-        tension: 0.3,
-        pointRadius: 3,
-        borderWidth: 2,
-      };
+      const dm = Object.fromEntries(days.map(d => [d.day, d.clicks]));
+      return { label: (ln[link]||link).replace(/^\S+\s/,''), data: allDays.map(d => dm[d]||0), borderColor: lc[link]||'#888', backgroundColor:'transparent', tension:0.3, pointRadius:3, borderWidth:2 };
     });
-    _chartInstance = new Chart(ctx, {
-      type: 'line',
-      data: { labels: allDays.map(d => d.slice(5)), datasets },
-      options: {
-        plugins: { legend: { labels: { color: '#888', font: { size: 11 } } } },
-        scales: {
-          x: { ticks: { color: '#666', font: { size: 11 } }, grid: { color: '#1a1a1a' } },
-          y: { ticks: { color: '#666', font: { size: 11 } }, grid: { color: '#1a1a1a' }, beginAtZero: true }
-        }
-      }
-    });
+    _chartInstance = new Chart(ctx, { type:'line', data:{ labels:allDays.map(d=>d.slice(5)), datasets }, options:{ plugins:{ legend:{ labels:{ color:'#888', font:{ size:11 } } } }, scales: scaleOpts } });
     return;
   }
 
-  const data = window._chartData[type];
-  if (!data || !data.length) return;
-  const labels = data.map(d => d.day.slice(5));
-  const values = data.map(d => type === 'fans' ? d.new_fans : d.messages);
-  const color = type === 'fans' ? '#9333ea' : '#7dd3fc';
+  const isHour = range === 'hour';
+  const color  = tab === 'fans' ? '#9333ea' : '#7dd3fc';
+  const key    = tab === 'fans' ? (isHour ? 'fans_hour' : range === 'week' ? 'fans_week' : range === 'month' ? 'fans_month' : 'fans_all')
+                                : (isHour ? 'msgs_hour' : range === 'week' ? 'msgs_week' : range === 'month' ? 'msgs_month' : 'msgs_all');
+  const raw    = window._chartData[key] || [];
+
+  let labels, values;
+  if (isHour) {
+    const hours  = Array.from({length:24}, (_,i) => i);
+    const hmap   = Object.fromEntries(raw.map(d => [d.hour, tab === 'fans' ? d.new_fans : d.messages]));
+    labels = hours.map(fmtHour);
+    values = hours.map(h => hmap[h] || 0);
+  } else {
+    labels = raw.map(d => d.day.length === 7 ? d.day : d.day.slice(5));
+    values = raw.map(d => tab === 'fans' ? d.new_fans : d.messages);
+  }
+
+  if (!values.length) { _chartInstance = null; return; }
   _chartInstance = new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels,
-      datasets: [{ data: values, backgroundColor: color + '99', borderColor: color, borderWidth: 1, borderRadius: 4 }]
-    },
-    options: {
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: '#666', font: { size: 11 } }, grid: { color: '#1a1a1a' } },
-        y: { ticks: { color: '#666', font: { size: 11 } }, grid: { color: '#1a1a1a' }, beginAtZero: true }
-      }
-    }
+    data: { labels, datasets: [{ data:values, backgroundColor:color+'99', borderColor:color, borderWidth:1, borderRadius:4 }] },
+    options: { plugins:{ legend:{ display:false } }, scales: scaleOpts }
   });
 }
 
@@ -2125,6 +2123,13 @@ def dashboard_data():
     cur.execute("SELECT COUNT(*) as c FROM fan_profiles WHERE DATE(first_message_at) = CURRENT_DATE")
     new_fans_today = cur.fetchone()["c"]
 
+    tz = request.args.get("tz", "America/New_York")
+    import zoneinfo as _zi
+    try:
+        _zi.ZoneInfo(tz)
+    except Exception:
+        tz = "America/New_York"
+
     cur.execute("""
         SELECT DATE(first_message_at) as day, COUNT(*) as new_fans
         FROM fan_profiles
@@ -2133,13 +2138,12 @@ def dashboard_data():
     """)
     new_fans_by_day = [{"day": str(r["day"]), "new_fans": r["new_fans"]} for r in cur.fetchall()]
 
-    tz = request.args.get("tz", "America/New_York")
-    # Validate tz is a real timezone before using in query
-    import zoneinfo as _zi
-    try:
-        _zi.ZoneInfo(tz)
-    except Exception:
-        tz = "America/New_York"
+    cur.execute("""
+        SELECT TO_CHAR(DATE_TRUNC('month', first_message_at), 'YYYY-MM') as month, COUNT(*) as new_fans
+        FROM fan_profiles GROUP BY month ORDER BY month ASC
+    """)
+    new_fans_all_time = [{"day": r["month"], "new_fans": r["new_fans"]} for r in cur.fetchall()]
+
     cur.execute("""
         SELECT EXTRACT(HOUR FROM first_message_at AT TIME ZONE %s) as hour, COUNT(*) as new_fans
         FROM fan_profiles
@@ -2155,6 +2159,20 @@ def dashboard_data():
         GROUP BY day ORDER BY day ASC
     """)
     messages_by_day = [{"day": str(r["day"]), "messages": r["messages"]} for r in cur.fetchall()]
+
+    cur.execute("""
+        SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') as month, COUNT(*) as messages
+        FROM messages WHERE role = 'user' GROUP BY month ORDER BY month ASC
+    """)
+    messages_all_time = [{"day": r["month"], "messages": r["messages"]} for r in cur.fetchall()]
+
+    cur.execute("""
+        SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE %s) as hour, COUNT(*) as messages
+        FROM messages
+        WHERE role = 'user' AND DATE(created_at AT TIME ZONE %s) = CURRENT_DATE AT TIME ZONE %s
+        GROUP BY hour ORDER BY hour ASC
+    """, (tz, tz, tz))
+    messages_today_by_hour = [{"hour": int(r["hour"]), "messages": r["messages"]} for r in cur.fetchall()]
 
     link_range = request.args.get("link_range", "all")
     if link_range == "day":
@@ -2227,8 +2245,11 @@ def dashboard_data():
             "messages_today": messages_today,
             "new_fans_today": new_fans_today,
             "new_fans_by_day": new_fans_by_day,
+            "new_fans_all_time": new_fans_all_time,
             "new_fans_today_by_hour": new_fans_today_by_hour,
             "messages_by_day": messages_by_day,
+            "messages_all_time": messages_all_time,
+            "messages_today_by_hour": messages_today_by_hour,
             "link_clicks": link_clicks,
             "link_clicks_by_day": link_clicks_by_day,
             "link_range": link_range,
