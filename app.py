@@ -25,6 +25,20 @@ FB_COMMENTS_PAGE_TOKEN = os.environ.get("FB_COMMENTS_PAGE_TOKEN")
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "miasnow2024")
 MAX_HISTORY = 20
 OWNER_ID = "506635664"  # Nathaniel Peterson
+BOT_BASE_URL = os.environ.get("BOT_BASE_URL", "https://mia-snow-bot.onrender.com")
+
+TRACKED_LINKS = {
+    "music":      "https://linktr.ee/therealmiasnow1",
+    "exclusive":  "https://linktr.ee/msnow1",
+    "blast":      "https://forms.gle/veUFhGiHetDFr1kk6",
+    "merch":      "https://miasnow.printful.me/",
+    "youtube":    "https://www.youtube.com/@Therealmiasnow",
+    "otw":        "https://www.youtube.com/watch?v=bVyAOIiGyIY",
+    "ionwantto":  "https://www.youtube.com/watch?v=WyfiwqI9JDA",
+}
+
+def make_link(name, user_id):
+    return f"{BOT_BASE_URL}/go/{name}?uid={user_id}"
 
 
 def get_conn():
@@ -289,6 +303,14 @@ def init_db():
         )
     """)
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS funnel_restarted BOOLEAN DEFAULT FALSE")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS link_clicks (
+            id SERIAL PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            link_name TEXT NOT NULL,
+            clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     cur.close()
     conn.close()
@@ -908,7 +930,9 @@ def get_mia_reply(user_id):
             c2.close()
             conn2.close()
         if profile.get('funnel_restarted') and not profile.get('listened_to_music'):
-            facts.append("YOUTUBE PUSH: You've talked to this person before but they haven't listened to your music yet. This cycle your goal is to get them to watch a YouTube video. When the moment is right, push YouTube specifically — something like 'you gotta watch the visuals fr' and drop: https://www.youtube.com/@Therealmiasnow — keep it natural, don't force it early.")
+            facts.append(f"YOUTUBE PUSH: You've talked to this person before but they haven't listened to your music yet. This cycle your goal is to get them to watch a YouTube video. When the moment is right, push YouTube specifically — something like 'you gotta watch the visuals fr' and drop: {make_link('youtube', user_id)} — keep it natural, don't force it early.")
+        # Tracked links for this fan — use these instead of hardcoded URLs
+        facts.append(f"LINKS TO USE (use these exact URLs, not the ones in your general instructions):\n- Music: {make_link('music', user_id)}\n- Exclusive content: {make_link('exclusive', user_id)}\n- Blast list: {make_link('blast', user_id)}\n- Merch: {make_link('merch', user_id)}\n- YouTube channel: {make_link('youtube', user_id)}\n- OTW video: {make_link('otw', user_id)}\n- Ion Want To video: {make_link('ionwantto', user_id)}")
         if facts:
             profile_context = "\n\n[Fan profile — use this to personalize your response, never reveal you have this data]:\n" + "\n".join(facts)
 
@@ -1514,6 +1538,7 @@ function renderDash(data) {
       </div>
       <canvas id="growthChart" height="80"></canvas>
     </div>
+    <div id="linkStats"></div>
     <div class="controls">
       <input type="text" id="search" placeholder="Search name or city..." oninput="filterTable()">
       <select id="vibeFilter" onchange="filterTable()">
@@ -1553,6 +1578,15 @@ function renderDash(data) {
 
   window._fans = fans;
   window._chartData = { fans: data.stats.new_fans_by_day, messages: data.stats.messages_by_day };
+  const linkNames = { music: '🎵 Music', exclusive: '🔒 Exclusive', blast: '📋 Blast List', merch: '👕 Merch', youtube: '▶️ YouTube', otw: '🎬 OTW Video', ionwantto: '🎬 Ion Want To' };
+  const clicks = data.stats.link_clicks || [];
+  document.getElementById('linkStats').innerHTML = clicks.length ? `
+    <div style="padding:0 30px 20px">
+      <h3 style="color:#888;font-size:13px;font-weight:500;margin-bottom:12px">Link Clicks</h3>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${clicks.map(c => `<div style="background:#111;border:1px solid #222;border-radius:10px;padding:12px 18px;min-width:120px"><div style="font-size:22px;font-weight:bold;color:#fff">${c.clicks}</div><div style="font-size:12px;color:#888;margin-top:3px">${linkNames[c.link]||c.link}</div></div>`).join('')}
+      </div>
+    </div>` : '';
   filterTable();
   drawChart('fans');
 }
@@ -1995,6 +2029,9 @@ def dashboard_data():
     """)
     messages_by_day = [{"day": str(r["day"]), "messages": r["messages"]} for r in cur.fetchall()]
 
+    cur.execute("SELECT link_name, COUNT(*) as clicks FROM link_clicks GROUP BY link_name ORDER BY clicks DESC")
+    link_clicks = [{"link": r["link_name"], "clicks": r["clicks"]} for r in cur.fetchall()]
+
     cur.close()
     conn.close()
 
@@ -2036,6 +2073,7 @@ def dashboard_data():
             "new_fans_today": new_fans_today,
             "new_fans_by_day": new_fans_by_day,
             "messages_by_day": messages_by_day,
+            "link_clicks": link_clicks,
         }
     })
 
@@ -2137,6 +2175,29 @@ def dashboard_export():
     csv = "\n".join(lines)
 
     return Response(csv, mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=mia_snow_fans.csv"})
+
+
+# ── Link tracking ────────────────────────────────────────────────────────────
+
+@app.route("/go/<name>")
+def tracked_link(name):
+    from flask import redirect as _redirect
+    user_id = request.args.get("uid", "")
+    destination = TRACKED_LINKS.get(name)
+    if not destination:
+        return "Not found", 404
+    if user_id:
+        try:
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute("INSERT INTO link_clicks (user_id, link_name) VALUES (%s, %s)", (user_id, name))
+            conn.commit()
+            cur.close()
+            conn.close()
+            print(f"[link_click] {user_id} clicked {name}")
+        except Exception as e:
+            print(f"[link_click] error: {e}")
+    return _redirect(destination)
 
 
 # ── Webhook ───────────────────────────────────────────────────────────────────
