@@ -317,6 +317,17 @@ def init_db():
             clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS comment_replies (
+            id SERIAL PRIMARY KEY,
+            post_id TEXT,
+            comment_id TEXT,
+            commenter_id TEXT,
+            commenter_name TEXT,
+            reply_type TEXT,
+            replied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     cur.close()
     conn.close()
@@ -1434,6 +1445,21 @@ def get_post_text(post_id):
     return ""
 
 
+def log_comment_reply(post_id, comment_id, commenter_id, commenter_name, reply_type):
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO comment_replies (post_id, comment_id, commenter_id, commenter_name, reply_type) VALUES (%s, %s, %s, %s, %s)",
+            (post_id, comment_id, commenter_id, commenter_name, reply_type)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[log_comment_reply] error: {e}")
+
+
 def handle_comment(comment_id, comment_text, post_id="", commenter_name="", commenter_id=""):
     # Emoji-only posts — no cap, no Claude, just reply to everyone
     if post_id and post_id in EMOJI_ONLY_POSTS:
@@ -1441,6 +1467,7 @@ def handle_comment(comment_id, comment_text, post_id="", commenter_name="", comm
         time.sleep(delay)
         reply = random.choice(["🤍", "😊🤍", "🥰", "😍🤍", "😊💙", "💙🤍", "😌🤍"])
         reply_to_comment(comment_id, reply, commenter_id=commenter_id, commenter_name=commenter_name)
+        threading.Thread(target=log_comment_reply, args=(post_id, comment_id, commenter_id, commenter_name, "emoji"), daemon=True).start()
         return
 
     # Check per-post reply cap for regular posts
@@ -1455,6 +1482,7 @@ def handle_comment(comment_id, comment_text, post_id="", commenter_name="", comm
     reply = get_comment_reply(comment_text, post_text)
     if reply:
         reply_to_comment(comment_id, reply, commenter_id=commenter_id, commenter_name=commenter_name)
+        threading.Thread(target=log_comment_reply, args=(post_id, comment_id, commenter_id, commenter_name, "ai"), daemon=True).start()
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -1572,8 +1600,10 @@ function renderDash(data) {
     <div class="stats">
       <div class="stat"><div class="num">${stats.total_fans}</div><div class="label">Total Fans</div></div>
       <div class="stat"><div class="num">${stats.new_fans_today}</div><div class="label">New Fans Today</div></div>
-      <div class="stat"><div class="num">${stats.messages_today}</div><div class="label">Messages Today</div></div>
-      <div class="stat"><div class="num">${stats.total_messages}</div><div class="label">Total Messages</div></div>
+      <div class="stat"><div class="num">${stats.messages_today}</div><div class="label">DMs Today</div></div>
+      <div class="stat"><div class="num">${stats.total_messages}</div><div class="label">Total DMs</div></div>
+      <div class="stat"><div class="num">${stats.comments_today}</div><div class="label">Comments Today</div></div>
+      <div class="stat"><div class="num">${stats.comments_total}</div><div class="label">Total Comments</div></div>
       <div class="stat"><div class="num">${stats.vip_count}</div><div class="label">VIP Fans</div></div>
       <div class="stat"><div class="num">${stats.blast_list_count}</div><div class="label">Blast List</div></div>
       <div class="stat"><div class="num">${stats.top_city}</div><div class="label">Top City</div></div>
@@ -1581,7 +1611,8 @@ function renderDash(data) {
     <div class="chart-wrap">
       <div class="chart-tabs" id="chartTabs">
         <div class="chart-tab active" onclick="selectTab('fans',this)">New Fans</div>
-        <div class="chart-tab" onclick="selectTab('messages',this)">Messages</div>
+        <div class="chart-tab" onclick="selectTab('messages',this)">DMs</div>
+        <div class="chart-tab" onclick="selectTab('comments',this)">Comments</div>
         <div class="chart-tab" onclick="selectTab('link_clicks',this)">Link Clicks</div>
       </div>
       <div id="rangeBar" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
@@ -1632,15 +1663,19 @@ function renderDash(data) {
 
   window._fans = fans;
   window._chartData = {
-    fans_hour:    data.stats.new_fans_today_by_hour || [],
-    fans_week:    (data.stats.new_fans_by_day || []).slice(-7),
-    fans_month:   data.stats.new_fans_by_day || [],
-    fans_all:     data.stats.new_fans_all_time || [],
-    msgs_hour:    data.stats.messages_today_by_hour || [],
-    msgs_week:    (data.stats.messages_by_day || []).slice(-7),
-    msgs_month:   data.stats.messages_by_day || [],
-    msgs_all:     data.stats.messages_all_time || [],
-    links_by_day: data.stats.link_clicks_by_day || {},
+    fans_hour:      data.stats.new_fans_today_by_hour || [],
+    fans_week:      (data.stats.new_fans_by_day || []).slice(-7),
+    fans_month:     data.stats.new_fans_by_day || [],
+    fans_all:       data.stats.new_fans_all_time || [],
+    msgs_hour:      data.stats.messages_today_by_hour || [],
+    msgs_week:      (data.stats.messages_by_day || []).slice(-7),
+    msgs_month:     data.stats.messages_by_day || [],
+    msgs_all:       data.stats.messages_all_time || [],
+    coms_hour:      data.stats.comments_today_by_hour || [],
+    coms_week:      (data.stats.comments_by_day || []).slice(-7),
+    coms_month:     data.stats.comments_by_day || [],
+    coms_all:       data.stats.comments_all_time || [],
+    links_by_day:   data.stats.link_clicks_by_day || {},
   };
   window._linkClickTiles = data.stats.link_clicks || [];
   window._linkRange = data.stats.link_range || 'all';
@@ -1670,7 +1705,7 @@ function selectTab(tab, el) {
   if (el) el.classList.add('active');
   window._activeTab = tab;
   // link_clicks tab uses loadDash range toggle, others use local range
-  document.getElementById('linkStats').style.display = tab === 'link_clicks' ? 'block' : 'none';
+  document.getElementById('linkStats').style.display = (tab === 'link_clicks') ? 'block' : 'none';
   drawChart();
 }
 
@@ -1708,20 +1743,23 @@ function drawChart() {
   }
 
   const isHour = range === 'hour';
-  const color  = tab === 'fans' ? '#9333ea' : '#7dd3fc';
-  const key    = tab === 'fans' ? (isHour ? 'fans_hour' : range === 'week' ? 'fans_week' : range === 'month' ? 'fans_month' : 'fans_all')
-                                : (isHour ? 'msgs_hour' : range === 'week' ? 'msgs_week' : range === 'month' ? 'msgs_month' : 'msgs_all');
+  const colorMap = { fans: '#9333ea', messages: '#7dd3fc', comments: '#4ade80' };
+  const color  = colorMap[tab] || '#7dd3fc';
+  const prefixMap = { fans: 'fans', messages: 'msgs', comments: 'coms' };
+  const prefix = prefixMap[tab] || 'msgs';
+  const key    = isHour ? prefix+'_hour' : range === 'week' ? prefix+'_week' : range === 'month' ? prefix+'_month' : prefix+'_all';
+  const valKey = tab === 'fans' ? 'new_fans' : tab === 'comments' ? 'comments' : 'messages';
   const raw    = window._chartData[key] || [];
 
   let labels, values;
   if (isHour) {
-    const hours  = Array.from({length:24}, (_,i) => i);
-    const hmap   = Object.fromEntries(raw.map(d => [d.hour, tab === 'fans' ? d.new_fans : d.messages]));
+    const hours = Array.from({length:24}, (_,i) => i);
+    const hmap  = Object.fromEntries(raw.map(d => [d.hour, d[valKey]]));
     labels = hours.map(fmtHour);
     values = hours.map(h => hmap[h] || 0);
   } else {
     labels = raw.map(d => d.day.length === 7 ? d.day : d.day.slice(5));
-    values = raw.map(d => tab === 'fans' ? d.new_fans : d.messages);
+    values = raw.map(d => d[valKey]);
   }
 
   if (!values.length) { _chartInstance = null; return; }
@@ -2174,6 +2212,34 @@ def dashboard_data():
     """, (tz, tz, tz))
     messages_today_by_hour = [{"hour": int(r["hour"]), "messages": r["messages"]} for r in cur.fetchall()]
 
+    cur.execute("SELECT COUNT(*) as c FROM comment_replies WHERE DATE(replied_at) = CURRENT_DATE")
+    comments_today = cur.fetchone()["c"]
+
+    cur.execute("SELECT COUNT(*) as c FROM comment_replies")
+    comments_total = cur.fetchone()["c"]
+
+    cur.execute("""
+        SELECT DATE(replied_at) as day, COUNT(*) as comments
+        FROM comment_replies
+        WHERE replied_at >= NOW() - INTERVAL '30 days'
+        GROUP BY day ORDER BY day ASC
+    """)
+    comments_by_day = [{"day": str(r["day"]), "comments": r["comments"]} for r in cur.fetchall()]
+
+    cur.execute("""
+        SELECT TO_CHAR(DATE_TRUNC('month', replied_at), 'YYYY-MM') as month, COUNT(*) as comments
+        FROM comment_replies GROUP BY month ORDER BY month ASC
+    """)
+    comments_all_time = [{"day": r["month"], "comments": r["comments"]} for r in cur.fetchall()]
+
+    cur.execute("""
+        SELECT EXTRACT(HOUR FROM replied_at AT TIME ZONE %s) as hour, COUNT(*) as comments
+        FROM comment_replies
+        WHERE DATE(replied_at AT TIME ZONE %s) = CURRENT_DATE AT TIME ZONE %s
+        GROUP BY hour ORDER BY hour ASC
+    """, (tz, tz, tz))
+    comments_today_by_hour = [{"hour": int(r["hour"]), "comments": r["comments"]} for r in cur.fetchall()]
+
     link_range = request.args.get("link_range", "all")
     if link_range == "day":
         link_interval = "INTERVAL '1 day'"
@@ -2250,6 +2316,11 @@ def dashboard_data():
             "messages_by_day": messages_by_day,
             "messages_all_time": messages_all_time,
             "messages_today_by_hour": messages_today_by_hour,
+            "comments_today": comments_today,
+            "comments_total": comments_total,
+            "comments_by_day": comments_by_day,
+            "comments_all_time": comments_all_time,
+            "comments_today_by_hour": comments_today_by_hour,
             "link_clicks": link_clicks,
             "link_clicks_by_day": link_clicks_by_day,
             "link_range": link_range,
