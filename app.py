@@ -1399,6 +1399,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mia Snow — Fan Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, sans-serif; background: #0a0a0a; color: #eee; }
@@ -1445,6 +1446,12 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   .login button { width: 260px; padding: 10px; }
   .vip { color: #facc15; font-size: 12px; }
   .blocked { color: #f87171; font-size: 12px; }
+  .chart-wrap { padding: 0 30px 20px; }
+  .chart-wrap h3 { color: #888; font-size: 13px; font-weight: 500; margin-bottom: 12px; }
+  .chart-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .chart-tab { background: #1a1a1a; border: 1px solid #333; color: #888; padding: 5px 14px; border-radius: 20px; cursor: pointer; font-size: 12px; }
+  .chart-tab.active { background: #9333ea; border-color: #9333ea; color: #fff; }
+  canvas { width: 100% !important; }
 </style>
 </head>
 <body>
@@ -1493,10 +1500,19 @@ function renderDash(data) {
     </header>
     <div class="stats">
       <div class="stat"><div class="num">${stats.total_fans}</div><div class="label">Total Fans</div></div>
+      <div class="stat"><div class="num">${stats.new_fans_today}</div><div class="label">New Fans Today</div></div>
+      <div class="stat"><div class="num">${stats.messages_today}</div><div class="label">Messages Today</div></div>
       <div class="stat"><div class="num">${stats.total_messages}</div><div class="label">Total Messages</div></div>
       <div class="stat"><div class="num">${stats.vip_count}</div><div class="label">VIP Fans</div></div>
       <div class="stat"><div class="num">${stats.blast_list_count}</div><div class="label">Blast List</div></div>
       <div class="stat"><div class="num">${stats.top_city}</div><div class="label">Top City</div></div>
+    </div>
+    <div class="chart-wrap">
+      <div class="chart-tabs">
+        <div class="chart-tab active" onclick="showChart('fans',this)">New Fans</div>
+        <div class="chart-tab" onclick="showChart('messages',this)">Messages</div>
+      </div>
+      <canvas id="growthChart" height="80"></canvas>
     </div>
     <div class="controls">
       <input type="text" id="search" placeholder="Search name or city..." oninput="filterTable()">
@@ -1536,7 +1552,40 @@ function renderDash(data) {
     </div>`;
 
   window._fans = fans;
+  window._chartData = { fans: data.stats.new_fans_by_day, messages: data.stats.messages_by_day };
   filterTable();
+  drawChart('fans');
+}
+
+let _chartInstance = null;
+function showChart(type, el) {
+  document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  drawChart(type);
+}
+
+function drawChart(type) {
+  const data = window._chartData[type];
+  if (!data || !data.length) return;
+  const labels = data.map(d => d.day.slice(5));
+  const values = data.map(d => type === 'fans' ? d.new_fans : d.messages);
+  const color = type === 'fans' ? '#9333ea' : '#7dd3fc';
+  const ctx = document.getElementById('growthChart').getContext('2d');
+  if (_chartInstance) _chartInstance.destroy();
+  _chartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: color + '99', borderColor: color, borderWidth: 1, borderRadius: 4 }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#666', font: { size: 11 } }, grid: { color: '#1a1a1a' } },
+        y: { ticks: { color: '#666', font: { size: 11 } }, grid: { color: '#1a1a1a' }, beginAtZero: true }
+      }
+    }
+  });
 }
 
 let _sortCol = 'last_message_at';
@@ -1924,6 +1973,28 @@ def dashboard_data():
     top_city_row = cur.fetchone()
     top_city = top_city_row["location"] if top_city_row else "—"
 
+    cur.execute("SELECT COUNT(*) as c FROM messages WHERE role = 'user' AND created_at >= NOW() - INTERVAL '24 hours'")
+    messages_today = cur.fetchone()["c"]
+
+    cur.execute("SELECT COUNT(*) as c FROM fan_profiles WHERE first_message_at >= NOW() - INTERVAL '24 hours'")
+    new_fans_today = cur.fetchone()["c"]
+
+    cur.execute("""
+        SELECT DATE(first_message_at) as day, COUNT(*) as new_fans
+        FROM fan_profiles
+        WHERE first_message_at >= NOW() - INTERVAL '30 days'
+        GROUP BY day ORDER BY day ASC
+    """)
+    new_fans_by_day = [{"day": str(r["day"]), "new_fans": r["new_fans"]} for r in cur.fetchall()]
+
+    cur.execute("""
+        SELECT DATE(created_at) as day, COUNT(*) as messages
+        FROM messages
+        WHERE role = 'user' AND created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY day ORDER BY day ASC
+    """)
+    messages_by_day = [{"day": str(r["day"]), "messages": r["messages"]} for r in cur.fetchall()]
+
     cur.close()
     conn.close()
 
@@ -1961,6 +2032,10 @@ def dashboard_data():
             "vip_count": vip_count,
             "blast_list_count": blast_count,
             "top_city": top_city,
+            "messages_today": messages_today,
+            "new_fans_today": new_fans_today,
+            "new_fans_by_day": new_fans_by_day,
+            "messages_by_day": messages_by_day,
         }
     })
 
