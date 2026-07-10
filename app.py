@@ -1618,8 +1618,8 @@ function renderDash(data) {
     </div>`;
 
   window._fans = fans;
-  window._chartData = { fans: data.stats.new_fans_by_day, messages: data.stats.messages_by_day, link_clicks_by_day: data.stats.link_clicks_by_day || {} };
-  const linkNames = { spotify: '🎵 Spotify', apple: '🍎 Apple Music', youtube: '▶️ YouTube', otw: '🎬 OTW Video', ionwantto: '🎬 Ion Want To', instagram: '📸 Instagram', exclusive: '🔒 Exclusive', blast: '📋 Blast List', merch: '👕 Merch', music: '🎵 Music' };
+  window._chartData = { fans: data.stats.new_fans_by_day, messages: data.stats.messages_by_day, link_clicks_by_day: data.stats.link_clicks_by_day || {}, fans_today_hourly: data.stats.new_fans_today_by_hour || [] };
+  const linkNames = { spotify: '🎵 Spotify', apple: '🍎 Apple Music', youtube: '▶️ YouTube', otw: '🎬 OTW Video', ionwantto: '🎬 Ion Want To', instagram: '📸 Instagram', exclusive: '🔒 Exclusive', blast: '📋 Blast List', merch: '👕 Merch', music: '🔗 Linktree (fallback)' };
   const linkColors = { spotify: '#1DB954', apple: '#fc3c44', youtube: '#FF0000', otw: '#f97316', ionwantto: '#fb923c', instagram: '#e1306c', exclusive: '#a855f7', blast: '#3b82f6', merch: '#f59e0b', music: '#22d3ee' };
   const clicks = data.stats.link_clicks || [];
   const activeRange = data.stats.link_range || 'all';
@@ -1638,6 +1638,7 @@ function renderDash(data) {
       <div style="margin-top:8px">
         <div class="chart-tabs" style="margin-bottom:10px">
           <div class="chart-tab active" onclick="showChart('fans',this)">New Fans</div>
+          <div class="chart-tab" onclick="showChart('fans_today',this)">Today by Hour</div>
           <div class="chart-tab" onclick="showChart('messages',this)">Messages</div>
           <div class="chart-tab" onclick="showChart('link_clicks',this)">Link Clicks</div>
         </div>
@@ -1659,6 +1660,28 @@ function drawChart(type) {
   if (_chartInstance) _chartInstance.destroy();
   const linkColors = { spotify: '#1DB954', apple: '#fc3c44', youtube: '#FF0000', otw: '#f97316', ionwantto: '#fb923c', instagram: '#e1306c', exclusive: '#a855f7', blast: '#3b82f6', merch: '#f59e0b', music: '#22d3ee' };
   const linkNames = { spotify: 'Spotify', apple: 'Apple Music', youtube: 'YouTube', otw: 'OTW Video', ionwantto: 'Ion Want To', instagram: 'Instagram', exclusive: 'Exclusive', blast: 'Blast List', merch: 'Merch', music: 'Music' };
+
+  if (type === 'fans_today') {
+    const hourly = window._chartData.fans_today_hourly || [];
+    const hourMap = Object.fromEntries(hourly.map(d => [d.hour, d.new_fans]));
+    const hours = Array.from({length: 24}, (_, i) => i);
+    const fmt = h => h === 0 ? '12a' : h < 12 ? h+'a' : h === 12 ? '12p' : (h-12)+'p';
+    _chartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: hours.map(fmt),
+        datasets: [{ data: hours.map(h => hourMap[h] || 0), backgroundColor: '#9333ea99', borderColor: '#9333ea', borderWidth: 1, borderRadius: 4 }]
+      },
+      options: {
+        plugins: { legend: { display: false }, tooltip: { callbacks: { title: t => fmt(hours[t[0].dataIndex]) + ' today' } } },
+        scales: {
+          x: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: '#1a1a1a' } },
+          y: { ticks: { color: '#666', font: { size: 11 } }, grid: { color: '#1a1a1a' }, beginAtZero: true, precision: 0 }
+        }
+      }
+    });
+    return;
+  }
 
   if (type === 'link_clicks') {
     const byDay = window._chartData.link_clicks_by_day || {};
@@ -2111,6 +2134,14 @@ def dashboard_data():
     new_fans_by_day = [{"day": str(r["day"]), "new_fans": r["new_fans"]} for r in cur.fetchall()]
 
     cur.execute("""
+        SELECT EXTRACT(HOUR FROM first_message_at) as hour, COUNT(*) as new_fans
+        FROM fan_profiles
+        WHERE DATE(first_message_at) = CURRENT_DATE
+        GROUP BY hour ORDER BY hour ASC
+    """)
+    new_fans_today_by_hour = [{"hour": int(r["hour"]), "new_fans": r["new_fans"]} for r in cur.fetchall()]
+
+    cur.execute("""
         SELECT DATE(created_at) as day, COUNT(*) as messages
         FROM messages
         WHERE role = 'user' AND created_at >= NOW() - INTERVAL '30 days'
@@ -2189,6 +2220,7 @@ def dashboard_data():
             "messages_today": messages_today,
             "new_fans_today": new_fans_today,
             "new_fans_by_day": new_fans_by_day,
+            "new_fans_today_by_hour": new_fans_today_by_hour,
             "messages_by_day": messages_by_day,
             "link_clicks": link_clicks,
             "link_clicks_by_day": link_clicks_by_day,
