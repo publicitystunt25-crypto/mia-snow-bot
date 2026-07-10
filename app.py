@@ -28,7 +28,7 @@ OWNER_ID = "506635664"  # Nathaniel Peterson
 BOT_BASE_URL = os.environ.get("BOT_BASE_URL", "https://mia-snow-bot.onrender.com")
 
 TRACKED_LINKS = {
-    "spotify":    "https://open.spotify.com/artist/0kAMXomRT7MdyVNYS4dOxI",
+    "spotify":    "https://open.spotify.com/artist/0kAMXomRT7MdyVNYS4dOxI?utm_medium=share&utm_source=linktree",
     "apple":      "https://music.apple.com/ca/artist/mia-snow/1656499933",
     "youtube":    "https://www.youtube.com/@Therealmiasnow",
     "otw":        "https://www.youtube.com/watch?v=bVyAOIiGyIY",
