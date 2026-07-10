@@ -1523,26 +1523,25 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <body>
 <div id="app"></div>
 <script>
-const pass = localStorage.getItem('dash_pass');
+let pass = localStorage.getItem('dash_pass') || '';
+let _linkRange = 'all';
+const _tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 function login() {
   const p = document.getElementById('pass').value;
-  fetch('/dashboard/data?password=' + encodeURIComponent(p))
+  fetch('/dashboard/data?password=' + encodeURIComponent(p) + '&tz=' + encodeURIComponent(_tz))
     .then(r => r.json())
     .then(d => {
       if (d.error) { alert('Wrong password'); return; }
       localStorage.setItem('dash_pass', p);
+      pass = p;
       renderDash(d);
     });
 }
 
-let _linkRange = 'all';
-const _tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
 function loadDash(linkRange) {
-  const p = pass || '';
   if (linkRange) _linkRange = linkRange;
-  fetch('/dashboard/data?password=' + encodeURIComponent(p) + '&link_range=' + _linkRange + '&tz=' + encodeURIComponent(_tz))
+  fetch('/dashboard/data?password=' + encodeURIComponent(pass) + '&link_range=' + _linkRange + '&tz=' + encodeURIComponent(_tz))
     .then(r => r.json())
     .then(d => {
       if (d.error) { renderLogin(); return; }
