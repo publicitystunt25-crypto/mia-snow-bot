@@ -2106,7 +2106,7 @@ def fix_profiles_route():
         """Feed a conversation snippet to Haiku and extract a clean location."""
         try:
             haiku = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            convo_text = "\n".join(convo_lines[-40:])  # last 40 messages for context
+            convo_text = "\n".join(convo_lines)
             resp = haiku.messages.create(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=30,
@@ -2154,18 +2154,12 @@ def fix_profiles_route():
                     updates["nickname"] = name
                     break
 
-        # Location: use Claude on the full conversation
+        # Location: run Claude on every fan's full conversation
         current_loc = fan.get("location") or ""
-        loc_words = current_loc.lower().split()
-        ends_bad = len(loc_words) >= 2 and loc_words[-1] in BAD_TRAILING
-        loc_is_garbage = not current_loc or any(w in SKIP_LOCS for w in loc_words) or len(current_loc) < 3 or ends_bad
-
-        if loc_is_garbage:
-            # Build conversation lines for Claude: only include turns around "where you from" questions
-            convo_lines = [f"{'Mia' if r['role']=='assistant' else 'Fan'}: {r['content']}" for r in rows]
-            loc = _claude_extract_location(convo_lines)
-            if loc and loc.upper() != "NONE" and loc.lower() != current_loc.lower():
-                updates["location"] = loc
+        convo_lines = [f"{'Mia' if r['role']=='assistant' else 'Fan'}: {r['content']}" for r in rows]
+        loc = _claude_extract_location(convo_lines)
+        if loc and loc.upper() != "NONE" and loc.lower() != current_loc.lower():
+            updates["location"] = loc
 
         if updates:
             sets = ", ".join(f"{k} = %s" for k in updates)
