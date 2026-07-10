@@ -1695,6 +1695,7 @@ function renderDash(data) {
   filterTable();
   window._activeTab   = 'fans';
   window._activeRange = 'hour';
+  _chartInstance = null;
   drawChart();
 }
 
@@ -2185,7 +2186,7 @@ def dashboard_data():
     cur.execute("""
         SELECT EXTRACT(HOUR FROM first_message_at AT TIME ZONE %s) as hour, COUNT(*) as new_fans
         FROM fan_profiles
-        WHERE DATE(first_message_at AT TIME ZONE %s) = CURRENT_DATE AT TIME ZONE %s
+        WHERE DATE(first_message_at AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
         GROUP BY hour ORDER BY hour ASC
     """, (tz, tz, tz))
     new_fans_today_by_hour = [{"hour": int(r["hour"]), "new_fans": r["new_fans"]} for r in cur.fetchall()]
@@ -2207,7 +2208,7 @@ def dashboard_data():
     cur.execute("""
         SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE %s) as hour, COUNT(*) as messages
         FROM messages
-        WHERE role = 'user' AND DATE(created_at AT TIME ZONE %s) = CURRENT_DATE AT TIME ZONE %s
+        WHERE role = 'user' AND DATE(created_at AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
         GROUP BY hour ORDER BY hour ASC
     """, (tz, tz, tz))
     messages_today_by_hour = [{"hour": int(r["hour"]), "messages": r["messages"]} for r in cur.fetchall()]
@@ -2235,7 +2236,7 @@ def dashboard_data():
     cur.execute("""
         SELECT EXTRACT(HOUR FROM replied_at AT TIME ZONE %s) as hour, COUNT(*) as comments
         FROM comment_replies
-        WHERE DATE(replied_at AT TIME ZONE %s) = CURRENT_DATE AT TIME ZONE %s
+        WHERE DATE(replied_at AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
         GROUP BY hour ORDER BY hour ASC
     """, (tz, tz, tz))
     comments_today_by_hour = [{"hour": int(r["hour"]), "comments": r["comments"]} for r in cur.fetchall()]
