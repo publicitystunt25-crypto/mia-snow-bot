@@ -1537,11 +1537,12 @@ function login() {
 }
 
 let _linkRange = 'all';
+const _tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 function loadDash(linkRange) {
   const p = pass || '';
   if (linkRange) _linkRange = linkRange;
-  fetch('/dashboard/data?password=' + encodeURIComponent(p) + '&link_range=' + _linkRange)
+  fetch('/dashboard/data?password=' + encodeURIComponent(p) + '&link_range=' + _linkRange + '&tz=' + encodeURIComponent(_tz))
     .then(r => r.json())
     .then(d => {
       if (d.error) { renderLogin(); return; }
@@ -2133,12 +2134,21 @@ def dashboard_data():
     """)
     new_fans_by_day = [{"day": str(r["day"]), "new_fans": r["new_fans"]} for r in cur.fetchall()]
 
-    cur.execute("""
-        SELECT EXTRACT(HOUR FROM first_message_at) as hour, COUNT(*) as new_fans
-        FROM fan_profiles
-        WHERE DATE(first_message_at) = CURRENT_DATE
-        GROUP BY hour ORDER BY hour ASC
-    """)
+    tz = request.args.get("tz", "UTC")
+    try:
+        cur.execute("""
+            SELECT EXTRACT(HOUR FROM first_message_at AT TIME ZONE %s) as hour, COUNT(*) as new_fans
+            FROM fan_profiles
+            WHERE DATE(first_message_at AT TIME ZONE %s) = CURRENT_DATE AT TIME ZONE %s
+            GROUP BY hour ORDER BY hour ASC
+        """, (tz, tz, tz))
+    except Exception:
+        cur.execute("""
+            SELECT EXTRACT(HOUR FROM first_message_at) as hour, COUNT(*) as new_fans
+            FROM fan_profiles
+            WHERE DATE(first_message_at) = CURRENT_DATE
+            GROUP BY hour ORDER BY hour ASC
+        """)
     new_fans_today_by_hour = [{"hour": int(r["hour"]), "new_fans": r["new_fans"]} for r in cur.fetchall()]
 
     cur.execute("""
