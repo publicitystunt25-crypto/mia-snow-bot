@@ -2017,160 +2017,136 @@ def fix_names_route():
     return "<br>".join(lines)
 
 
+_fix_profiles_status = {"running": False, "done": 0, "total": 0, "fixed": [], "error": None}
+
+def _run_fix_profiles_bg():
+    global _fix_profiles_status
+    try:
+        import re as _re
+
+        SKIP_NAMES = {
+            "good", "fine", "okay", "cool", "here", "just", "from", "doing", "hey",
+            "lol", "yes", "nah", "yea", "yep", "wow", "omg", "sup", "hi", "ok",
+            "real", "sure", "not", "the", "and", "but", "for", "with", "that",
+            "trying", "single", "ready", "worth", "rock", "already", "originally",
+            "understanding", "at", "on", "in", "out", "off", "up", "down", "to",
+            "it", "this", "going", "working", "looking", "feeling", "getting",
+            "thank", "thanks", "love", "wassup", "what", "how", "when",
+            "where", "who", "why", "been", "have", "will", "would", "could",
+            "should", "might", "must", "shall", "may", "can", "did", "does",
+            "had", "has", "was", "were", "been", "being", "am", "are", "is"
+        }
+
+        def _extract_name(text):
+            patterns = [
+                r"(?:my name is|they call me|call me|name's|go by|goes by|the name is|the name's)\s+([A-Z][a-z]{2,})",
+                r"^([A-Z][a-z]{2,})\s+here\b",
+            ]
+            for p in patterns:
+                m = _re.search(p, text)
+                if m:
+                    name = m.group(1).strip()
+                    if name.lower() not in SKIP_NAMES:
+                        return name
+            return None
+
+        def _claude_extract_location(convo_lines):
+            try:
+                haiku = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+                convo_text = "\n".join(convo_lines)[:12000]  # cap tokens
+                resp = haiku.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=30,
+                    system=(
+                        "You extract a fan's location from a chat conversation. "
+                        "Reply with ONLY the city or state name (e.g. 'Atlanta', 'Houston', 'New York', 'Florida'). "
+                        "Handle slang: 'the A'=Atlanta, 'HTown'=Houston, '305'=Miami, 'Jax'=Jacksonville, 'Chi'=Chicago, 'the Lou'=St Louis, 'Nawlins'=New Orleans, 'the Bay'=Bay Area, 'DMV'=Washington DC area, 'Raq'=New York, 'MIA'=Miami. "
+                        "If no location is clearly mentioned reply with exactly: NONE"
+                    ),
+                    messages=[{"role": "user", "content": f"What city or state is this fan from?\n\n{convo_text}"}]
+                )
+                result = resp.content[0].text.strip()
+                if result.upper() == "NONE" or not result or len(result) > 50:
+                    return None
+                return result.title()
+            except Exception as e:
+                print(f"[fix_profiles_bg] claude error: {e}")
+                return None
+
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT user_id, fb_name, nickname, location FROM fan_profiles")
+        fans = cur.fetchall()
+        _fix_profiles_status["total"] = len(fans)
+
+        for fan in fans:
+            user_id = fan["user_id"]
+            try:
+                cur.execute("SELECT role, content FROM messages WHERE user_id = %s ORDER BY id ASC", (user_id,))
+                rows = cur.fetchall()
+                if not rows:
+                    _fix_profiles_status["done"] += 1
+                    continue
+
+                user_messages = [r["content"] for r in rows if r["role"] == "user"]
+                updates = {}
+
+                current_nickname = fan.get("nickname") or ""
+                if not fan.get("fb_name") or current_nickname.lower() in SKIP_NAMES:
+                    for msg in user_messages:
+                        name = _extract_name(msg)
+                        if name and name.lower() not in SKIP_NAMES and name != current_nickname:
+                            updates["nickname"] = name
+                            break
+
+                current_loc = fan.get("location") or ""
+                convo_lines = [f"{'Mia' if r['role']=='assistant' else 'Fan'}: {r['content']}" for r in rows]
+                loc = _claude_extract_location(convo_lines)
+                if loc and loc.lower() != current_loc.lower():
+                    updates["location"] = loc
+
+                if updates:
+                    sets = ", ".join(f"{k} = %s" for k in updates)
+                    vals = list(updates.values()) + [user_id]
+                    cur.execute(f"UPDATE fan_profiles SET {sets} WHERE user_id = %s", vals)
+                    conn.commit()
+                    _fix_profiles_status["fixed"].append(f"{fan.get('fb_name') or user_id}: {updates}")
+            except Exception as e:
+                print(f"[fix_profiles_bg] error on {user_id}: {e}")
+            finally:
+                _fix_profiles_status["done"] += 1
+
+        cur.close()
+        conn.close()
+    except Exception as e:
+        _fix_profiles_status["error"] = str(e)
+    finally:
+        _fix_profiles_status["running"] = False
+
+
 @app.route("/admin/fix-profiles")
 def fix_profiles_route():
     password = request.args.get("password", "")
     if password != DASHBOARD_PASSWORD:
         return "unauthorized", 401
 
-    import re as _re
+    if _fix_profiles_status["running"]:
+        done = _fix_profiles_status["done"]
+        total = _fix_profiles_status["total"]
+        fixed = len(_fix_profiles_status["fixed"])
+        return f"Still running... {done}/{total} scanned, {fixed} updated so far. Refresh to check progress."
 
-    SKIP_NAMES = {
-        "good", "fine", "okay", "cool", "here", "just", "from", "doing", "hey",
-        "lol", "yes", "nah", "yea", "yep", "wow", "omg", "sup", "hi", "ok",
-        "real", "sure", "not", "the", "and", "but", "for", "with", "that",
-        "trying", "single", "ready", "worth", "rock", "already", "originally",
-        "understanding", "at", "on", "in", "out", "off", "up", "down", "to",
-        "it", "this", "going", "working", "looking", "feeling", "getting",
-        "thank", "thanks", "love", "wassup", "what", "how", "when",
-        "where", "who", "why", "been", "have", "will", "would", "could",
-        "should", "might", "must", "shall", "may", "can", "did", "does",
-        "had", "has", "was", "were", "been", "being", "am", "are", "is"
-    }
-    SKIP_LOCS = {
-        "here", "the", "a", "an", "my", "your", "there", "this", "that",
-        "home", "around", "out", "work", "school", "somewhere", "nowhere",
-        "anywhere", "everywhere", "outside", "inside", "release", "city",
-        "back", "way", "where", "time", "them", "tho", "though", "most",
-        "certainly", "suburbs", "oilfield", "tuned", "thank", "you",
-        "love", "real", "good", "same", "life", "too", "now", "just",
-        "ready", "single", "free", "up", "down", "on", "off", "it",
-        "him", "her", "us", "them", "still", "always", "never",
-    }
-    # words that are valid as first word of a location but not standalone second word
-    BAD_TRAILING = {
-        "and", "to", "the", "or", "but", "for", "with", "from", "too",
-        "so", "now", "just", "also", "even", "only", "very", "really",
-        "v", "w", "n", "s", "e",  # single letter abbreviations
-    }
-    # known two-word locations that should NOT be trimmed
-    KNOWN_TWO_WORD = {
-        "new york", "new jersey", "new hampshire", "new mexico", "new orleans",
-        "north carolina", "south carolina", "north dakota", "south dakota",
-        "west virginia", "rhode island", "los angeles", "san francisco",
-        "san diego", "san antonio", "san jose", "las vegas", "el paso",
-        "fort worth", "fort lauderdale", "long beach", "virginia beach",
-        "colorado springs", "kansas city", "oklahoma city", "salt lake",
-        "baton rouge", "little rock", "grand rapids", "cedar rapids",
-        "des moines", "st louis", "st pete", "st augustine",
-        "newport news", "warner robins", "winston salem", "corpus christi",
-        "port arthur", "port saint", "palm beach", "palm springs",
-        "santa barbara", "santa ana", "santa clara", "santa monica",
-        "east orange", "east st", "east los", "jersey city",
-    }
+    # Return results if already ran
+    if _fix_profiles_status["done"] > 0 and not _fix_profiles_status["running"]:
+        if request.args.get("results") == "1":
+            results = _fix_profiles_status["fixed"]
+            return "<br>".join([f"Done. Fixed {len(results)} profiles:"] + results) or "Done — nothing to fix."
 
-    def _extract_name(text):
-        # Require name to be Title Case as written — filters out random lowercase words
-        patterns = [
-            r"(?:my name is|they call me|call me|name's|go by|goes by|the name is|the name's)\s+([A-Z][a-z]{2,})",
-            r"^([A-Z][a-z]{2,})\s+here\b",
-        ]
-        for p in patterns:
-            m = _re.search(p, text)  # no IGNORECASE — must be capitalized
-            if m:
-                name = m.group(1).strip()
-                if name.lower() not in SKIP_NAMES:
-                    return name
-        return None
+    # Start background job
+    _fix_profiles_status.update({"running": True, "done": 0, "total": 0, "fixed": [], "error": None})
+    threading.Thread(target=_run_fix_profiles_bg, daemon=True).start()
+    return "Started scanning all fans in the background. Refresh this page to check progress. When done add ?results=1&password=Nathaniel to see results."
 
-    def _extract_loc(text):
-        patterns = [
-            r"(?:i'm from|im from|i am from|i live in|i'm in|im in|based in|based out of|i stay in|i stay out of|i'm out in|im out in|out here in|out here from|repping|rep)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
-            r"(?:born in|raised in|grew up in|i'm originally from|originally from|native of)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
-        ]
-        for p in patterns:
-            m = _re.search(p, text, _re.IGNORECASE)
-            if m:
-                loc = m.group(1).strip().title()
-                words = loc.lower().split()
-                # trim bad trailing word unless it's a known two-word place
-                if len(words) == 2 and loc.lower() not in KNOWN_TWO_WORD:
-                    if words[1] in BAD_TRAILING or len(words[1]) <= 1:
-                        loc = words[0].title()
-                loc_words = loc.lower().split()
-                if len(loc) >= 3 and not any(w in SKIP_LOCS for w in loc_words):
-                    return loc
-        return None
-
-    def _claude_extract_location(convo_lines):
-        """Feed a conversation snippet to Haiku and extract a clean location."""
-        try:
-            haiku = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            convo_text = "\n".join(convo_lines)
-            resp = haiku.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=30,
-                system=(
-                    "You extract a fan's location from a chat conversation. "
-                    "Reply with ONLY the city or state name (e.g. 'Atlanta', 'Houston', 'New York', 'Florida'). "
-                    "Handle slang: 'the A' = Atlanta, 'HTown' = Houston, '305' = Miami, 'Jax' = Jacksonville, 'Chi' = Chicago, 'the Lou' = St Louis, 'Nawlins' = New Orleans, 'the Bay' = Bay Area. "
-                    "If no location is clearly mentioned reply with exactly: NONE"
-                ),
-                messages=[{"role": "user", "content": f"What city or state is this fan from based on this conversation?\n\n{convo_text}"}]
-            )
-            result = resp.content[0].text.strip()
-            if result.upper() == "NONE" or not result or len(result) > 50:
-                return None
-            return result.title()
-        except Exception as e:
-            print(f"[fix_profiles] claude loc error: {e}")
-            return None
-
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT user_id, fb_name, nickname, location FROM fan_profiles")
-    fans = cur.fetchall()
-
-    fixed = []
-    for fan in fans:
-        user_id = fan["user_id"]
-        cur.execute(
-            "SELECT role, content FROM messages WHERE user_id = %s ORDER BY id ASC",
-            (user_id,)
-        )
-        rows = cur.fetchall()
-        if not rows:
-            continue
-
-        user_messages = [r["content"] for r in rows if r["role"] == "user"]
-        updates = {}
-
-        # Name extraction still uses regex (fast and reliable for names)
-        current_nickname = fan.get("nickname") or ""
-        if not fan.get("fb_name") or current_nickname.lower() in SKIP_NAMES:
-            for msg in user_messages:
-                name = _extract_name(msg)
-                if name and name.lower() not in SKIP_NAMES and name != current_nickname:
-                    updates["nickname"] = name
-                    break
-
-        # Location: run Claude on every fan's full conversation
-        current_loc = fan.get("location") or ""
-        convo_lines = [f"{'Mia' if r['role']=='assistant' else 'Fan'}: {r['content']}" for r in rows]
-        loc = _claude_extract_location(convo_lines)
-        if loc and loc.upper() != "NONE" and loc.lower() != current_loc.lower():
-            updates["location"] = loc
-
-        if updates:
-            sets = ", ".join(f"{k} = %s" for k in updates)
-            vals = list(updates.values()) + [user_id]
-            cur.execute(f"UPDATE fan_profiles SET {sets} WHERE user_id = %s", vals)
-            conn.commit()
-            fixed.append(f"{fan.get('fb_name') or user_id}: {updates}")
-
-    cur.close()
-    conn.close()
-    return "<br>".join([f"Fixed {len(fixed)} profiles:"] + fixed) or "Done — nothing to fix."
 
 
 @app.route("/dashboard/data")
