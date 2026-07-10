@@ -2096,10 +2096,10 @@ def dashboard_data():
     top_city_row = cur.fetchone()
     top_city = top_city_row["location"] if top_city_row else "—"
 
-    cur.execute("SELECT COUNT(*) as c FROM messages WHERE role = 'user' AND created_at >= NOW() - INTERVAL '24 hours'")
+    cur.execute("SELECT COUNT(*) as c FROM messages WHERE role = 'user' AND DATE(created_at) = CURRENT_DATE")
     messages_today = cur.fetchone()["c"]
 
-    cur.execute("SELECT COUNT(*) as c FROM fan_profiles WHERE first_message_at >= NOW() - INTERVAL '24 hours'")
+    cur.execute("SELECT COUNT(*) as c FROM fan_profiles WHERE DATE(first_message_at) = CURRENT_DATE")
     new_fans_today = cur.fetchone()["c"]
 
     cur.execute("""
