@@ -1696,11 +1696,29 @@ function login() {
 
 function loadDash(linkRange) {
   if (linkRange) _linkRange = linkRange;
+  const _prevTab = window._activeTab;
+  const _prevRange = window._activeRange;
   fetch('/dashboard/data?password=' + encodeURIComponent(pass) + '&link_range=' + _linkRange + '&tz=' + encodeURIComponent(_tz))
     .then(r => r.json())
     .then(d => {
       if (d.error) { renderLogin(); return; }
+      // If we're on link_clicks tab, just update tiles without full re-render
+      if (_prevTab === 'link_clicks' && linkRange) {
+        window._linkClickTiles = d.stats.link_clicks || [];
+        window._linkClickTilesComment = d.stats.link_clicks_comment || [];
+        const linkColors = window._linkColors;
+        const linkNames = window._linkNames;
+        function renderClickTiles(data, label, color) {
+          if (!data.length) return '';
+          return `<div style="padding:0 30px 4px;font-size:11px;font-weight:600;color:${color};letter-spacing:1px;text-transform:uppercase">${label}</div><div style="padding:0 30px 16px;display:flex;gap:10px;flex-wrap:wrap">${data.map(c => `<div style="background:#111;border:1px solid #222;border-radius:10px;padding:12px 18px;min-width:120px"><div style="font-size:22px;font-weight:bold;color:${linkColors[c.link]||'#fff'}">${c.clicks}</div><div style="font-size:12px;color:#888;margin-top:3px">${linkNames[c.link]||c.link}</div></div>`).join('')}</div>`;
+        }
+        document.getElementById('linkStats').innerHTML =
+          renderClickTiles(window._linkClickTiles, '💬 From DMs', '#888') +
+          renderClickTiles(window._linkClickTilesComment, '🗨️ From Comments', '#a78bfa');
+        return;
+      }
       renderDash(d);
+      if (_prevTab) { window._activeTab = _prevTab; window._activeRange = _prevRange; drawChart(); }
     });
 }
 
