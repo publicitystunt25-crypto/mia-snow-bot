@@ -465,6 +465,8 @@ def update_fan_after_message(user_id, messages):
 
         # If regex didn't catch it, check if bot recently asked "what city you from"
         # and use Haiku to extract from the fan's reply
+        last_user_msg = messages[-1] if messages else None
+        history = get_history(user_id)
         if "location" not in updates and last_user_msg:
             _loc_asked = any(
                 p in (m.get("content") or "").lower()
@@ -926,6 +928,10 @@ def get_mia_reply(user_id):
     _already_told_phrases = ["i already told", "i told you", "told u", "i said my name", "i gave you my name", "you forgot", "you don't remember", "u forgot", "u don't remember", "i told u my name", "already told u"]
     _fan_just_said_already_told = any(p in last_user_msg.lower() for p in _already_told_phrases)
 
+    # Detect FaceTime / private show requests
+    _ft_phrases = ["private show", "private show on ft", "ft me", "facetime me", "facetime", "face time", "video call", "hop on ft", "get on ft", "do ft", "do a ft", "let's ft", "lets ft", "wanna ft", "want to ft", "want a ft"]
+    _fan_wants_ft = any(p in last_user_msg.lower() for p in _ft_phrases)
+
     # Detect if bookmiasnow@gmail.com was already mentioned in this conversation
     _booking_email_already_sent = any("bookmiasnow" in (m.get("content") or "").lower() for m in history if m.get("role") == "assistant")
 
@@ -995,6 +1001,10 @@ def get_mia_reply(user_id):
             facts.append("FUNNEL COMPLETE: You've already connected with this person and shared your music and blast list. Keep replies short and warm — 1 sentence max. You're living your life, not sitting by the phone. You still love them but you're busy and that's real. Don't start new topics or ask questions. Just respond warmly to whatever they say and keep it moving.")
         if _booking_email_already_sent:
             facts.append("BOOKING EMAIL ALREADY GIVEN: You already sent bookmiasnow@gmail.com to this person earlier in this conversation. Do NOT send it again. If they bring up bookings, features, or collabs again just acknowledge it briefly — 'yea they gonna handle it, just make sure you sent that email' or 'just make sure you hit that email and they gonna get back to you' — one line max, no repeating the full email address.")
+        # FaceTime / private show redirect
+        if _fan_wants_ft:
+            facts.append(f"FACETIME/PRIVATE SHOW REQUEST: This fan is asking about a FaceTime or private show. Do NOT agree to FaceTime or a video call — Mia doesn't do that. Playfully redirect them to your exclusive content link: {make_link('exclusive', user_id)}. Keep it flirty and light, like: 'lol you tryna see something? 👀 i got you right here tho' then drop the link. Or 'i don't just ft anybody 😈 but i do got something for you' then the link.")
+
         # Music push logic
         _music_sent = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("sent_blast_list")
         _already_listened = profile.get("listened_to_music")
