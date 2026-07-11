@@ -309,6 +309,8 @@ def init_db():
     """)
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS funnel_restarted BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS music_platform TEXT")
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_otw BOOLEAN DEFAULT FALSE")
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS otw_warmup_count INTEGER DEFAULT 0")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS link_clicks (
             id SERIAL PRIMARY KEY,
@@ -925,6 +927,14 @@ def get_mia_reply(user_id):
         if vibe == "music_fan":
             facts.append("This person is already a music fan — they came in interested in music. Don't oversell it, just vibe naturally.")
 
+        # OTW video warmup
+        if (profile.get("total_messages") or 0) >= 30 and not profile.get("sent_otw"):
+            otw_warmup = profile.get("otw_warmup_count") or 0
+            if otw_warmup < 8:
+                facts.append("OTW WARMUP: You're building up to sharing your song with this fan. Right now just greet them warmly and have a natural conversation — ask how they're doing, vibe with whatever they bring up. Don't mention music yet. Keep it genuine and warm.")
+            else:
+                facts.append(f"OTW DROP: You've warmed up enough with this fan — now is the moment to share your song. Work it in naturally, something like: 'ok wait i need you to watch something real quick, this is one of my favorites' or 'i've been meaning to send you this, tell me what you think' then drop this link: https://www.youtube.com/watch?v=bVyAOIiGyIY&list=RDbVyAOIiGyIY&start_radio=1 — after you send it, keep the convo going a little and ask what they thought.")
+
         # Listened status
         if profile.get("listened_to_music"):
             facts.append("CONFIRMED LISTENER: This person has already listened to your music. Do NOT send the music link again. Do NOT push them toward the music or act like they haven't heard it. They already listened — treat them accordingly and just vibe. If you haven't asked which song they heard yet, ask naturally using varied phrasing ('which one you was feeling', 'which track you fw', 'which song you checked out'). If they didn't specify that's fine — don't keep pushing.")
@@ -1096,6 +1106,13 @@ def get_convo_action(sender_id, profile, unanswered_count, is_business):
                 funnel_restarted=True
             )
             return ('respond', None)
+
+        # OTW warmup override — break out of scarce mode to send the OTW video
+        if total_msgs >= 30 and not profile.get('sent_otw'):
+            otw_warmup = profile.get('otw_warmup_count') or 0
+            if otw_warmup < 10:  # up to 10 warmup replies before and after the link drop
+                print(f"[convo_phase] {sender_id} — OTW warmup override (warmup={otw_warmup})")
+                return ('respond', None)
 
         if skip_remaining > 0:
             db_update(skip_messages_remaining=max(0, skip_remaining - 1))
@@ -1366,6 +1383,20 @@ def handle_reply(sender_id):
 
         save_message(sender_id, "assistant", reply)
         send_message(sender_id, reply)
+
+        # OTW tracking — increment warmup count; mark sent if link is in reply
+        if profile and (profile.get("total_messages") or 0) >= 30 and not profile.get("sent_otw"):
+            _otw_url = "bVyAOIiGyIY"
+            _otw_conn = get_conn()
+            _otw_cur = _otw_conn.cursor()
+            if _otw_url in reply:
+                _otw_cur.execute("UPDATE fan_profiles SET sent_otw = TRUE, otw_warmup_count = otw_warmup_count + 1 WHERE user_id = %s", (sender_id,))
+            else:
+                _otw_cur.execute("UPDATE fan_profiles SET otw_warmup_count = otw_warmup_count + 1 WHERE user_id = %s", (sender_id,))
+            _otw_conn.commit()
+            _otw_cur.close()
+            _otw_conn.close()
+
     finally:
         with _pending_lock:
             _active_threads.discard(sender_id)
