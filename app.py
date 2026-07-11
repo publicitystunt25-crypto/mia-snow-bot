@@ -2299,7 +2299,7 @@ def dashboard_data():
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT * FROM fan_profiles ORDER BY last_message_at DESC NULLS LAST")
+    cur.execute("SELECT * FROM fan_profiles WHERE total_messages > 0 ORDER BY last_message_at DESC NULLS LAST")
     fans = [dict(r) for r in cur.fetchall()]
 
     # Attach last fan message to each profile
@@ -2313,7 +2313,7 @@ def dashboard_data():
     for f in fans:
         f["last_message"] = last_msgs.get(f["user_id"], "")
 
-    cur.execute("SELECT COUNT(*) as c FROM fan_profiles")
+    cur.execute("SELECT COUNT(*) as c FROM fan_profiles WHERE total_messages > 0")
     total_fans = cur.fetchone()["c"]
 
     cur.execute("SELECT COALESCE(SUM(total_messages),0) as c FROM fan_profiles")
@@ -2338,7 +2338,7 @@ def dashboard_data():
 
     cur.execute("""
         SELECT COUNT(*) as c FROM fan_profiles
-        WHERE DATE((first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
+        WHERE total_messages > 0 AND DATE((first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
     """, (tz, tz))
     new_fans_today = cur.fetchone()["c"]
 
@@ -2351,21 +2351,21 @@ def dashboard_data():
     cur.execute("""
         SELECT DATE((first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s) as day, COUNT(*) as new_fans
         FROM fan_profiles
-        WHERE (first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s >= (NOW() AT TIME ZONE %s)::date - INTERVAL '30 days'
+        WHERE total_messages > 0 AND (first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s >= (NOW() AT TIME ZONE %s)::date - INTERVAL '30 days'
         GROUP BY day ORDER BY day ASC
     """, (tz, tz, tz))
     new_fans_by_day = [{"day": str(r["day"]), "new_fans": r["new_fans"]} for r in cur.fetchall()]
 
     cur.execute("""
         SELECT TO_CHAR(DATE_TRUNC('month', (first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s), 'YYYY-MM') as month, COUNT(*) as new_fans
-        FROM fan_profiles GROUP BY month ORDER BY month ASC
+        FROM fan_profiles WHERE total_messages > 0 GROUP BY month ORDER BY month ASC
     """, (tz,))
     new_fans_all_time = [{"day": r["month"], "new_fans": r["new_fans"]} for r in cur.fetchall()]
 
     cur.execute("""
         SELECT EXTRACT(HOUR FROM (first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s) as hour, COUNT(*) as new_fans
         FROM fan_profiles
-        WHERE DATE((first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
+        WHERE total_messages > 0 AND DATE((first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
         GROUP BY hour ORDER BY hour ASC
     """, (tz, tz, tz))
     new_fans_today_by_hour = [{"hour": int(r["hour"]), "new_fans": r["new_fans"]} for r in cur.fetchall()]
@@ -2565,7 +2565,7 @@ def dashboard_fans_api():
         return jsonify({"error": "unauthorized"}), 401
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT user_id, fb_name, nickname, location, vibe, fan_score, total_messages, sent_spotify, sent_youtube, sent_onlyfans, sent_merch, sent_blast_list, on_blast_list, is_vip, is_girl_code, is_blocked, first_message_at, last_message_at FROM fan_profiles ORDER BY last_message_at DESC NULLS LAST")
+    cur.execute("SELECT user_id, fb_name, nickname, location, vibe, fan_score, total_messages, sent_spotify, sent_youtube, sent_onlyfans, sent_merch, sent_blast_list, on_blast_list, is_vip, is_girl_code, is_blocked, first_message_at, last_message_at FROM fan_profiles WHERE total_messages > 0 ORDER BY last_message_at DESC NULLS LAST")
     fans = [dict(r) for r in cur.fetchall()]
     cur.close()
     conn.close()
