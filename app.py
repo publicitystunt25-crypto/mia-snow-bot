@@ -1470,17 +1470,43 @@ You are replying to a PUBLIC Facebook comment on one of your posts — not a DM.
 - Sound like you actually read their comment and are responding to THAT specifically, not a generic reply
 """
 
-def get_comment_reply(comment_text, post_text=""):
+def get_comment_reply(comment_text, post_text="", commenter_id=""):
     # Emoji-only comment → quick emoji reply, no need to call Claude
     if _is_emoji_only(comment_text):
         return random.choice(["🙏🏽🤍", "😍🤍", "💜", "🥰", "❤️‍🔥"])
 
+    # Detect high-intent keywords that warrant dropping a link
+    _stream_intent = ["where can i", "where do i", "how do i stream", "how can i listen", "where to stream", "where to listen", "link", "spotify", "apple music", "where is it", "drop the link", "send the link", "send me the link"]
+    _music_intent = ["fire", "this is fire", "this slaps", "this hard", "this go hard", "this hits", "when does it drop", "when is it out", "can't wait", "cant wait", "need this", "i need this", "stream this", "go stream", "listen to this", "heard this", "this song", "this track", "banger", "i fw this", "i fw you", "this hard", "this lowkey", "go crazy", "goes crazy"]
+    _collab_intent = ["collab", "work together", "book", "booking", "feature", "verse", "management", "manager", "email", "contact"]
+
+    _comment_lower = comment_text.lower()
+    _high_stream_intent = any(p in _comment_lower for p in _stream_intent)
+    _high_music_intent = any(p in _comment_lower for p in _music_intent)
+    _is_collab = any(p in _comment_lower for p in _collab_intent)
+
+    # Build trackable link for this commenter
+    _uid = commenter_id or "comment"
+    _music_link = f"https://mia-snow-bot.onrender.com/go/music?uid={_uid}"
+    _spotify_link = f"https://mia-snow-bot.onrender.com/go/spotify?uid={_uid}"
+
+    # Build link instruction for Claude based on intent
+    _link_instruction = ""
+    if _high_stream_intent:
+        _link_instruction = f"\n\nLINK DROP: This person is asking where to find/stream your music. Reply naturally and include this link: {_music_link}"
+    elif _high_music_intent:
+        _link_instruction = f"\n\nLINK DROP: This person is showing strong interest in your music. After your reply, naturally drop your music link — something like 'go stream it here' or 'link in the comments': {_spotify_link}"
+    elif _is_collab:
+        _link_instruction = "\n\nCOLLAB/BOOKING: Tell them to send you a DM or email for business inquiries. Do not drop a music link."
+
     context = f"Someone commented on your post.\n\nYour post: {post_text}\n\nTheir comment: {comment_text}" if post_text else f"Someone commented on your post.\n\nTheir comment: {comment_text}"
+    context += _link_instruction
+
     try:
         comments_client = anthropic.Anthropic(api_key=ANTHROPIC_COMMENTS_API_KEY)
         response = comments_client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=120,
+            max_tokens=150,
             system=[
                 {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
                 {"type": "text", "text": COMMENT_SYSTEM_ADDENDUM},
@@ -1541,7 +1567,7 @@ def handle_comment(comment_id, comment_text, post_id="", commenter_name="", comm
         _post_reply_counts[post_id] = count + 1
 
     post_text = get_post_text(post_id) if post_id else ""
-    reply = get_comment_reply(comment_text, post_text)
+    reply = get_comment_reply(comment_text, post_text, commenter_id=commenter_id)
     if reply:
         reply_to_comment(comment_id, reply, commenter_id=commenter_id, commenter_name=commenter_name)
         threading.Thread(target=log_comment_reply, args=(post_id, comment_id, commenter_id, commenter_name, "ai"), daemon=True).start()
