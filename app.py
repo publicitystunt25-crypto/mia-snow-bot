@@ -1767,6 +1767,8 @@ function renderDash(data) {
       <div class="stat"><div class="num">${stats.total_messages}</div><div class="label">Total DMs</div></div>
       <div class="stat"><div class="num">${stats.comments_today}</div><div class="label">Comments Today</div></div>
       <div class="stat"><div class="num">${stats.comments_total}</div><div class="label">Total Comments</div></div>
+      <div class="stat"><div class="num">${stats.link_clicks_today}</div><div class="label">Link Clicks Today</div></div>
+      <div class="stat"><div class="num">${stats.link_clicks_total}</div><div class="label">Total Link Clicks</div></div>
       <div class="stat"><div class="num">${stats.vip_count}</div><div class="label">VIP Fans</div></div>
       <div class="stat"><div class="num">${stats.blast_list_count}</div><div class="label">Blast List</div></div>
       <div class="stat"><div class="num">${stats.top_city}</div><div class="label">Top City</div></div>
@@ -2555,6 +2557,15 @@ def dashboard_data():
     comments_total = cur.fetchone()["c"]
 
     cur.execute("""
+        SELECT COUNT(*) as c FROM link_clicks
+        WHERE DATE((clicked_at AT TIME ZONE 'UTC') AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
+    """, (tz, tz))
+    link_clicks_today = cur.fetchone()["c"]
+
+    cur.execute("SELECT COUNT(*) as c FROM link_clicks")
+    link_clicks_total = cur.fetchone()["c"]
+
+    cur.execute("""
         SELECT DATE((replied_at AT TIME ZONE 'UTC') AT TIME ZONE %s) as day, COUNT(*) as comments
         FROM comment_replies
         WHERE (replied_at AT TIME ZONE 'UTC') AT TIME ZONE %s >= (NOW() AT TIME ZONE %s)::date - INTERVAL '30 days'
@@ -2670,6 +2681,8 @@ def dashboard_data():
             "messages_today_by_hour": messages_today_by_hour,
             "comments_today": comments_today,
             "comments_total": comments_total,
+            "link_clicks_today": link_clicks_today,
+            "link_clicks_total": link_clicks_total,
             "comments_by_day": comments_by_day,
             "comments_all_time": comments_all_time,
             "comments_today_by_hour": comments_today_by_hour,
