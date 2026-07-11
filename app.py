@@ -2310,18 +2310,24 @@ def dashboard_data():
     top_city_row = cur.fetchone()
     top_city = top_city_row["location"] if top_city_row else "—"
 
-    cur.execute("SELECT COUNT(*) as c FROM messages WHERE role = 'user' AND DATE(created_at) = CURRENT_DATE")
-    messages_today = cur.fetchone()["c"]
-
-    cur.execute("SELECT COUNT(*) as c FROM fan_profiles WHERE DATE(first_message_at) = CURRENT_DATE")
-    new_fans_today = cur.fetchone()["c"]
-
     tz = request.args.get("tz", "America/New_York")
     import zoneinfo as _zi
     try:
         _zi.ZoneInfo(tz)
     except Exception:
         tz = "America/New_York"
+
+    cur.execute("""
+        SELECT COUNT(*) as c FROM fan_profiles
+        WHERE DATE((first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
+    """, (tz, tz))
+    new_fans_today = cur.fetchone()["c"]
+
+    cur.execute("""
+        SELECT COUNT(*) as c FROM messages
+        WHERE role = 'user' AND DATE((created_at AT TIME ZONE 'UTC') AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
+    """, (tz, tz))
+    messages_today = cur.fetchone()["c"]
 
     cur.execute("""
         SELECT DATE(first_message_at) as day, COUNT(*) as new_fans
