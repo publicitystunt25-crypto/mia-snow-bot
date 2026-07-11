@@ -909,7 +909,7 @@ def get_mia_reply(user_id):
         if profile.get("location"):
             facts.append(f"From: {profile['location']} — HARD RULE: You already know where this person is from. NEVER ask where they're from again. Not once. Not even 'what part'. You already know. Asking again will make you look like you forgot and damage the relationship.")
         elif (profile.get("total_messages") or 0) < 10:
-            facts.append("LOCATION UNKNOWN: You don't know where this fan is from yet. Within this response, work in 'where you from?' naturally as part of your reply — not as a standalone question, just woven into the conversation like you're genuinely curious. Only ask once. Examples: 'where you from tho?', 'what city you reppin?', 'where you at tho?'. Keep it casual.")
+            facts.append("LOCATION UNKNOWN: You don't know where this fan is from yet. Within this response, include exactly 'what city you from?' as part of your reply — weave it in naturally, don't make it a standalone message. Only ask once.")
         if profile.get("job"):
             facts.append(f"Job: {profile['job']}")
         if profile.get("interests"):
