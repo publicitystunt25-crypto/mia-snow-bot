@@ -1706,6 +1706,7 @@ function loadDash(linkRange) {
       if (_prevTab === 'link_clicks' && linkRange) {
         window._linkClickTiles = d.stats.link_clicks || [];
         window._linkClickTilesComment = d.stats.link_clicks_comment || [];
+        window._chartData.links_by_day = d.stats.link_clicks_by_day || {};
         const linkColors = window._linkColors;
         const linkNames = window._linkNames;
         function renderClickTiles(data, label, color) {
@@ -1715,6 +1716,8 @@ function loadDash(linkRange) {
         document.getElementById('linkStats').innerHTML =
           renderClickTiles(window._linkClickTiles, '💬 From DMs', '#888') +
           renderClickTiles(window._linkClickTilesComment, '🗨️ From Comments', '#a78bfa');
+        _chartInstance = null;
+        drawChart();
         return;
       }
       renderDash(d);
@@ -2597,13 +2600,21 @@ def dashboard_data():
     # Combined for backward compat
     link_clicks = link_clicks_dm
 
-    # Per-link per-day data for chart (last 30 days)
-    cur.execute("""
-        SELECT link_name, DATE(clicked_at) as day, COUNT(*) as clicks
-        FROM link_clicks
-        WHERE clicked_at >= NOW() - INTERVAL '30 days' AND (source = 'dm' OR source IS NULL)
-        GROUP BY link_name, day ORDER BY day ASC
-    """)
+    # Per-link per-day data for chart — respects the selected range
+    if link_interval:
+        cur.execute(f"""
+            SELECT link_name, DATE(clicked_at) as day, COUNT(*) as clicks
+            FROM link_clicks
+            WHERE clicked_at >= NOW() - {link_interval} AND (source = 'dm' OR source IS NULL)
+            GROUP BY link_name, day ORDER BY day ASC
+        """)
+    else:
+        cur.execute("""
+            SELECT link_name, DATE(clicked_at) as day, COUNT(*) as clicks
+            FROM link_clicks
+            WHERE (source = 'dm' OR source IS NULL)
+            GROUP BY link_name, day ORDER BY day ASC
+        """)
     link_clicks_by_day_raw = cur.fetchall()
     link_clicks_by_day = {}
     for r in link_clicks_by_day_raw:
