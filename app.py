@@ -995,12 +995,15 @@ def get_mia_reply(user_id):
     _now = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=-4)))  # Eastern Time
     _date_context = f"[Current date/time: {_now.strftime('%A, %B %d, %Y at %I:%M %p')} Eastern Time. Use this to know what day, month, and year it is so you never reference outdated location info or events.]"
 
+    _lang_context = f"[LANGUAGE RULE: Detect the language the fan is writing in from their most recent message and reply in that same language. If they write in Spanish, reply in Spanish. If French, reply in French. If Portuguese, reply in Portuguese. Always match their language. If they write in English, reply in English.]"
+
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=300,
         system=[
             {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
             {"type": "text", "text": _date_context},
+            {"type": "text", "text": _lang_context},
             *([{"type": "text", "text": profile_context}] if profile_context else []),
         ],
         messages=history,
