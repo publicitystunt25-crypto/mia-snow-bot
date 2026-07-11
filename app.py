@@ -225,6 +225,7 @@ _pending_lock = threading.Lock()
 _active_threads = set()  # user_ids currently being processed
 _comment_thread_replies = {}  # parent_comment_id -> reply count
 _manual_replied = set()       # fan_ids where owner just manually replied — bot skips next queued reply
+_manual_replied_count = {}    # tracks how many fan messages to skip after owner reply
 _post_reply_counts = {}       # post_id -> total replies sent
 EMOJI_ONLY_POSTS = set()      # post IDs that get emoji-only replies (add post ID after publishing)
 POST_REPLY_CAP = 100          # max comment replies per post (ignored for emoji-only posts)
@@ -900,6 +901,9 @@ def get_mia_reply(user_id):
     _already_told_phrases = ["i already told", "i told you", "told u", "i said my name", "i gave you my name", "you forgot", "you don't remember", "u forgot", "u don't remember", "i told u my name", "already told u"]
     _fan_just_said_already_told = any(p in last_user_msg.lower() for p in _already_told_phrases)
 
+    # Detect if bookmiasnow@gmail.com was already mentioned in this conversation
+    _booking_email_already_sent = any("bookmiasnow" in (m.get("content") or "").lower() for m in history if m.get("role") == "assistant")
+
     # Build a short profile context to inject
     profile_context = ""
     if profile:
@@ -964,6 +968,8 @@ def get_mia_reply(user_id):
             facts.append(f"HARD RULE — Links already sent to this person: {', '.join(sent_links)}.{music_note} Do NOT resend any other links under any circumstances.")
         if profile.get("sent_blast_list"):
             facts.append("FUNNEL COMPLETE: You've already connected with this person and shared your music and blast list. Keep replies short and warm — 1 sentence max. You're living your life, not sitting by the phone. You still love them but you're busy and that's real. Don't start new topics or ask questions. Just respond warmly to whatever they say and keep it moving.")
+        if _booking_email_already_sent:
+            facts.append("BOOKING EMAIL ALREADY GIVEN: You already sent bookmiasnow@gmail.com to this person earlier in this conversation. Do NOT send it again. If they bring up bookings, features, or collabs again just acknowledge it briefly — 'yea they gonna handle it, just make sure you sent that email' or 'just make sure you hit that email and they gonna get back to you' — one line max, no repeating the full email address.")
         # Music push logic
         _music_sent = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("sent_blast_list")
         _already_listened = profile.get("listened_to_music")
@@ -1216,11 +1222,17 @@ def handle_reply(sender_id):
                 _pending.pop(sender_id, None)
             return
 
-        # If owner just manually replied, skip this round and let bot take over next message
+        # If owner just manually replied, stay out for 3 fan messages before taking over again
         if sender_id in _manual_replied:
-            _manual_replied.discard(sender_id)
-            print(f"[manual_reply] bot taking over again for {sender_id}")
-            return
+            count = _manual_replied_count.get(sender_id, 0) + 1
+            if count < 3:
+                _manual_replied_count[sender_id] = count
+                print(f"[manual_reply] staying out for {sender_id} ({count}/3)")
+                return
+            else:
+                _manual_replied.discard(sender_id)
+                _manual_replied_count.pop(sender_id, None)
+                print(f"[manual_reply] bot taking over again for {sender_id}")
 
         with _pending_lock:
             messages = _pending.pop(sender_id, [])
