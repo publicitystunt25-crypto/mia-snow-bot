@@ -949,7 +949,8 @@ def get_mia_reply(user_id):
             facts.append("FUNNEL COMPLETE: You've already connected with this person and shared your music and blast list. Keep replies short and warm — 1 sentence max. You're living your life, not sitting by the phone. You still love them but you're busy and that's real. Don't start new topics or ask questions. Just respond warmly to whatever they say and keep it moving.")
         # Music push logic
         _music_sent = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("sent_blast_list")
-        if not _music_sent:
+        _already_listened = profile.get("listened_to_music")
+        if not _music_sent and not _already_listened:
             cycle_start = profile.get("cycle_start_msg_count") or 0
             total_msgs = profile.get("total_messages") or 0
             cycle_msgs = max(0, total_msgs - cycle_start)
@@ -960,13 +961,13 @@ def get_mia_reply(user_id):
             _fan_mentioned_music = any(kw in last_user_msg.lower() for kw in _music_keywords)
 
             if _fan_mentioned_music:
-                facts.append(f"MUSIC TRIGGER: This fan just mentioned music — drop your link NOW in this response. Don't wait. Make it feel natural but get it in: 'you gotta check out my music then' and send them here: {make_link('music', user_id)} — ask them what platform they use if you don't know, or send the right one if you do.")
+                facts.append(f"MUSIC TRIGGER: This fan just mentioned music — drop your link NOW in this response. Keep it very natural, like: 'omg yes send me your honest thoughts' then drop the link {make_link('music', user_id)}, or 'since you on that topic you gotta check mine out' then the link. Don't make it feel like a sales pitch — make it feel like a genuine share between two people who vibe.")
             elif cycle_msgs >= 40 and not funnel_restarted:
-                facts.append(f"URGENT MUSIC PUSH: You've been talking to this fan for a while and still haven't shared your music — make it happen in this response. Be creative and natural, not salesy. Examples of how to work it in: 'wait you haven't even heard my stuff yet omg', 'ok hold on real quick i need you to do something for me', 'ok i'm offended you haven't heard this yet lol', 'you gotta hear this fr', 'wait before you go check this out real quick'. Drop the link: {make_link('music', user_id)} and ask if they checked it out.")
+                facts.append(f"MUSIC PUSH — make this happen naturally in your response, don't make it feel forced or random. Think about what they just said and find a bridge to your music. For example: if they said something good happened — 'omg that's actually the energy of this song i've been working on, hold on'; if they're going through something — 'this song lowkey describes exactly what you talking about'; if the convo is light — 'ok wait i just need you to hear something real quick'. Drop: {make_link('music', user_id)} and ask them to let you know what they think.")
             elif funnel_restarted:
-                facts.append(f"SECOND CYCLE — URGENT: This fan came back but still hasn't listened to your music. Be more bold and personal this time. Examples: 'ok i'm not letting you leave this convo without hearing this', 'i literally thought about you when this dropped', 'you always talk to me but you never go listen smh', 'ok you owe me this one fr, go listen rn', 'i need your honest opinion on this'. Drop the link: {make_link('music', user_id)} — don't let this response end without them getting it.")
+                facts.append(f"SECOND CYCLE MUSIC PUSH — this fan still hasn't heard your music. This time make it feel personal, not like a routine. Try: 'ok i feel like you would actually get this song on a different level', 'i been wanting to send you this but never did, here', 'can i ask you something — have you ever actually listened to my stuff?'. Drop: {make_link('music', user_id)} — make it feel like you genuinely care what they think, not like you're promoting.")
             elif cycle_msgs >= 20:
-                facts.append(f"MUSIC WINDOW: You've built enough rapport — it's time to share your music before this window closes. Find any natural opening and drop: {make_link('music', user_id)} — keep it casual, 'you heard my stuff yet?' and send the link. Also ask them to confirm they checked it out.")
+                facts.append(f"MUSIC WINDOW: You've built enough rapport — start looking for a natural moment to share your music. When it flows, drop: {make_link('music', user_id)} and ask them to let you know what they think.")
 
         # Music feedback nudge — if music was shared but feedback not yet asked
         if profile.get("sent_spotify") and not profile.get("asked_about_music_feedback") and not profile.get("favorite_song"):
