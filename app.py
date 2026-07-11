@@ -461,6 +461,30 @@ def update_fan_after_message(user_id, messages):
                         break
             if "location" in updates:
                 break
+
+        # If regex didn't catch it, check if bot recently asked "what city you from"
+        # and use Haiku to extract from the fan's reply
+        if "location" not in updates and last_user_msg:
+            _loc_asked = any(
+                p in (m.get("content") or "").lower()
+                for m in history[-6:]
+                if m.get("role") == "assistant"
+                for p in ["what city you from", "where you from", "where you at", "what city"]
+            )
+            if _loc_asked:
+                try:
+                    _haiku = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+                    _resp = _haiku.messages.create(
+                        model="claude-haiku-4-5-20251001",
+                        max_tokens=20,
+                        system="Extract the city or state from this message. Reply with ONLY the place name (e.g. 'Wilson', 'North Carolina', 'Atlanta'). If no place is mentioned reply with exactly: NONE",
+                        messages=[{"role": "user", "content": last_user_msg}]
+                    )
+                    _loc = _resp.content[0].text.strip()
+                    if _loc.upper() != "NONE" and _loc and len(_loc) < 50:
+                        updates["location"] = _loc.title()
+                except Exception:
+                    pass
     # If location is currently a state, check if a city just came in
     elif profile.get("location") and profile["location"].lower() in US_STATES:
         import re
