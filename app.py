@@ -311,6 +311,7 @@ def init_db():
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS music_platform TEXT")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_otw BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS otw_warmup_count INTEGER DEFAULT 0")
+    cur.execute("ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'dm'")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS link_clicks (
             id SERIAL PRIMARY KEY,
@@ -1485,17 +1486,16 @@ def get_comment_reply(comment_text, post_text="", commenter_id=""):
     _high_music_intent = any(p in _comment_lower for p in _music_intent)
     _is_collab = any(p in _comment_lower for p in _collab_intent)
 
-    # Build trackable link for this commenter
+    # Build trackable link for this commenter (source=comment for dashboard separation)
     _uid = commenter_id or "comment"
-    _music_link = f"https://mia-snow-bot.onrender.com/go/music?uid={_uid}"
-    _spotify_link = f"https://mia-snow-bot.onrender.com/go/spotify?uid={_uid}"
+    _music_link = f"https://mia-snow-bot.onrender.com/go/music?uid={_uid}&source=comment"
 
     # Build link instruction for Claude based on intent
     _link_instruction = ""
     if _high_stream_intent:
         _link_instruction = f"\n\nLINK DROP: This person is asking where to find/stream your music. Reply naturally and include this link: {_music_link}"
     elif _high_music_intent:
-        _link_instruction = f"\n\nLINK DROP: This person is showing strong interest in your music. After your reply, naturally drop your music link — something like 'go stream it here' or 'link in the comments': {_spotify_link}"
+        _link_instruction = f"\n\nLINK DROP: This person is showing strong interest in your music. After your reply, naturally drop your music link — something like 'go stream it here' or 'link in the comments': {_music_link}"
     elif _is_collab:
         _link_instruction = "\n\nCOLLAB/BOOKING: Tell them to send you a DM or email for business inquiries. Do not drop a music link."
 
@@ -1783,6 +1783,7 @@ function renderDash(data) {
     links_by_day:   data.stats.link_clicks_by_day || {},
   };
   window._linkClickTiles = data.stats.link_clicks || [];
+  window._linkClickTilesComment = data.stats.link_clicks_comment || [];
   window._linkRange = data.stats.link_range || 'all';
 
   const linkColors = { spotify: '#1DB954', apple: '#fc3c44', youtube: '#FF0000', otw: '#f97316', ionwantto: '#fb923c', instagram: '#e1306c', exclusive: '#a855f7', blast: '#3b82f6', merch: '#f59e0b', music: '#22d3ee' };
@@ -1792,10 +1793,18 @@ function renderDash(data) {
 
   // render link click tiles
   const clicks = window._linkClickTiles;
-  document.getElementById('linkStats').innerHTML = clicks.length ? `
-    <div style="padding:0 30px 16px;display:flex;gap:10px;flex-wrap:wrap">
-      ${clicks.map(c => `<div style="background:#111;border:1px solid #222;border-radius:10px;padding:12px 18px;min-width:120px"><div style="font-size:22px;font-weight:bold;color:${linkColors[c.link]||'#fff'}">${c.clicks}</div><div style="font-size:12px;color:#888;margin-top:3px">${linkNames[c.link]||c.link}</div></div>`).join('')}
-    </div>` : '';
+  const clicksComment = window._linkClickTilesComment;
+  function renderClickTiles(data, label, color) {
+    if (!data.length) return '';
+    return `
+      <div style="padding:0 30px 4px;font-size:11px;font-weight:600;color:${color};letter-spacing:1px;text-transform:uppercase">${label}</div>
+      <div style="padding:0 30px 16px;display:flex;gap:10px;flex-wrap:wrap">
+        ${data.map(c => `<div style="background:#111;border:1px solid #222;border-radius:10px;padding:12px 18px;min-width:120px"><div style="font-size:22px;font-weight:bold;color:${linkColors[c.link]||'#fff'}">${c.clicks}</div><div style="font-size:12px;color:#888;margin-top:3px">${linkNames[c.link]||c.link}</div></div>`).join('')}
+      </div>`;
+  }
+  document.getElementById('linkStats').innerHTML =
+    renderClickTiles(clicks, '💬 From DMs', '#888') +
+    renderClickTiles(clicksComment, '🗨️ From Comments', '#a78bfa');
 
   filterTable();
   window._activeTab   = 'fans';
@@ -2519,17 +2528,25 @@ def dashboard_data():
     else:
         link_interval = None
 
-    if link_interval:
-        cur.execute(f"SELECT link_name, COUNT(*) as clicks FROM link_clicks WHERE clicked_at >= NOW() - {link_interval} GROUP BY link_name ORDER BY clicks DESC")
-    else:
-        cur.execute("SELECT link_name, COUNT(*) as clicks FROM link_clicks GROUP BY link_name ORDER BY clicks DESC")
-    link_clicks = [{"link": r["link_name"], "clicks": r["clicks"]} for r in cur.fetchall()]
+    def _link_where(interval):
+        return f"WHERE clicked_at >= NOW() - {interval}" if interval else ""
 
-    # Per-link per-day data for chart (last 30 days regardless of range for sparklines)
+    # DM clicks
+    cur.execute(f"SELECT link_name, COUNT(*) as clicks FROM link_clicks {_link_where(link_interval)} {'AND' if link_interval else 'WHERE'} (source = 'dm' OR source IS NULL) GROUP BY link_name ORDER BY clicks DESC")
+    link_clicks_dm = [{"link": r["link_name"], "clicks": r["clicks"]} for r in cur.fetchall()]
+
+    # Comment clicks
+    cur.execute(f"SELECT link_name, COUNT(*) as clicks FROM link_clicks {_link_where(link_interval)} {'AND' if link_interval else 'WHERE'} source = 'comment' GROUP BY link_name ORDER BY clicks DESC")
+    link_clicks_comment = [{"link": r["link_name"], "clicks": r["clicks"]} for r in cur.fetchall()]
+
+    # Combined for backward compat
+    link_clicks = link_clicks_dm
+
+    # Per-link per-day data for chart (last 30 days)
     cur.execute("""
         SELECT link_name, DATE(clicked_at) as day, COUNT(*) as clicks
         FROM link_clicks
-        WHERE clicked_at >= NOW() - INTERVAL '30 days'
+        WHERE clicked_at >= NOW() - INTERVAL '30 days' AND (source = 'dm' OR source IS NULL)
         GROUP BY link_name, day ORDER BY day ASC
     """)
     link_clicks_by_day_raw = cur.fetchall()
@@ -2591,6 +2608,7 @@ def dashboard_data():
             "comments_all_time": comments_all_time,
             "comments_today_by_hour": comments_today_by_hour,
             "link_clicks": link_clicks,
+            "link_clicks_comment": link_clicks_comment,
             "link_clicks_by_day": link_clicks_by_day,
             "link_range": link_range,
         }
@@ -2718,6 +2736,7 @@ def dashboard_export():
 def tracked_link(name):
     from flask import redirect as _redirect
     user_id = request.args.get("uid", "")
+    source = request.args.get("source", "dm")
     destination = TRACKED_LINKS.get(name)
     if not destination:
         return "Not found", 404
@@ -2725,11 +2744,11 @@ def tracked_link(name):
         try:
             conn = get_conn()
             cur = conn.cursor()
-            cur.execute("INSERT INTO link_clicks (user_id, link_name) VALUES (%s, %s)", (user_id, name))
+            cur.execute("INSERT INTO link_clicks (user_id, link_name, source) VALUES (%s, %s, %s)", (user_id, name, source))
             conn.commit()
             cur.close()
             conn.close()
-            print(f"[link_click] {user_id} clicked {name}")
+            print(f"[link_click] {user_id} clicked {name} via {source}")
         except Exception as e:
             print(f"[link_click] error: {e}")
     return _redirect(destination)
