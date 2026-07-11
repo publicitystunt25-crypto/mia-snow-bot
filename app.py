@@ -947,13 +947,26 @@ def get_mia_reply(user_id):
             facts.append(f"HARD RULE — Links already sent to this person: {', '.join(sent_links)}.{music_note} Do NOT resend any other links under any circumstances.")
         if profile.get("sent_blast_list"):
             facts.append("FUNNEL COMPLETE: You've already connected with this person and shared your music and blast list. Keep replies short and warm — 1 sentence max. You're living your life, not sitting by the phone. You still love them but you're busy and that's real. Don't start new topics or ask questions. Just respond warmly to whatever they say and keep it moving.")
-        # Music drop window — 25-39 cycle messages, music not yet shared
-        if not profile.get("sent_spotify") and not profile.get("sent_blast_list"):
+        # Music push logic
+        _music_sent = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("sent_blast_list")
+        if not _music_sent:
             cycle_start = profile.get("cycle_start_msg_count") or 0
             total_msgs = profile.get("total_messages") or 0
             cycle_msgs = max(0, total_msgs - cycle_start)
-            if 25 <= cycle_msgs <= 39:
-                facts.append("MUSIC WINDOW: You've been talking for a while and have real rapport built. This is the moment — if it flows naturally at all, bridge to your music. Find the overlap with what they've said and drop: https://linktr.ee/therealmiasnow1 — tell them they can stream it or watch the visuals on YouTube. Don't force it if the convo is in a completely unrelated moment, but look for any opening and take it.")
+            funnel_restarted = profile.get("funnel_restarted")
+
+            # Detect if fan mentioned music in their latest message
+            _music_keywords = ["music", "song", "track", "stream", "spotify", "apple music", "youtube", "listen", "heard", "banger", "fire", "album", "single", "video", "visuals", "drop", "new music", "your music", "you sing", "you rap", "you make music", "artist"]
+            _fan_mentioned_music = any(kw in last_user_msg.lower() for kw in _music_keywords)
+
+            if _fan_mentioned_music:
+                facts.append(f"MUSIC TRIGGER: This fan just mentioned music — drop your link NOW in this response. Don't wait. Make it feel natural but get it in: 'you gotta check out my music then' and send them here: {make_link('music', user_id)} — ask them what platform they use if you don't know, or send the right one if you do.")
+            elif cycle_msgs >= 40 and not funnel_restarted:
+                facts.append(f"URGENT MUSIC PUSH: You've been talking to this fan for a while and still haven't shared your music — this needs to happen NOW. Don't wait for the perfect moment. Weave it in naturally but make it happen this response: 'I keep forgetting to send you my music' or 'you haven't even heard my stuff yet??'. Drop the link: {make_link('music', user_id)} and ask if they checked it out.")
+            elif funnel_restarted:
+                facts.append(f"SECOND CYCLE — URGENT: This fan came back but still hasn't listened to your music. Be more direct this time. If there's any opening at all, push it: 'fr tho you gotta hear this, I need you to check it out' and drop: {make_link('music', user_id)}. Don't let this convo end without them getting the link.")
+            elif cycle_msgs >= 20:
+                facts.append(f"MUSIC WINDOW: You've built enough rapport — it's time to share your music before this window closes. Find any natural opening and drop: {make_link('music', user_id)} — keep it casual, 'you heard my stuff yet?' and send the link. Also ask them to confirm they checked it out.")
 
         # Music feedback nudge — if music was shared but feedback not yet asked
         if profile.get("sent_spotify") and not profile.get("asked_about_music_feedback") and not profile.get("favorite_song"):
