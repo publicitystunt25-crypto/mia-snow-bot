@@ -2540,6 +2540,22 @@ def dashboard_set_flag():
     return jsonify({"ok": True})
 
 
+@app.route("/dashboard/fan/<user_id>")
+def dashboard_fan_lookup(user_id):
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT * FROM fan_profiles WHERE user_id = %s", (user_id,))
+    fan = cur.fetchone()
+    cur.close()
+    conn.close()
+    if not fan:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(dict(fan))
+
+
 @app.route("/dashboard/fans")
 def dashboard_fans_api():
     password = request.args.get("password", "")
