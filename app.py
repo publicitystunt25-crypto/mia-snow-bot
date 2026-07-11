@@ -1408,6 +1408,12 @@ def handle_reply(sender_id):
         else:
             delay = random.randint(23, 33)
 
+        # Late night slowdown — between 11pm and 6am EST, add a natural delay
+        import datetime as _dtnow
+        _hour_est = _dtnow.datetime.now(_dtnow.timezone(_dtnow.timedelta(hours=-4))).hour
+        if _hour_est >= 23 or _hour_est < 6:
+            delay += random.randint(120, 480)  # add 2-8 extra minutes late night
+
         time.sleep(delay)
 
         if is_paused(sender_id) or is_blocked(sender_id):
