@@ -927,13 +927,18 @@ def get_mia_reply(user_id):
         if vibe == "music_fan":
             facts.append("This person is already a music fan — they came in interested in music. Don't oversell it, just vibe naturally.")
 
-        # OTW video warmup
-        if (profile.get("total_messages") or 0) >= 30 and not profile.get("sent_otw"):
-            otw_warmup = profile.get("otw_warmup_count") or 0
-            if otw_warmup < 8:
-                facts.append("OTW WARMUP: You're building up to sharing your song with this fan. Right now just greet them warmly and have a natural conversation — ask how they're doing, vibe with whatever they bring up. Don't mention music yet. Keep it genuine and warm.")
-            else:
-                facts.append(f"OTW DROP: You've warmed up enough with this fan — now is the moment to share your song. Work it in naturally, something like: 'ok wait i need you to watch something real quick, this is one of my favorites' or 'i've been meaning to send you this, tell me what you think' then drop this link: https://www.youtube.com/watch?v=bVyAOIiGyIY&list=RDbVyAOIiGyIY&start_radio=1 — after you send it, keep the convo going a little and ask what they thought.")
+        # OTW video warmup / drop / cooldown
+        _otw_total = (profile.get("total_messages") or 0)
+        _otw_warmup = profile.get("otw_warmup_count") or 0
+        _otw_sent = profile.get("sent_otw")
+        if _otw_total >= 30 and not _otw_sent and _otw_warmup < 8:
+            facts.append("OTW WARMUP: You're reconnecting with this fan before sharing something with them. Greet them warmly and just have a real conversation — ask how they've been, vibe with whatever they bring up. Don't mention music yet. Be genuinely present.")
+        elif _otw_total >= 30 and not _otw_sent and _otw_warmup >= 8:
+            facts.append("OTW DROP: The moment is right — share your song now. Work it in like this: respond to what they said first, then naturally transition — something like 'ok before i forget, i really want your honest opinion on something' or 'i need a real one to tell me what they think about this' — then say 'this is one of my favorites, tell me what you think fr' and drop: https://www.youtube.com/watch?v=bVyAOIiGyIY&list=RDbVyAOIiGyIY&start_radio=1 — make it feel like you genuinely care what they think, not like a promo drop.")
+        elif _otw_total >= 30 and _otw_sent and _otw_warmup < 11:
+            facts.append("OTW FEEDBACK: You just shared your song with this fan. Now focus on their reaction — ask what they thought, engage with their feedback genuinely, keep it warm and conversational. If they liked it, let that moment breathe. If they haven't listened yet, gently remind them to check it out when they get a chance.")
+        elif _otw_total >= 30 and _otw_sent and _otw_warmup < 13:
+            facts.append("OTW WIND DOWN: You've gotten their feedback on your song. Now bring the conversation back to something casual and warm — let it feel natural, like two people just vibing. Don't force any topics. Keep replies short and genuine. You're easing back out naturally.")
 
         # Listened status
         if profile.get("listened_to_music"):
@@ -1107,11 +1112,14 @@ def get_convo_action(sender_id, profile, unanswered_count, is_business):
             )
             return ('respond', None)
 
-        # OTW warmup override — break out of scarce mode to send the OTW video
-        if total_msgs >= 30 and not profile.get('sent_otw'):
+        # OTW warmup override — break out of scarce mode to send the OTW video + cooldown
+        if total_msgs >= 30:
             otw_warmup = profile.get('otw_warmup_count') or 0
-            if otw_warmup < 10:  # up to 10 warmup replies before and after the link drop
-                print(f"[convo_phase] {sender_id} — OTW warmup override (warmup={otw_warmup})")
+            otw_sent = profile.get('sent_otw')
+            # Before link: 8 warmup messages
+            # After link: 4 more cooldown messages to get feedback and wind down casually
+            if (not otw_sent and otw_warmup < 10) or (otw_sent and otw_warmup < 13):
+                print(f"[convo_phase] {sender_id} — OTW override (warmup={otw_warmup}, sent={otw_sent})")
                 return ('respond', None)
 
         if skip_remaining > 0:
@@ -1384,18 +1392,22 @@ def handle_reply(sender_id):
         save_message(sender_id, "assistant", reply)
         send_message(sender_id, reply)
 
-        # OTW tracking — increment warmup count; mark sent if link is in reply
-        if profile and (profile.get("total_messages") or 0) >= 30 and not profile.get("sent_otw"):
+        # OTW tracking — increment warmup count through all phases; mark sent if link is in reply
+        if profile and (profile.get("total_messages") or 0) >= 30:
             _otw_url = "bVyAOIiGyIY"
-            _otw_conn = get_conn()
-            _otw_cur = _otw_conn.cursor()
-            if _otw_url in reply:
-                _otw_cur.execute("UPDATE fan_profiles SET sent_otw = TRUE, otw_warmup_count = otw_warmup_count + 1 WHERE user_id = %s", (sender_id,))
-            else:
-                _otw_cur.execute("UPDATE fan_profiles SET otw_warmup_count = otw_warmup_count + 1 WHERE user_id = %s", (sender_id,))
-            _otw_conn.commit()
-            _otw_cur.close()
-            _otw_conn.close()
+            _otw_warmup_now = profile.get("otw_warmup_count") or 0
+            _otw_sent_now = profile.get("sent_otw")
+            # Keep counting through warmup, drop, feedback, and cooldown phases
+            if not _otw_sent_now or _otw_warmup_now < 13:
+                _otw_conn = get_conn()
+                _otw_cur = _otw_conn.cursor()
+                if _otw_url in reply and not _otw_sent_now:
+                    _otw_cur.execute("UPDATE fan_profiles SET sent_otw = TRUE, otw_warmup_count = otw_warmup_count + 1 WHERE user_id = %s", (sender_id,))
+                else:
+                    _otw_cur.execute("UPDATE fan_profiles SET otw_warmup_count = otw_warmup_count + 1 WHERE user_id = %s", (sender_id,))
+                _otw_conn.commit()
+                _otw_cur.close()
+                _otw_conn.close()
 
     finally:
         with _pending_lock:
