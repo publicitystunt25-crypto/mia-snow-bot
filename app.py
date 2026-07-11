@@ -2347,17 +2347,17 @@ def dashboard_data():
     messages_today = cur.fetchone()["c"]
 
     cur.execute("""
-        SELECT DATE(first_message_at) as day, COUNT(*) as new_fans
+        SELECT DATE((first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s) as day, COUNT(*) as new_fans
         FROM fan_profiles
-        WHERE first_message_at >= NOW() - INTERVAL '30 days'
+        WHERE (first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s >= (NOW() AT TIME ZONE %s)::date - INTERVAL '30 days'
         GROUP BY day ORDER BY day ASC
-    """)
+    """, (tz, tz, tz))
     new_fans_by_day = [{"day": str(r["day"]), "new_fans": r["new_fans"]} for r in cur.fetchall()]
 
     cur.execute("""
-        SELECT TO_CHAR(DATE_TRUNC('month', first_message_at), 'YYYY-MM') as month, COUNT(*) as new_fans
+        SELECT TO_CHAR(DATE_TRUNC('month', (first_message_at AT TIME ZONE 'UTC') AT TIME ZONE %s), 'YYYY-MM') as month, COUNT(*) as new_fans
         FROM fan_profiles GROUP BY month ORDER BY month ASC
-    """)
+    """, (tz,))
     new_fans_all_time = [{"day": r["month"], "new_fans": r["new_fans"]} for r in cur.fetchall()]
 
     cur.execute("""
@@ -2369,17 +2369,17 @@ def dashboard_data():
     new_fans_today_by_hour = [{"hour": int(r["hour"]), "new_fans": r["new_fans"]} for r in cur.fetchall()]
 
     cur.execute("""
-        SELECT DATE(created_at) as day, COUNT(*) as messages
+        SELECT DATE((created_at AT TIME ZONE 'UTC') AT TIME ZONE %s) as day, COUNT(*) as messages
         FROM messages
-        WHERE role = 'user' AND created_at >= NOW() - INTERVAL '30 days'
+        WHERE role = 'user' AND (created_at AT TIME ZONE 'UTC') AT TIME ZONE %s >= (NOW() AT TIME ZONE %s)::date - INTERVAL '30 days'
         GROUP BY day ORDER BY day ASC
-    """)
+    """, (tz, tz, tz))
     messages_by_day = [{"day": str(r["day"]), "messages": r["messages"]} for r in cur.fetchall()]
 
     cur.execute("""
-        SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') as month, COUNT(*) as messages
+        SELECT TO_CHAR(DATE_TRUNC('month', (created_at AT TIME ZONE 'UTC') AT TIME ZONE %s), 'YYYY-MM') as month, COUNT(*) as messages
         FROM messages WHERE role = 'user' GROUP BY month ORDER BY month ASC
-    """)
+    """, (tz,))
     messages_all_time = [{"day": r["month"], "messages": r["messages"]} for r in cur.fetchall()]
 
     cur.execute("""
@@ -2390,24 +2390,27 @@ def dashboard_data():
     """, (tz, tz, tz))
     messages_today_by_hour = [{"hour": int(r["hour"]), "messages": r["messages"]} for r in cur.fetchall()]
 
-    cur.execute("SELECT COUNT(*) as c FROM comment_replies WHERE DATE(replied_at) = CURRENT_DATE")
+    cur.execute("""
+        SELECT COUNT(*) as c FROM comment_replies
+        WHERE DATE((replied_at AT TIME ZONE 'UTC') AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
+    """, (tz, tz))
     comments_today = cur.fetchone()["c"]
 
     cur.execute("SELECT COUNT(*) as c FROM comment_replies")
     comments_total = cur.fetchone()["c"]
 
     cur.execute("""
-        SELECT DATE(replied_at) as day, COUNT(*) as comments
+        SELECT DATE((replied_at AT TIME ZONE 'UTC') AT TIME ZONE %s) as day, COUNT(*) as comments
         FROM comment_replies
-        WHERE replied_at >= NOW() - INTERVAL '30 days'
+        WHERE (replied_at AT TIME ZONE 'UTC') AT TIME ZONE %s >= (NOW() AT TIME ZONE %s)::date - INTERVAL '30 days'
         GROUP BY day ORDER BY day ASC
-    """)
+    """, (tz, tz, tz))
     comments_by_day = [{"day": str(r["day"]), "comments": r["comments"]} for r in cur.fetchall()]
 
     cur.execute("""
-        SELECT TO_CHAR(DATE_TRUNC('month', replied_at), 'YYYY-MM') as month, COUNT(*) as comments
+        SELECT TO_CHAR(DATE_TRUNC('month', (replied_at AT TIME ZONE 'UTC') AT TIME ZONE %s), 'YYYY-MM') as month, COUNT(*) as comments
         FROM comment_replies GROUP BY month ORDER BY month ASC
-    """)
+    """, (tz,))
     comments_all_time = [{"day": r["month"], "comments": r["comments"]} for r in cur.fetchall()]
 
     cur.execute("""
