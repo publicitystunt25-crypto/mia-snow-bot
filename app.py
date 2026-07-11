@@ -1588,6 +1588,22 @@ function renderLogin() {
     </div>`;
 }
 
+function exportCSV() {
+  if (!window._fans || !window._fans.length) { alert('No data to export'); return; }
+  const cols = ['fb_name','nickname','location','vibe','funnel_stage','engagement_score','message_count','first_message_at','last_message_at'];
+  const headers = ['Name','Nickname','Location','Vibe','Funnel Stage','Engagement','Messages','First Contact','Last Contact'];
+  const rows = window._fans.map(f => cols.map(c => {
+    let v = f[c] ?? '';
+    if (typeof v === 'string' && v.includes(',')) v = '"' + v.replace(/"/g, '""') + '"';
+    return v;
+  }).join(','));
+  const csv = [headers.join(','), ...rows].join('\\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'mia-fans-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+}
+
 function renderDash(data) {
   const fans = data.fans;
   const stats = data.stats;
@@ -1596,6 +1612,7 @@ function renderDash(data) {
     <header>
       <h1>Mia Snow 🤍 Fan Dashboard</h1>
       <span>${fans.length} fans total</span>
+      <button onclick="exportCSV()" style="margin-left:auto;background:#222;border:1px solid #444;color:#eee;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;">⬇ Export CSV</button>
     </header>
     <div class="stats">
       <div class="stat"><div class="num">${stats.total_fans}</div><div class="label">Total Fans</div></div>
