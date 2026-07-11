@@ -2828,6 +2828,29 @@ def dashboard_export():
 
 # ── Link tracking ────────────────────────────────────────────────────────────
 
+@app.route("/admin/seed-fan")
+def admin_seed_fan():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return "Unauthorized", 401
+    user_id = request.args.get("user_id", "").strip()
+    if not user_id:
+        return "Missing user_id", 400
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    # Count their messages
+    cur.execute("SELECT COUNT(*) as c FROM messages WHERE user_id = %s AND role = 'user'", (user_id,))
+    msg_count = cur.fetchone()["c"]
+    # Insert profile if missing
+    cur.execute("INSERT INTO fan_profiles (user_id, total_messages) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET total_messages = GREATEST(fan_profiles.total_messages, EXCLUDED.total_messages)", (user_id, msg_count))
+    conn.commit()
+    cur.execute("SELECT * FROM fan_profiles WHERE user_id = %s", (user_id,))
+    fan = cur.fetchone()
+    cur.close()
+    conn.close()
+    return jsonify({"seeded": True, "messages_found": msg_count, "profile": dict(fan)})
+
+
 @app.route("/go/<name>")
 def tracked_link(name):
     from flask import redirect as _redirect
