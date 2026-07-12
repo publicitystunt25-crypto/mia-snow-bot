@@ -1880,7 +1880,7 @@ function renderDash(data) {
             <th onclick="sortTable('fb_name')" style="cursor:pointer">Fan ↕</th>
             <th onclick="sortTable('location')" style="cursor:pointer">Location ↕</th>
             <th>Link Clicked</th>
-            <th onclick="sortTable('fan_score')" style="cursor:pointer">Score ↕</th>
+            <th onclick="sortTable('first_message_at')" style="cursor:pointer">Since ↕</th>
             <th onclick="sortTable('total_messages')" style="cursor:pointer">Messages ↕</th>
             <th>Links Sent</th>
             <th onclick="sortTable('last_message_at')" style="cursor:pointer">Last Active ↕</th>
@@ -2070,8 +2070,8 @@ function filterTable() {
     return `<tr>
       <td>${nameHtml}</td>
       <td>${f.location || '—'}</td>
-      <td>${f.last_link_clicked ? `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;background:#111;border:1px solid #333;color:${(window._linkColors||{})[f.last_link_clicked]||'#aaa'}">${(window._linkNames||{})[f.last_link_clicked]||f.last_link_clicked}</span>` : '<span style="color:#444">—</span>'}</td>
-      <td><span class="score ${scoreClass}">${score}/10</span></td>
+      <td>${f.last_link_clicked ? (()=>{ const lc=window._linkColors||{}; const ln=window._linkNames||{}; const c=lc[f.last_link_clicked]||'#aaa'; const n=ln[f.last_link_clicked]||f.last_link_clicked; return `<span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:${c}22;border:1px solid ${c};color:${c}">${n}</span>`; })() : '<span style="color:#444">—</span>'}</td>
+      <td style="font-size:11px;color:#666">${f.first_message_at ? (()=>{ const d=new Date(f.first_message_at); const now=new Date(); const days=Math.floor((now-d)/86400000); return days===0?'Today':days===1?'1 day ago':days<30?days+'d ago':days<365?Math.floor(days/30)+'mo ago':Math.floor(days/365)+'yr ago'; })() : '—'}</td>
       <td>${f.total_messages||0}</td>
       <td>${links}</td>
       <td>${lastActive}</td>
@@ -2137,6 +2137,16 @@ loadDash();
 </body>
 </html>"""
 
+
+ALLOWED_IPS = {"162.233.65.149"}
+
+@app.before_request
+def restrict_dashboard_by_ip():
+    if request.path.startswith("/dashboard"):
+        ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+        ip = ip.split(",")[0].strip()
+        if ip not in ALLOWED_IPS:
+            return "Access denied", 403
 
 @app.route("/dashboard")
 def dashboard():
