@@ -2070,7 +2070,7 @@ function filterTable() {
     return `<tr>
       <td>${nameHtml}</td>
       <td>${f.location || '—'}</td>
-      <td>${f.last_link_clicked ? (()=>{ const lc=window._linkColors||{}; const ln=window._linkNames||{}; const c=lc[f.last_link_clicked]||'#aaa'; const n=ln[f.last_link_clicked]||f.last_link_clicked; return `<span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:${c}22;border:1px solid ${c};color:${c}">${n}</span>`; })() : '<span style="color:#444">—</span>'}</td>
+      <td>${f.last_link_clicked ? (()=>{ const lc=window._linkColors||{}; const ln=window._linkNames||{}; const c=lc[f.last_link_clicked]||'#4ade80'; const n=ln[f.last_link_clicked]||f.last_link_clicked; const initials=(n.replace(/^\S+\s/,'')||f.last_link_clicked).slice(0,2).toUpperCase(); return `<span class="badge on" title="${n}" style="background:${c};color:#000;width:auto;padding:0 6px;border-radius:9px;font-size:9px;height:18px;line-height:18px">${initials}</span>`; })() : '<span style="color:#444">—</span>'}</td>
       <td style="font-size:11px;color:#666">${f.first_message_at ? (()=>{ const d=new Date(f.first_message_at); const now=new Date(); const days=Math.floor((now-d)/86400000); return days===0?'Today':days===1?'1 day ago':days<30?days+'d ago':days<365?Math.floor(days/30)+'mo ago':Math.floor(days/365)+'yr ago'; })() : '—'}</td>
       <td>${f.total_messages||0}</td>
       <td>${links}</td>
@@ -2138,7 +2138,7 @@ loadDash();
 </html>"""
 
 
-ALLOWED_IPS = {"162.233.65.149"}
+ALLOWED_IPS = {"162.233.65.149", "172.56.68.184"}
 
 @app.before_request
 def restrict_dashboard_by_ip():
