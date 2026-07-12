@@ -2844,6 +2844,37 @@ def dashboard_export():
 
 # ── Link tracking ────────────────────────────────────────────────────────────
 
+@app.route("/admin/test-photos")
+def admin_test_photos():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return "Unauthorized", 401
+    import requests as _req
+    url = "https://graph.facebook.com/v19.0/me/photos"
+    params = {
+        "fields": "images",
+        "type": "uploaded",
+        "limit": 5,
+        "access_token": PAGE_ACCESS_TOKEN
+    }
+    r = _req.get(url, params=params)
+    data = r.json()
+    if "error" in data:
+        return jsonify({"error": data["error"], "message": "Token may be missing permissions"}), 400
+    photos = []
+    for item in data.get("data", []):
+        images = item.get("images", [])
+        if images:
+            largest = sorted(images, key=lambda x: x.get("width", 0), reverse=True)[0]
+            photos.append(largest.get("source"))
+    html = "<h2>Photo Test</h2>"
+    if not photos:
+        html += "<p>No photos found.</p>"
+    for url in photos:
+        html += f'<img src="{url}" style="max-width:300px;margin:10px;border-radius:8px"><br>'
+    return html
+
+
 @app.route("/admin/seed-fan")
 def admin_seed_fan():
     password = request.args.get("password", "")
