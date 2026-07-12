@@ -2063,7 +2063,7 @@ function filterTable() {
       <td>${f.location || '—'}</td>
       <td style="font-size:11px;color:#666">${f.first_message_at ? (()=>{ const d=new Date(f.first_message_at); const now=new Date(); const days=Math.floor((now-d)/86400000); return days===0?'Today':days===1?'1 day ago':days<30?days+'d ago':days<365?Math.floor(days/30)+'mo ago':Math.floor(days/365)+'yr ago'; })() : '—'}</td>
       <td>${f.total_messages||0}</td>
-      <td>${(f.links_clicked||[]).length ? (f.links_clicked||[]).map(l=>{ const lc=window._linkColors||{}; const ln=window._linkNames||{}; const c=lc[l]||'#4ade80'; const n=(ln[l]||l).replace(/^\S+\s/,''); const initials=n.slice(0,2).toUpperCase(); return `<span class="badge on" title="${ln[l]||l}" style="background:${c};color:#000;width:auto;padding:0 6px;border-radius:9px;font-size:9px;height:18px;line-height:18px">${initials}</span>`; }).join('') : '<span style="color:#444">—</span>'}</td>
+      <td>${(f.links_clicked||[]).filter(Boolean).length ? (f.links_clicked||[]).filter(Boolean).map(l=>{ const lc=window._linkColors||{}; const ln=window._linkNames||{}; const c=lc[l]||'#4ade80'; const n=(ln[l]||l).replace(/^\S+\s/,''); const initials=n.slice(0,2).toUpperCase(); return `<span class="badge on" title="${ln[l]||l}" style="background:${c};color:#000;width:auto;padding:0 6px;border-radius:9px;font-size:9px;height:18px;line-height:18px">${initials}</span>`; }).join('') : '<span style="color:#444">—</span>'}</td>
       <td>${lastActive}</td>
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.85em;color:#aaa" title="${(f.last_message||'').replace(/"/g,'&quot;')}">${f.last_message ? f.last_message.substring(0,60) + (f.last_message.length > 60 ? '…' : '') : '—'}</td>
       <td>${flags} ${blockBtn}</td>
@@ -2817,7 +2817,7 @@ def dashboard_fans_api():
     cur.execute("SELECT user_id, fb_name, nickname, location, vibe, fan_score, total_messages, sent_spotify, sent_youtube, sent_onlyfans, sent_merch, sent_blast_list, on_blast_list, is_vip, is_girl_code, is_blocked, first_message_at, last_message_at FROM fan_profiles WHERE total_messages > 0 ORDER BY last_message_at DESC NULLS LAST")
     fans = [dict(r) for r in cur.fetchall()]
     # Attach most recent link clicked per fan
-    cur.execute("SELECT user_id, array_agg(DISTINCT link_name) as links_clicked FROM link_clicks GROUP BY user_id")
+    cur.execute("SELECT user_id, array_agg(DISTINCT link_name) FILTER (WHERE link_name IS NOT NULL) as links_clicked FROM link_clicks GROUP BY user_id")
     click_map = {r["user_id"]: r["links_clicked"] for r in cur.fetchall()}
     for f in fans:
         f["links_clicked"] = click_map.get(f["user_id"]) or []
