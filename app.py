@@ -1879,10 +1879,9 @@ function renderDash(data) {
           <tr>
             <th onclick="sortTable('fb_name')" style="cursor:pointer">Fan ↕</th>
             <th onclick="sortTable('location')" style="cursor:pointer">Location ↕</th>
-            <th>Link Clicked</th>
             <th onclick="sortTable('first_message_at')" style="cursor:pointer">Since ↕</th>
             <th onclick="sortTable('total_messages')" style="cursor:pointer">Messages ↕</th>
-            <th>Links Sent</th>
+            <th>Links Clicked</th>
             <th onclick="sortTable('last_message_at')" style="cursor:pointer">Last Active ↕</th>
             <th>Last Message</th>
             <th>Flags</th>
@@ -2055,14 +2054,6 @@ function filterTable() {
       f.handoff_active ? '<span style="color:#facc15;font-size:11px">👋 Handoff</span>' : '',
       f.on_blast_list ? '<span style="color:#4ade80;font-size:11px">📋 Blast</span>' : '',
     ].filter(Boolean).join(' ');
-    const links = [
-      clickBadge(f.user_id, 'sent_spotify', f.sent_spotify, 'Music'),
-      clickBadge(f.user_id, 'sent_youtube', f.sent_youtube, 'YouTube'),
-      clickBadge(f.user_id, 'sent_onlyfans', f.sent_onlyfans, 'OF'),
-      clickBadge(f.user_id, 'sent_merch', f.sent_merch, 'Merch'),
-      clickBadge(f.user_id, 'sent_blast_list', f.sent_blast_list, 'Blast'),
-      clickBadge(f.user_id, 'listened_to_music', f.listened_to_music, 'Listened'),
-    ].join('');
     const lastActive = f.last_message_at ? new Date(f.last_message_at).toLocaleString('en-US', {month:'numeric',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'America/New_York'}) : '—';
     const blockBtn = f.is_blocked
       ? `<button class="unblock" onclick="setBlock('${f.user_id}', false)">Unblock</button>`
@@ -2070,10 +2061,9 @@ function filterTable() {
     return `<tr>
       <td>${nameHtml}</td>
       <td>${f.location || '—'}</td>
-      <td>${f.last_link_clicked ? (()=>{ const lc=window._linkColors||{}; const ln=window._linkNames||{}; const c=lc[f.last_link_clicked]||'#4ade80'; const n=ln[f.last_link_clicked]||f.last_link_clicked; const initials=(n.replace(/^\S+\s/,'')||f.last_link_clicked).slice(0,2).toUpperCase(); return `<span class="badge on" title="${n}" style="background:${c};color:#000;width:auto;padding:0 6px;border-radius:9px;font-size:9px;height:18px;line-height:18px">${initials}</span>`; })() : '<span style="color:#444">—</span>'}</td>
       <td style="font-size:11px;color:#666">${f.first_message_at ? (()=>{ const d=new Date(f.first_message_at); const now=new Date(); const days=Math.floor((now-d)/86400000); return days===0?'Today':days===1?'1 day ago':days<30?days+'d ago':days<365?Math.floor(days/30)+'mo ago':Math.floor(days/365)+'yr ago'; })() : '—'}</td>
       <td>${f.total_messages||0}</td>
-      <td>${links}</td>
+      <td>${(f.links_clicked||[]).length ? (f.links_clicked||[]).map(l=>{ const lc=window._linkColors||{}; const ln=window._linkNames||{}; const c=lc[l]||'#4ade80'; const n=(ln[l]||l).replace(/^\S+\s/,''); const initials=n.slice(0,2).toUpperCase(); return `<span class="badge on" title="${ln[l]||l}" style="background:${c};color:#000;width:auto;padding:0 6px;border-radius:9px;font-size:9px;height:18px;line-height:18px">${initials}</span>`; }).join('') : '<span style="color:#444">—</span>'}</td>
       <td>${lastActive}</td>
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.85em;color:#aaa" title="${(f.last_message||'').replace(/"/g,'&quot;')}">${f.last_message ? f.last_message.substring(0,60) + (f.last_message.length > 60 ? '…' : '') : '—'}</td>
       <td>${flags} ${blockBtn}</td>
@@ -2827,10 +2817,10 @@ def dashboard_fans_api():
     cur.execute("SELECT user_id, fb_name, nickname, location, vibe, fan_score, total_messages, sent_spotify, sent_youtube, sent_onlyfans, sent_merch, sent_blast_list, on_blast_list, is_vip, is_girl_code, is_blocked, first_message_at, last_message_at FROM fan_profiles WHERE total_messages > 0 ORDER BY last_message_at DESC NULLS LAST")
     fans = [dict(r) for r in cur.fetchall()]
     # Attach most recent link clicked per fan
-    cur.execute("SELECT DISTINCT ON (user_id) user_id, link_name FROM link_clicks ORDER BY user_id, clicked_at DESC")
-    link_map = {r["user_id"]: r["link_name"] for r in cur.fetchall()}
+    cur.execute("SELECT user_id, array_agg(DISTINCT link_name) as links_clicked FROM link_clicks GROUP BY user_id")
+    click_map = {r["user_id"]: r["links_clicked"] for r in cur.fetchall()}
     for f in fans:
-        f["last_link_clicked"] = link_map.get(f["user_id"])
+        f["links_clicked"] = click_map.get(f["user_id"]) or []
     cur.close()
     conn.close()
     import datetime as _dt
