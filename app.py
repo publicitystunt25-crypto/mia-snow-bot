@@ -1091,7 +1091,7 @@ def get_mia_reply(user_id):
             platform_label = None
 
         if music_link:
-            facts.append(f"MUSIC PLATFORM: This fan uses {platform_label}. When dropping music send them here: {music_link} — don't send the general linktree, send the platform they actually use.")
+            facts.append(f"MUSIC PLATFORM: This fan uses {platform_label}. Send them this link RIGHT NOW in this response: {music_link} — then tell them to let you know what they think. This is a conversion moment, do not delay or skip it. Say something like 'here you go, let me know what you think 🤍' or 'go check it out and tell me what you think fr' then drop the link.")
         else:
             facts.append(f"PLATFORM UNKNOWN: You don't know what platform this person listens to music on. Before dropping a link, casually ask — something like 'which platform do you listen to music on?' or 'you on Spotify, Apple Music, or YouTube?' — then send the right tracked link based on their answer: Spotify: {make_link('spotify', user_id)}, Apple Music: {make_link('apple', user_id)}, YouTube: {make_link('youtube', user_id)}. IMPORTANT: If they mention more than one platform (e.g. 'Spotify and YouTube'), just send the general link: {make_link('music', user_id)} — it has everything in one place. If they say they don't have Spotify or Apple Music, send YouTube: {make_link('youtube', user_id)}. If they don't give a clear answer at all, send the general link: {make_link('music', user_id)}.")
 
@@ -1371,6 +1371,8 @@ def handle_reply(sender_id):
         # Business messages always bypass quiet period — never ignore a collab/booking inquiry
         combined_text = " ".join(messages).lower()
         is_business = any(w in combined_text for w in ["collab", "music work", "feature", "booking", "book", "work together", "do sum music", "do some music", "studio", "record", "i got songs", "got songs", "i make music", "i rap", "i sing", "i produce", "got beats", "i got beats", "i write", "send you something", "send u something"])
+        # Platform replies also bypass quiet period — never miss a conversion opportunity
+        is_platform_reply = any(w in combined_text for w in ["spotify", "apple music", "apple", "youtube", "soundcloud", "tidal", "amazon music", "i use spotify", "i use apple", "i listen on", "i stream on"])
 
         unanswered = unanswered_message_count(sender_id)
         print(f"[handle_reply] {sender_id} unanswered={unanswered} funnel={funnel_complete} quiet={in_quiet_period} business={is_business}")
@@ -1380,7 +1382,7 @@ def handle_reply(sender_id):
         if safety_net_fired:
             in_quiet_period = False
 
-        if in_quiet_period and not is_business:
+        if in_quiet_period and not is_business and not is_platform_reply:
             # Respond after 1 unanswered message
             if unanswered < 1:
                 print(f"[quiet_period] staying quiet for {sender_id}")
