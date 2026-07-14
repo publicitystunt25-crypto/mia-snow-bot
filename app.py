@@ -2891,8 +2891,8 @@ def dashboard_stats_api():
         SELECT fp.user_id, COALESCE(fp.fb_name, fp.nickname, fp.user_id) as name, fp.total_messages
         FROM fan_profiles fp
         LEFT JOIN link_clicks lc ON lc.user_id = fp.user_id
-        WHERE lc.user_id IS NULL AND fp.total_messages >= 30
-        ORDER BY fp.total_messages DESC LIMIT 10
+        WHERE lc.user_id IS NULL AND fp.total_messages >= 50
+        ORDER BY fp.total_messages DESC
     """)
     high_msg_no_clicks = [dict(r) for r in cur.fetchall()]
 
@@ -2906,6 +2906,7 @@ def dashboard_stats_api():
         "clicks_by_type": clicks_by_type,
         "top_clickers": top_clickers,
         "high_msg_no_clicks": high_msg_no_clicks,
+        "high_msg_no_clicks_count": len(high_msg_no_clicks),
     })
 
 
