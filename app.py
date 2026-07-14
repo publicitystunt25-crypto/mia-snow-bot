@@ -324,6 +324,8 @@ def init_db():
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS music_platform TEXT")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_otw BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS otw_warmup_count INTEGER DEFAULT 0")
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS music_link_sent_at TIMESTAMP")
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS music_followup_sent BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'dm'")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS link_clicks (
@@ -895,6 +897,67 @@ def send_photo(recipient_id):
         print(f"Failed to send photo: {r.status_code} {r.text}")
 
 
+_FOLLOWUP_MESSAGES = [
+    "hey did you get a chance to check it out? 👀",
+    "lol you never told me what you thought 😩",
+    "did you listen yet? i need to know fr",
+    "you checked it out yet? let me know what you think 🤍",
+    "hey you ghosted me lol did you ever check that out?",
+]
+
+def run_music_followups():
+    import datetime as _dt
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cutoff_min = _dt.datetime.utcnow() - _dt.timedelta(hours=24)
+        cutoff_max = _dt.datetime.utcnow() - _dt.timedelta(hours=48)
+        cur.execute("""
+            SELECT fp.user_id, fp.music_link_sent_at, fp.last_message_at
+            FROM fan_profiles fp
+            WHERE fp.music_link_sent_at IS NOT NULL
+              AND fp.music_followup_sent = FALSE
+              AND fp.is_blocked = FALSE
+              AND fp.music_link_sent_at <= %s
+              AND fp.music_link_sent_at >= %s
+        """, (cutoff_min, cutoff_max))
+        fans = cur.fetchall()
+        cur.close()
+        conn.close()
+        for fan in fans:
+            uid = fan["user_id"]
+            sent_at = fan["music_link_sent_at"]
+            last_msg = fan["last_message_at"]
+            # Skip if fan has responded since the link was sent
+            if last_msg and sent_at and last_msg > sent_at:
+                _mark_followup_sent(uid)
+                continue
+            if is_paused(uid) or is_blocked(uid):
+                continue
+            msg = random.choice(_FOLLOWUP_MESSAGES)
+            save_message(uid, "assistant", msg)
+            send_message(uid, msg)
+            _mark_followup_sent(uid)
+            print(f"[followup] sent music follow-up to {uid}")
+    except Exception as e:
+        print(f"[followup] error: {e}")
+
+def _mark_followup_sent(user_id):
+    try:
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("UPDATE fan_profiles SET music_followup_sent = TRUE WHERE user_id = %s", (user_id,))
+        conn.commit(); cur.close(); conn.close()
+    except Exception: pass
+
+def _followup_loop():
+    import time
+    while True:
+        time.sleep(3600)  # check every hour
+        run_music_followups()
+
+threading.Thread(target=_followup_loop, daemon=True).start()
+
+
 def notify_owner(fan_id, reason):
     profile = get_fan_profile(fan_id)
     name = profile.get("fb_name", fan_id) if profile else fan_id
@@ -1092,6 +1155,12 @@ def get_mia_reply(user_id):
 
         if music_link:
             facts.append(f"MUSIC PLATFORM: This fan uses {platform_label}. Send them this link RIGHT NOW in this response: {music_link} — then tell them to let you know what they think. This is a conversion moment, do not delay or skip it. Say something like 'here you go, let me know what you think 🤍' or 'go check it out and tell me what you think fr' then drop the link.")
+            if not profile.get("music_link_sent_at") and not profile.get("music_followup_sent"):
+                try:
+                    _conn = get_conn(); _cur = _conn.cursor()
+                    _cur.execute("UPDATE fan_profiles SET music_link_sent_at = NOW() WHERE user_id = %s", (user_id,))
+                    _conn.commit(); _cur.close(); _conn.close()
+                except Exception: pass
         else:
             facts.append(f"PLATFORM UNKNOWN: You don't know what platform this person listens to music on. Before dropping a link, casually ask — something like 'which platform do you listen to music on?' or 'you on Spotify, Apple Music, or YouTube?' — then send the right tracked link based on their answer: Spotify: {make_link('spotify', user_id)}, Apple Music: {make_link('apple', user_id)}, YouTube: {make_link('youtube', user_id)}. IMPORTANT: If they mention more than one platform (e.g. 'Spotify and YouTube'), just send the general link: {make_link('music', user_id)} — it has everything in one place. If they say they don't have Spotify or Apple Music, send YouTube: {make_link('youtube', user_id)}. If they don't give a clear answer at all, send the general link: {make_link('music', user_id)}.")
 
