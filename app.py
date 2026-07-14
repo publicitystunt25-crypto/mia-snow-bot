@@ -2879,6 +2879,13 @@ def dashboard_stats_api():
     total_clicks = cur.fetchone()["total"]
 
     cur.execute("""
+        SELECT COUNT(*) as total FROM fan_profiles fp
+        LEFT JOIN link_clicks lc ON lc.user_id = fp.user_id
+        WHERE lc.user_id IS NULL AND fp.total_messages > 0
+    """)
+    fans_zero_clicks = cur.fetchone()["total"]
+
+    cur.execute("""
         SELECT fp.user_id, COALESCE(fp.fb_name, fp.nickname, fp.user_id) as name, fp.total_messages, COUNT(lc.id) as click_count
         FROM fan_profiles fp
         JOIN link_clicks lc ON lc.user_id = fp.user_id
@@ -2907,6 +2914,7 @@ def dashboard_stats_api():
         "top_clickers": top_clickers,
         "high_msg_no_clicks": high_msg_no_clicks,
         "high_msg_no_clicks_count": len(high_msg_no_clicks),
+        "fans_zero_clicks": fans_zero_clicks,
     })
 
 
