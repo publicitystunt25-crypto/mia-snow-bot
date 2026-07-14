@@ -1363,17 +1363,10 @@ def handle_reply(sender_id):
                 _pending.pop(sender_id, None)
             return
 
-        # If owner just manually replied, stay out for 3 fan messages before taking over again
+        # If owner just manually replied, discard the flag — bot picks up on the very next fan message
         if sender_id in _manual_replied:
-            count = _manual_replied_count.get(sender_id, 0) + 1
-            if count < 3:
-                _manual_replied_count[sender_id] = count
-                print(f"[manual_reply] staying out for {sender_id} ({count}/3)")
-                return
-            else:
-                _manual_replied.discard(sender_id)
-                _manual_replied_count.pop(sender_id, None)
-                print(f"[manual_reply] bot taking over again for {sender_id}")
+            _manual_replied.discard(sender_id)
+            _manual_replied_count.pop(sender_id, None)
 
         with _pending_lock:
             messages = _pending.pop(sender_id, [])
@@ -2863,6 +2856,57 @@ def dashboard_set_flag():
     cur.close()
     conn.close()
     return jsonify({"ok": True})
+
+
+@app.route("/dashboard/stats")
+def dashboard_stats_api():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    cur.execute("SELECT COUNT(*) as total FROM fan_profiles WHERE total_messages > 0")
+    total_fans = cur.fetchone()["total"]
+
+    cur.execute("SELECT COUNT(DISTINCT user_id) as total FROM link_clicks")
+    fans_with_clicks = cur.fetchone()["total"]
+
+    cur.execute("SELECT link_name, COUNT(*) as cnt FROM link_clicks GROUP BY link_name ORDER BY cnt DESC")
+    clicks_by_type = {r["link_name"]: r["cnt"] for r in cur.fetchall()}
+
+    cur.execute("SELECT COUNT(*) as total FROM link_clicks")
+    total_clicks = cur.fetchone()["total"]
+
+    cur.execute("""
+        SELECT fp.user_id, COALESCE(fp.fb_name, fp.nickname, fp.user_id) as name, fp.total_messages, COUNT(lc.id) as click_count
+        FROM fan_profiles fp
+        JOIN link_clicks lc ON lc.user_id = fp.user_id
+        GROUP BY fp.user_id, fp.fb_name, fp.nickname, fp.total_messages
+        ORDER BY click_count DESC LIMIT 10
+    """)
+    top_clickers = [dict(r) for r in cur.fetchall()]
+
+    cur.execute("""
+        SELECT fp.user_id, COALESCE(fp.fb_name, fp.nickname, fp.user_id) as name, fp.total_messages
+        FROM fan_profiles fp
+        LEFT JOIN link_clicks lc ON lc.user_id = fp.user_id
+        WHERE lc.user_id IS NULL AND fp.total_messages >= 30
+        ORDER BY fp.total_messages DESC LIMIT 10
+    """)
+    high_msg_no_clicks = [dict(r) for r in cur.fetchall()]
+
+    cur.close()
+    conn.close()
+    return jsonify({
+        "total_fans": total_fans,
+        "fans_with_clicks": fans_with_clicks,
+        "click_rate_pct": round(fans_with_clicks / total_fans * 100, 1) if total_fans else 0,
+        "total_clicks": total_clicks,
+        "clicks_by_type": clicks_by_type,
+        "top_clickers": top_clickers,
+        "high_msg_no_clicks": high_msg_no_clicks,
+    })
 
 
 @app.route("/dashboard/fan/<user_id>")
