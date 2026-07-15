@@ -1462,22 +1462,29 @@ def handle_reply(sender_id):
         if not messages:
             return
 
-        # Goodnight check — if Mia said goodnight in the last 8 hours, stay silent until next day
+        # Goodnight check — if Mia said goodnight in the last 8 hours, stay silent
         import datetime as _dt
         _et = _dt.timezone(_dt.timedelta(hours=-4))
         _now_et = _dt.datetime.now(_et)
-        recent_history = get_history(sender_id)
-        _goodnight_words = {"goodnight", "good night", "gn", "nite", "good nite"}
         _said_goodnight_at = None
-        for _m in reversed(recent_history[-20:]):
-            if _m["role"] == "assistant":
-                _txt = _m["content"].lower().strip()
-                if any(w in _txt for w in _goodnight_words):
-                    _gn_profile = get_fan_profile(sender_id)
-                    _said_goodnight_at = _gn_profile.get("last_message_at") if _gn_profile else None
-                    break
+        try:
+            _gn_conn = get_conn()
+            _gn_cur = _gn_conn.cursor()
+            _gn_cur.execute(
+                "SELECT created_at FROM messages WHERE user_id = %s AND role = 'assistant' "
+                "AND (content ILIKE '%goodnight%' OR content ILIKE '%good night%' OR content = 'gn' OR content ILIKE 'gn %') "
+                "ORDER BY id DESC LIMIT 1",
+                (sender_id,)
+            )
+            _gn_row = _gn_cur.fetchone()
+            if _gn_row:
+                _said_goodnight_at = _gn_row[0]
+            _gn_cur.close()
+            _gn_conn.close()
+        except Exception:
+            pass
 
-        # Block replies if goodnight was said and it's still the same night (within 8 hours)
+        # Block replies if goodnight was said within the last 8 hours
         if _said_goodnight_at:
             try:
                 if _said_goodnight_at.tzinfo is None:
