@@ -1184,7 +1184,7 @@ def get_mia_reply(user_id):
         model="claude-haiku-4-5-20251001",
         max_tokens=300,
         system=[
-            {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral", "ttl": "1h"}},
             {"type": "text", "text": _date_context},
             {"type": "text", "text": _lang_context},
             *([{"type": "text", "text": profile_context}] if profile_context else []),
@@ -1494,6 +1494,47 @@ def handle_reply(sender_id):
                 send_message(sender_id, _apology_text)
             return
 
+        # ── Pre-written shortcut responses (skip Claude entirely) ──────────
+        import re as _re
+        _raw_text = " ".join(messages).strip()
+        _clean = _raw_text.lower().strip().rstrip("!.,")
+
+        # Emoji-only messages → blushing/smile emoji
+        _emoji_pattern = _re.compile(
+            r'^[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF'
+            r'\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF'
+            r'\U00002700-\U000027BF\U0001FA00-\U0001FA6F'
+            r'\U0001FA70-\U0001FAFF❤♥♡❣'
+            r'️‍\s]+$'
+        )
+        _gn_words = {"goodnight", "good night", "gn", "gn 🤍", "nite", "good nite",
+                     "going to sleep", "going to bed", "ima sleep", "imma sleep",
+                     "i'm going to sleep", "i'm going to bed", "talk tomorrow",
+                     "talk to you tomorrow", "ttyl", "good night 🤍"}
+
+        _shortcut_reply = None
+
+        if _clean in {"ok", "okay", "ok."}:
+            _shortcut_reply = None  # no response for "ok"
+            save_message(sender_id, "user", _raw_text)
+            print(f"[shortcut] skipping reply for 'ok' from {sender_id}")
+            return
+
+        elif _clean in _gn_words or any(_clean.startswith(w) for w in ["goodnight", "good night", "gn ", "nite"]):
+            _shortcut_reply = random.choice(["goodnight 🤍", "gn 🤍", "goodnight 🤍"])
+
+        elif _emoji_pattern.match(_raw_text):
+            _shortcut_reply = random.choice(["😊", "🥰"])
+
+        if _shortcut_reply is not None:
+            time.sleep(random.randint(15, 45))
+            if not is_paused(sender_id) and not is_blocked(sender_id):
+                save_message(sender_id, "assistant", _shortcut_reply)
+                send_message(sender_id, _shortcut_reply)
+            print(f"[shortcut] sent '{_shortcut_reply}' to {sender_id} — skipped Claude")
+            return
+        # ────────────────────────────────────────────────────────────────────
+
         reply = get_mia_reply(sender_id)
 
         # Delay — phase system takes priority, then normal logic
@@ -1683,7 +1724,7 @@ def get_comment_reply(comment_text, post_text="", commenter_id=""):
             model="claude-haiku-4-5-20251001",
             max_tokens=150,
             system=[
-                {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
+                {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral", "ttl": "1h"}},
                 {"type": "text", "text": COMMENT_SYSTEM_ADDENDUM},
             ],
             messages=[{"role": "user", "content": context}]
