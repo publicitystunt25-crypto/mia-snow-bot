@@ -280,6 +280,7 @@ def init_db():
             sent_blast_list BOOLEAN DEFAULT FALSE,
             on_blast_list BOOLEAN DEFAULT FALSE,
             bought_merch BOOLEAN DEFAULT FALSE,
+            sent_soulties BOOLEAN DEFAULT FALSE,
             asked_about_shows BOOLEAN DEFAULT FALSE,
             asked_about_music_feedback BOOLEAN DEFAULT FALSE,
             listened_to_music BOOLEAN DEFAULT FALSE,
@@ -299,6 +300,8 @@ def init_db():
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS otw_warmup_count INTEGER DEFAULT 0")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS music_link_sent_at TIMESTAMP")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS music_followup_sent BOOLEAN DEFAULT FALSE")
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_soulties BOOLEAN DEFAULT FALSE")
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS bought_merch BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'dm'")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS link_clicks (
@@ -547,8 +550,23 @@ def update_fan_after_message(user_id, messages):
         updates["sent_youtube"] = True
     if "linktr.ee/msnow1" in combined:
         updates["sent_onlyfans"] = True
-    if "miasnow.printful.me" in combined:
+    if "miasnow.printful.me" in combined or "fanlink.tv/wSNt" in combined:
         updates["sent_merch"] = True
+    if "fanlink.tv/wSNt" in combined:
+        updates["sent_soulties"] = True
+
+    # Detect if fan confirmed they bought merch
+    _bought_phrases = [
+        "i ordered", "i bought", "i got it", "just ordered", "just bought",
+        "i copped", "i just copped", "placed an order", "i checked out",
+        "i got the shirt", "i got the hoodie", "i got the hat",
+        "ordered the shirt", "ordered the hoodie", "bought the shirt",
+        "i purchased", "order placed", "i got merch", "bought merch",
+        "i got some merch", "got the merch"
+    ]
+    _fan_msgs_combined = " ".join(m for m in messages).lower()
+    if any(p in _fan_msgs_combined for p in _bought_phrases):
+        updates["bought_merch"] = True
     if "forms.gle" in combined:
         updates["sent_blast_list"] = True
 
@@ -1169,8 +1187,11 @@ def get_mia_reply(user_id):
         _MERCH_LINK = make_link("merch", user_id)
         _merch_already_sent = profile.get("sent_merch")
         _album_clicked = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("listened_to_music")
+        _bought_merch = profile.get("bought_merch")
 
-        if not _merch_already_sent:
+        if _bought_merch:
+            facts.append("MERCH BUYER: This fan already bought merch — do NOT promote merch, the Soul Ties album campaign, or any merch links again. Just vibe with them naturally. They're already a supporter.")
+        elif not _merch_already_sent:
             if not _album_clicked:
                 # Fan hasn't heard album yet — steer them to Soul Ties first, tease merch as the reward
                 facts.append(
