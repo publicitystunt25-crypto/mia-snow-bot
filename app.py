@@ -37,6 +37,7 @@ TRACKED_LINKS = {
     "exclusive":  "https://linktr.ee/msnow1",
     "blast":      "https://forms.gle/veUFhGiHetDFr1kk6",
     "merch":      "https://miasnow.printful.me/",
+    "soulties":   "https://fanlink.tv/wSNt",
     "music":      "https://linktr.ee/therealmiasnow1",  # fallback if platform unknown
 }
 
@@ -1164,8 +1165,8 @@ def get_mia_reply(user_id):
             facts.append(f"YOUTUBE PUSH: You've talked to this person before but they haven't listened to your music yet. This cycle your goal is to get them to watch a YouTube video. When the moment is right, push YouTube specifically — something like 'you gotta watch the visuals fr' and drop: {make_link('youtube', user_id)} — keep it natural, don't force it early.")
         # ── Soul Ties merch campaign ─────────────────────────────────────────
         # Active for all fans DM'ing tonight — ride the post energy, steer toward album + merch
-        _SOUL_TIES_ALBUM = "https://fanlink.tv/wSNt"
-        _MERCH_LINK = "https://miasnow.printful.me/"
+        _SOUL_TIES_ALBUM = make_link("soulties", user_id)
+        _MERCH_LINK = make_link("merch", user_id)
         _merch_already_sent = profile.get("sent_merch")
         _album_clicked = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("listened_to_music")
 
