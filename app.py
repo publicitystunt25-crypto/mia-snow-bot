@@ -1203,7 +1203,7 @@ def get_mia_reply(user_id):
                     f"FIRST — if their opening message is about the beach photo, your look, or their zodiac sign, address that first and let it feel natural for one reply. "
                     f"THEN — by the next reply, steer toward what you've been working on. "
                     f"If they ask what you're up to, what you've been doing, what's new, or anything casual — USE THAT as your opening immediately. "
-                    f"Say something like 'honestly been busy, i got some album merch i'm about to announce 👀' — "
+                    f"Say something like 'honestly been busy, i just finished up some album merch i'm about to announce 👀' — "
                     f"tease them: 'you trying to be one of the first to grab a shirt?' — "
                     f"when they show interest, say you want people who actually fw the sound repping it first, "
                     f"so drop the album link: {_SOUL_TIES_ALBUM} — "
