@@ -1199,30 +1199,21 @@ def get_mia_reply(user_id):
         elif not _merch_already_sent:
             if not _album_clicked:
                 facts.append(
-                    f"SOUL TIES MERCH CAMPAIGN — BRING IT UP SOON: This is an existing fan (10+ messages) so don't wait long. "
-                    f"FIRST — if their opening message is about the beach photo, your look, or their zodiac sign, address that first and let it feel natural for one reply. "
-                    f"THEN — by the next reply, steer toward what you've been working on. "
-                    f"If they ask what you're up to, what you've been doing, what's new, or anything casual — USE THAT as your opening immediately. "
-                    f"Say something like 'honestly been busy, i just finished up some album merch i'm about to announce 👀' — "
-                    f"tease them: 'you trying to be one of the first to grab a shirt?' — "
-                    f"when they show interest, say you want people who actually fw the sound repping it first, "
-                    f"so drop the album link: {_SOUL_TIES_ALBUM} — "
-                    f"tell them once they check it out you'll send the merch link early before it's even announced. "
-                    f"The two merch drops are: Soul Ties collection and Yeti Gang (tees, hoodies, hats)."
+                    f"MANDATORY TASK THIS CONVERSATION — YOU MUST DO THIS: Bring up the merch before this conversation ends. No exceptions. "
+                    f"If they mention the photo or zodiac, address it in ONE reply then pivot. If they ask what you're up to or how you're doing — use that immediately. "
+                    f"If there's no opening, CREATE one: 'lowkey tho i just finished up some album merch i'm about to announce 👀 you trying to be first?' "
+                    f"When they show interest say you want people who fw the sound repping it first, drop the album: {_SOUL_TIES_ALBUM} "
+                    f"Tell them once they check it out you'll send the merch link before anyone else. "
+                    f"Two drops: Soul Ties collection + Yeti Gang (tees, hoodies, hats). YOU MUST BRING THIS UP."
                 )
             else:
                 facts.append(
-                    f"SOUL TIES MERCH CAMPAIGN — BRING IT UP SOON: This fan has already heard Mia's music so skip the album step entirely. "
-                    f"This is an existing fan — don't wait long. "
-                    f"FIRST — if their opening message is about the beach photo, your look, or their zodiac sign, address that first and let it feel natural for one reply. "
-                    f"THEN — by the next reply, work in what you've been working on. "
-                    f"If they ask what you're up to, what's new, what you've been doing, or anything casual — USE THAT as your opening immediately. "
-                    f"Say something like 'honestly been working on some merch for my Soul Ties project, dropping it real soon, got two drops — "
-                    f"one for Soul Ties and one for the Yeti Gang 🤍 tees hoodies hats' — "
-                    f"ask 'you trying to be one of the first to grab something?' — "
-                    f"when they say yes, drop the merch link: {_MERCH_LINK} — "
-                    f"then say 'the merch isn't even announced yet so you're literally getting it before anyone else 🤍' — "
-                    f"make them feel like Mia personally chose them."
+                    f"MANDATORY TASK THIS CONVERSATION — YOU MUST DO THIS: This fan already heard the music so skip the album. Bring up merch before this conversation ends. No exceptions. "
+                    f"If they mention the photo or zodiac, address it in ONE reply then pivot. If they ask what you're up to — use that immediately. "
+                    f"If there's no opening, CREATE one: 'lowkey tho i just finished up some album merch i'm about to announce 👀 you trying to be first?' "
+                    f"When they say yes, drop the merch link: {_MERCH_LINK} "
+                    f"Then say 'the merch isn't even announced yet so you're literally getting it before anyone else 🤍' "
+                    f"Two drops: Soul Ties collection + Yeti Gang (tees, hoodies, hats). YOU MUST BRING THIS UP."
                 )
         # ─────────────────────────────────────────────────────────────────────
 
