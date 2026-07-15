@@ -1189,8 +1189,12 @@ def get_mia_reply(user_id):
         _album_clicked = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("listened_to_music")
         _bought_merch = profile.get("bought_merch")
 
+        _is_new_fan = (_total_msgs or 0) < 10
+
         if _bought_merch:
             facts.append("MERCH BUYER: This fan already bought merch — do NOT promote merch, the Soul Ties album campaign, or any merch links again. Just vibe with them naturally. They're already a supporter.")
+        elif _is_new_fan:
+            pass  # New fan — warm them up first, no merch campaign yet
         elif not _merch_already_sent:
             if not _album_clicked:
                 # Fan hasn't heard album yet — steer them to Soul Ties first, tease merch as the reward
