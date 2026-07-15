@@ -1108,6 +1108,11 @@ def get_mia_reply(user_id):
         # Music push logic
         _music_sent = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("sent_blast_list")
         _already_listened = profile.get("listened_to_music")
+        _total_msgs = profile.get("total_messages") or 0
+        _vibe = profile.get("vibe", "new")
+        _no_clicks = not profile.get("sent_spotify") and not profile.get("sent_youtube")
+        if not _music_sent and not _already_listened and (_vibe == "flirty" or _total_msgs >= 20) and _no_clicks:
+            facts.append(f"WARM FAN — NO MUSIC YET: This fan has been talking to Mia for a while and is clearly invested but has never heard her music. In this response, find a natural moment to steer toward the music. Don't force it at the top — let the conversation breathe first, then work it in. Make it feel personal: 'i actually been wanting to send you something', 'ok wait i need you to hear this', 'since you always talking to me you should actually hear what i'm working on'. Drop: {make_link('music', user_id)} and ask what they think. Make it feel like Mia genuinely cares about their opinion.")
         if not _music_sent and not _already_listened:
             cycle_start = profile.get("cycle_start_msg_count") or 0
             total_msgs = profile.get("total_messages") or 0
