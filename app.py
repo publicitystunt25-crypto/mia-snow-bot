@@ -3119,6 +3119,32 @@ def dashboard_stats_api():
     })
 
 
+@app.route("/dashboard/messages/<user_id>")
+def dashboard_messages(user_id):
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    limit = int(request.args.get("limit", 50))
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute(
+        "SELECT role, content, created_at FROM messages WHERE user_id = %s ORDER BY created_at DESC LIMIT %s",
+        (user_id, limit)
+    )
+    msgs = [dict(r) for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+    for m in msgs:
+        if m.get("created_at"):
+            import datetime as _dt
+            ts = m["created_at"]
+            if isinstance(ts, _dt.datetime):
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=_dt.timezone.utc)
+                m["created_at"] = ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return jsonify({"user_id": user_id, "messages": list(reversed(msgs))})
+
+
 @app.route("/dashboard/fan/<user_id>")
 def dashboard_fan_lookup(user_id):
     password = request.args.get("password", "")
