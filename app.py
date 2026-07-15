@@ -1162,6 +1162,41 @@ def get_mia_reply(user_id):
             conn2.close()
         if profile.get('funnel_restarted') and not profile.get('listened_to_music'):
             facts.append(f"YOUTUBE PUSH: You've talked to this person before but they haven't listened to your music yet. This cycle your goal is to get them to watch a YouTube video. When the moment is right, push YouTube specifically — something like 'you gotta watch the visuals fr' and drop: {make_link('youtube', user_id)} — keep it natural, don't force it early.")
+        # ── Soul Ties merch campaign ─────────────────────────────────────────
+        # Active for all fans DM'ing tonight — ride the post energy, steer toward album + merch
+        _SOUL_TIES_ALBUM = "https://fanlink.tv/wSNt"
+        _MERCH_LINK = "https://miasnow.printful.me/"
+        _merch_already_sent = profile.get("sent_merch")
+        _album_clicked = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("listened_to_music")
+
+        if not _merch_already_sent:
+            if not _album_clicked:
+                # Fan hasn't heard album yet — steer them to Soul Ties first, tease merch as the reward
+                facts.append(
+                    f"SOUL TIES MERCH CAMPAIGN — ACTIVE TONIGHT: Mia just posted a provocative beach photo and fans are in her DMs. "
+                    f"Ride the flirty energy first — don't cut it off. Once the vibe is warm, naturally bring up the merch: "
+                    f"'lowkey i been working on some merch for my Soul Ties project, dropping it in a few days 👀' — "
+                    f"then tease them: 'you trying to be one of the first to grab a shirt?' — "
+                    f"when they say yes, say you want people who actually fw the sound repping it first, "
+                    f"and drop the album: {_SOUL_TIES_ALBUM} — "
+                    f"tell them to check it out and once they fw it you'll send them the merch link early. "
+                    f"Don't rush this — let the flirty convo breathe first, then bring it in naturally. "
+                    f"The two merch drops are: Soul Ties collection and Yeti Gang (tees, hoodies, hats)."
+                )
+            else:
+                # Fan already heard the music — skip straight to the merch reward
+                facts.append(
+                    f"SOUL TIES MERCH CAMPAIGN — MUSIC ALREADY HEARD: This fan has already listened to Mia's music so skip the album step. "
+                    f"Ride the flirty beach post energy first, then naturally bring up the merch: "
+                    f"'lowkey i been working on some merch for my Soul Ties project dropping in a few days, i got two drops — "
+                    f"one for Soul Ties and one for the Yeti Gang 🤍 tees hoodies hats' — "
+                    f"ask 'you trying to be one of the first to grab something?' — "
+                    f"when they say yes, drop the merch link: {_MERCH_LINK} — "
+                    f"then say 'the merch isn't even announced yet so you're literally getting it before anyone else 🤍' — "
+                    f"make them feel like Mia personally chose them."
+                )
+        # ─────────────────────────────────────────────────────────────────────
+
         # Music platform — send the right link per fan
         music_platform = profile.get("music_platform")
         if music_platform == "spotify":
