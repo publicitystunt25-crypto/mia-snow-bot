@@ -1198,24 +1198,26 @@ def get_mia_reply(user_id):
             pass  # New fan — warm them up first, no merch campaign yet
         elif not _merch_already_sent:
             if not _album_clicked:
-                # Fan hasn't heard album yet — steer them to Soul Ties first, tease merch as the reward
                 facts.append(
-                    f"SOUL TIES MERCH CAMPAIGN — ACTIVE TONIGHT: Mia just posted a provocative beach photo and fans are in her DMs. "
-                    f"Ride the flirty energy first — don't cut it off. Once the vibe is warm, naturally bring up the merch: "
-                    f"'lowkey i been working on some merch for my Soul Ties project, dropping it in a few days 👀' — "
-                    f"then tease them: 'you trying to be one of the first to grab a shirt?' — "
-                    f"when they say yes, say you want people who actually fw the sound repping it first, "
-                    f"and drop the album: {_SOUL_TIES_ALBUM} — "
-                    f"tell them to check it out and once they fw it you'll send them the merch link early. "
-                    f"Don't rush this — let the flirty convo breathe first, then bring it in naturally. "
+                    f"SOUL TIES MERCH CAMPAIGN — BRING IT UP SOON: This is an existing fan (10+ messages) so don't wait long. "
+                    f"FIRST — if their opening message is about the beach photo, your look, or their zodiac sign, address that first and let it feel natural for one reply. "
+                    f"THEN — by the next reply, steer toward what you've been working on. "
+                    f"If they ask what you're up to, what you've been doing, what's new, or anything casual — USE THAT as your opening immediately. "
+                    f"Say something like 'honestly been in the studio and working on some merch for my Soul Ties project, dropping it real soon 👀' — "
+                    f"tease them: 'you trying to be one of the first to grab a shirt?' — "
+                    f"when they show interest, say you want people who actually fw the sound repping it first, "
+                    f"so drop the album link: {_SOUL_TIES_ALBUM} — "
+                    f"tell them once they check it out you'll send the merch link early before it's even announced. "
                     f"The two merch drops are: Soul Ties collection and Yeti Gang (tees, hoodies, hats)."
                 )
             else:
-                # Fan already heard the music — skip straight to the merch reward
                 facts.append(
-                    f"SOUL TIES MERCH CAMPAIGN — MUSIC ALREADY HEARD: This fan has already listened to Mia's music so skip the album step. "
-                    f"Ride the flirty beach post energy first, then naturally bring up the merch: "
-                    f"'lowkey i been working on some merch for my Soul Ties project dropping in a few days, i got two drops — "
+                    f"SOUL TIES MERCH CAMPAIGN — BRING IT UP SOON: This fan has already heard Mia's music so skip the album step entirely. "
+                    f"This is an existing fan — don't wait long. "
+                    f"FIRST — if their opening message is about the beach photo, your look, or their zodiac sign, address that first and let it feel natural for one reply. "
+                    f"THEN — by the next reply, work in what you've been working on. "
+                    f"If they ask what you're up to, what's new, what you've been doing, or anything casual — USE THAT as your opening immediately. "
+                    f"Say something like 'honestly been working on some merch for my Soul Ties project, dropping it real soon, got two drops — "
                     f"one for Soul Ties and one for the Yeti Gang 🤍 tees hoodies hats' — "
                     f"ask 'you trying to be one of the first to grab something?' — "
                     f"when they say yes, drop the merch link: {_MERCH_LINK} — "
