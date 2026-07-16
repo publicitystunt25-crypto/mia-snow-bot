@@ -551,7 +551,7 @@ def update_fan_after_message(user_id, messages):
         updates["sent_youtube"] = True
     if "linktr.ee/msnow1" in combined:
         updates["sent_onlyfans"] = True
-    if "miasnow.printful.me" in combined or "fanlink.tv/wSNt" in combined:
+    if "miasnow.printful.me" in combined or "fanlink.tv/wSNt" in combined or "/go/merch" in combined:
         updates["sent_merch"] = True
     if "fanlink.tv/wSNt" in combined:
         updates["sent_soulties"] = True
