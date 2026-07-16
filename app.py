@@ -1734,6 +1734,31 @@ def handle_reply(sender_id):
             print(f"[blocked_reply] reply has no words for {sender_id}: {repr(reply)}")
             return
 
+        # ── Hard merch closer — fires after 3+ exchanges if fan isn't new and merch not sent ──
+        _hm_profile = get_fan_profile(sender_id)
+        _hm_total = (_hm_profile.get("total_messages") or 0) if _hm_profile else 0
+        _hm_sent = (_hm_profile.get("sent_merch") or False) if _hm_profile else True
+        _hm_bought = (_hm_profile.get("bought_merch") or False) if _hm_profile else True
+        _hm_session_replies = sum(1 for m in history if m.get("role") == "assistant")
+        _merch_link_url = make_link("merch", sender_id)
+        _merch_already_in_reply = "printful" in reply.lower() or "/go/merch" in reply.lower()
+        if (
+            _hm_total >= 10
+            and not _hm_sent
+            and not _hm_bought
+            and _hm_session_replies >= 3
+            and not _merch_already_in_reply
+        ):
+            _merch_closers = [
+                f"oh and lowkey — i just dropped some new merch 👀 you tryna be first before i announce? {_merch_link_url}",
+                f"lowkey tho i just finished some album merch and it's not even announced yet 👀 {_merch_link_url}",
+                f"wait before i forget — i got new merch dropping soon, you wanna see it first? 👀 {_merch_link_url}",
+                f"oh and i just dropped some merch for the soul ties album 🤍 grab it before i announce it {_merch_link_url}",
+            ]
+            _merch_add = random.choice(_merch_closers)
+            reply = reply.rstrip() + "\n\n" + _merch_add
+        # ─────────────────────────────────────────────────────────────────────
+
         if "[SEND_PHOTO]" in reply:
             reply_text = reply.replace("[SEND_PHOTO]", "").strip()
             if reply_text:
