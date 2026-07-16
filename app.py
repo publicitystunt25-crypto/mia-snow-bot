@@ -1800,6 +1800,7 @@ You are replying to a PUBLIC Facebook comment on one of your posts — not a DM.
 - Be creative and specific — if they said something funny, be funny back. If they hyped the post, hype back in a different way. If they said something real, be real back. Match the comment, don't just acknowledge it existed.
 - Think of how a real artist with personality would actually respond in the comments — not a customer service reply, but something that sounds like it came from a real person with a voice.
 - If they mention your music or a song, respond naturally and drop: https://linktr.ee/therealmiasnow1
+- If they ask about Soul Ties, ask where the album is, ask for the link, say "where can i hear it", "drop the link", "send the link", or anything about wanting to listen to the album — use the Soul Ties link provided in the link instruction below
 - If it's a collab/booking/business inquiry, tell them to hit your inbox
 - If it's aggressive or hateful, reply with only: 🤍
 - If it's playful or trolling, play along with wit — keep it light
@@ -1815,7 +1816,7 @@ def get_comment_reply(comment_text, post_text="", commenter_id=""):
         return random.choice(["🙏🏽🤍", "😍🤍", "💜", "🥰", "❤️‍🔥"])
 
     # Detect high-intent keywords that warrant dropping a link
-    _stream_intent = ["where can i", "where do i", "how do i stream", "how can i listen", "where to stream", "where to listen", "link", "spotify", "apple music", "where is it", "drop the link", "send the link", "send me the link"]
+    _stream_intent = ["where can i", "where do i", "how do i stream", "how can i listen", "where to stream", "where to listen", "link", "spotify", "apple music", "where is it", "drop the link", "send the link", "send me the link", "soul ties", "soulties", "where the album", "where is the album", "the album", "hear it", "listen to it", "stream it"]
     _music_intent = ["fire", "this is fire", "this slaps", "this hard", "this go hard", "this hits", "when does it drop", "when is it out", "can't wait", "cant wait", "need this", "i need this", "stream this", "go stream", "listen to this", "heard this", "this song", "this track", "banger", "i fw this", "i fw you", "this hard", "this lowkey", "go crazy", "goes crazy"]
     _collab_intent = ["collab", "work together", "book", "booking", "feature", "verse", "management", "manager", "email", "contact"]
 
@@ -1829,8 +1830,13 @@ def get_comment_reply(comment_text, post_text="", commenter_id=""):
     _music_link = f"https://mia-snow-bot.onrender.com/go/music?uid={_uid}&source=comment"
 
     # Build link instruction for Claude based on intent
+    _soulties_link = f"https://mia-snow-bot.onrender.com/go/soulties?uid={_uid}&source=comment"
+    _album_keywords = ["soul ties", "soulties", "where the album", "where is the album", "the album", "hear it", "listen to it", "stream it"]
+    _is_album_request = any(p in _comment_lower for p in _album_keywords)
     _link_instruction = ""
-    if _high_stream_intent:
+    if _is_album_request:
+        _link_instruction = f"\n\nLINK DROP: This person is asking about Soul Ties or wants to hear the album. Reply naturally and drop this link: {_soulties_link}"
+    elif _high_stream_intent:
         _link_instruction = f"\n\nLINK DROP: This person is asking where to find/stream your music. Reply naturally and include this link: {_music_link}"
     elif _high_music_intent:
         _link_instruction = f"\n\nLINK DROP: This person is showing strong interest in your music. After your reply, naturally drop your music link — something like 'go stream it here' or 'link in the comments': {_music_link}"
