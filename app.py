@@ -1190,40 +1190,9 @@ def get_mia_reply(user_id):
             conn2.close()
         if profile.get('funnel_restarted') and not profile.get('listened_to_music'):
             facts.append(f"YOUTUBE PUSH: You've talked to this person before but they haven't listened to your music yet. This cycle your goal is to get them to watch a YouTube video. When the moment is right, push YouTube specifically — something like 'you gotta watch the visuals fr' and drop: {make_link('youtube', user_id)} — keep it natural, don't force it early.")
-        # ── Soul Ties merch campaign ─────────────────────────────────────────
-        # Active for all fans DM'ing tonight — ride the post energy, steer toward album + merch
-        _SOUL_TIES_ALBUM = make_link("soulties", user_id)
-        _MERCH_LINK = make_link("merch", user_id)
-        _merch_already_sent = profile.get("sent_merch")
-        _album_clicked = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("listened_to_music")
-        _bought_merch = profile.get("bought_merch")
-
-        _is_new_fan = (_total_msgs or 0) < 10
-
-        if _bought_merch:
-            facts.append("MERCH BUYER: This fan already bought merch — do NOT promote merch, the Soul Ties album campaign, or any merch links again. Just vibe with them naturally. They're already a supporter.")
-        elif _is_new_fan:
-            pass  # New fan — warm them up first, no merch campaign yet
-        elif not _merch_already_sent:
-            if not _album_clicked:
-                facts.append(
-                    f"MANDATORY TASK THIS CONVERSATION — YOU MUST DO THIS: Bring up the merch before this conversation ends. No exceptions. "
-                    f"If they mention the photo or zodiac, address it in ONE reply then pivot. If they ask what you're up to or how you're doing — use that immediately. "
-                    f"If there's no opening, CREATE one: 'lowkey tho i just dropped some merch to rep my album Soul Ties and my supporters Yeti Gang 👀 you trying to be first?' "
-                    f"When they show interest say the merch represents two things — her album Soul Ties and her supporters Yeti Gang (everyone who rocks with her). Drop the album link: {_SOUL_TIES_ALBUM} "
-                    f"Tell them once they check it out you'll send the merch link before anyone else. "
-                    f"Two collections: Soul Ties (album merch) + Yeti Gang (for her supporters — tees, hoodies, hats). YOU MUST BRING THIS UP."
-                )
-            else:
-                facts.append(
-                    f"MANDATORY TASK THIS CONVERSATION — YOU MUST DO THIS: This fan already heard the music so skip the album. Bring up merch before this conversation ends. No exceptions. "
-                    f"If they mention the photo or zodiac, address it in ONE reply then pivot. If they ask what you're up to — use that immediately. "
-                    f"If there's no opening, CREATE one: 'lowkey tho i just dropped some merch to rep my album Soul Ties and my supporters Yeti Gang 👀 you trying to be first?' "
-                    f"When they say yes, explain it represents two things — her album Soul Ties and her supporters Yeti Gang (everyone who rocks with her). Drop the merch link: {_MERCH_LINK} "
-                    f"Then say 'it's not even announced yet so you're literally getting it before anyone else 🤍' "
-                    f"Two collections: Soul Ties (album merch) + Yeti Gang (for her supporters — tees, hoodies, hats). YOU MUST BRING THIS UP."
-                )
-        # ─────────────────────────────────────────────────────────────────────
+        # Merch — only mention if fan asks directly or it comes up naturally
+        if profile.get("bought_merch"):
+            facts.append("MERCH BUYER: This fan already bought merch — do NOT promote merch again. Just vibe with them naturally. They're already a supporter.")
 
         # Music platform — send the right link per fan
         music_platform = profile.get("music_platform")
@@ -1684,22 +1653,8 @@ def handle_reply(sender_id):
 
         reply = get_mia_reply(sender_id)
 
-        # ── Merch interest fast-reply — fan responded to merch tease, send link fast ──
-        _last_bot_msg = next((m.get("content", "") for m in reversed(history) if m.get("role") == "assistant"), "")
-        _merch_was_teased = ("merch" in _last_bot_msg.lower() or "announce" in _last_bot_msg.lower()) and not profile.get("sent_merch")
-        _interest_triggers = [
-            "send me the link", "send the link", "drop the link", "drop it", "send it",
-            "yes", "yea", "yeah", "yep", "yup", "fasho", "for sure", "bet", "ok", "okay",
-            "i want it", "i'm in", "im in", "let me see", "lemme see", "i want one",
-            "where", "how", "send", "link", "hook me up", "put me on",
-        ]
-        _fan_showing_interest = _merch_was_teased and any(t in _clean.lower() for t in _interest_triggers)
-        # ─────────────────────────────────────────────────────────────────────
-
         # Delay — phase system takes priority, then normal logic
-        if _fan_showing_interest:
-            delay = random.randint(10, 30)
-        elif phase_delay is not None:
+        if phase_delay is not None:
             delay = phase_delay
         elif funnel_complete and safety_net_fired:
             delay = random.randint(100, 120)
@@ -1720,7 +1675,7 @@ def handle_reply(sender_id):
         elif high_volume_day:
             delay = 1200
         elif len(history) <= len(messages):
-            delay = random.randint(8, 12)
+            delay = random.randint(60, 180)
         elif len(reply) > 100:
             delay = random.randint(28, 38)
         else:
@@ -1729,7 +1684,7 @@ def handle_reply(sender_id):
         # Late night slowdown — between 11pm and 6am EST, add a natural delay
         import datetime as _dtnow
         _hour_est = _dtnow.datetime.now(_dtnow.timezone(_dtnow.timedelta(hours=-4))).hour
-        if (_hour_est >= 23 or _hour_est < 6) and not _fan_showing_interest:
+        if _hour_est >= 23 or _hour_est < 6:
             delay += random.randint(120, 480)  # add 2-8 extra minutes late night
 
         time.sleep(delay)
@@ -1751,31 +1706,6 @@ def handle_reply(sender_id):
         if not _reply_text:
             print(f"[blocked_reply] reply has no words for {sender_id}: {repr(reply)}")
             return
-
-        # ── Hard merch closer — fires after 3+ exchanges if fan isn't new and merch not sent ──
-        _hm_profile = get_fan_profile(sender_id)
-        _hm_total = (_hm_profile.get("total_messages") or 0) if _hm_profile else 0
-        _hm_sent = (_hm_profile.get("sent_merch") or False) if _hm_profile else True
-        _hm_bought = (_hm_profile.get("bought_merch") or False) if _hm_profile else True
-        _hm_session_replies = sum(1 for m in history if m.get("role") == "assistant")
-        _merch_link_url = make_link("merch", sender_id)
-        _merch_already_in_reply = "printful" in reply.lower() or "/go/merch" in reply.lower()
-        if (
-            _hm_total >= 10
-            and not _hm_sent
-            and not _hm_bought
-            and _hm_session_replies >= 1
-            and not _merch_already_in_reply
-        ):
-            _merch_closers = [
-                f"oh and lowkey — i just dropped some new merch 👀 you tryna be first before i announce? {_merch_link_url}",
-                f"lowkey tho i just finished some album merch and it's not even announced yet 👀 {_merch_link_url}",
-                f"wait before i forget — i got new merch dropping soon, you wanna see it first? 👀 {_merch_link_url}",
-                f"oh and i just dropped some merch for the soul ties album 🤍 grab it before i announce it {_merch_link_url}",
-            ]
-            _merch_add = random.choice(_merch_closers)
-            reply = reply.rstrip() + "\n\n" + _merch_add
-        # ─────────────────────────────────────────────────────────────────────
 
         if "[SEND_PHOTO]" in reply:
             reply_text = reply.replace("[SEND_PHOTO]", "").strip()
