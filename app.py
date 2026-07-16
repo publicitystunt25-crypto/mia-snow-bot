@@ -23,7 +23,7 @@ IG_ACCESS_TOKEN = os.environ.get("IG_ACCESS_TOKEN")
 IG_VERIFY_TOKEN = os.environ.get("IG_VERIFY_TOKEN", "miasnow_ig_2026")
 FB_COMMENTS_PAGE_TOKEN = os.environ.get("FB_COMMENTS_PAGE_TOKEN")
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "miasnow2024")
-MAX_HISTORY = 20
+MAX_HISTORY = 10
 OWNER_ID = "506635664"  # Nathaniel Peterson
 BOT_BASE_URL = os.environ.get("BOT_BASE_URL", "https://mia-snow-bot.onrender.com")
 
@@ -90,7 +90,7 @@ If anyone references one of your songs by name — even if you don't recognize t
 IMPORTANT: Always use the tracked links provided in the fan profile context. Those are personalized per fan — never make up or hardcode URLs.
 
 How you talk to fans:
-- Keep replies short and conversational — 2 to 3 sentences max. NEVER write a long response no matter how long the other person's message is. Match the energy, not the length.
+- Keep replies short and conversational — 3 sentences MAX, and only use all 3 when you genuinely need them to get the point and emotion across. Most replies should be 1-2 sentences. NEVER write a long response no matter how long the other person's message is. If their message covers 5 topics, pick the one worth responding to and ignore the rest. Match the energy, not the length.
 - When opening a conversation, keep it simple — something like "hey how you doing?" or "what's good?"
 - HARD RULE: NEVER ask "what you been up to", "what you been into", "what you been on", "what you been doing", or ANY variation. Completely banned.
 - You are only allowed to ask ONE question per message — never stack two questions together.
@@ -1614,6 +1614,47 @@ def handle_reply(sender_id):
                 send_message(sender_id, _shortcut_reply)
             print(f"[shortcut] sent '{_shortcut_reply}' to {sender_id} — skipped Claude")
             return
+
+        # ── Compliment / small talk shortcut (skip Claude for simple messages) ──
+        _profile_check = get_fan_profile(sender_id)
+        _merch_needed = _profile_check and not _profile_check.get("sent_merch") and (_profile_check.get("total_messages", 0) or 0) >= 10 and not _profile_check.get("bought_merch")
+        if not _merch_needed:
+            _compliment_triggers = [
+                "love yo pics", "love your pics", "love ur pics", "you beautiful", "ur beautiful",
+                "you're beautiful", "you fine", "ur fine", "you so fine", "you sexy", "ur sexy",
+                "you gorgeous", "ur gorgeous", "you pretty", "ur pretty", "you cute", "ur cute",
+                "love yo page", "love your page", "love ur page", "you bad", "you a baddie",
+                "ur a baddie", "you look good", "u look good", "looking good", "you stunning",
+            ]
+            _small_talk_triggers = [
+                "how you doing", "how are you", "how u doing", "how you been", "how u been",
+                "what you up to", "what u up to", "what you doing", "what u doing", "wyd",
+                "what's good", "whats good", "what's up", "whats up", "wsg", "wassup",
+                "just checking on you", "just checking in", "thinking about you", "thinking bout you",
+                "miss you", "i miss you", "i miss u", "missed you",
+            ]
+            _compliment_replies = [
+                "aww thank you 🤍", "aww stop it 🥰", "appreciate that fr 🤍",
+                "aww you so sweet 🤍", "thank you boo 🤍", "aww 🥰🤍",
+                "stop it you sweet fr 🤍", "aww that means a lot fr 🤍",
+            ]
+            _small_talk_replies = [
+                "i'm good fr, just vibing 🤍 you good?", "i'm chilling fr, you?",
+                "good just been busy fr, you good tho?", "i'm good 🤍 what you been up to?",
+                "chilling fr 🤍 you?", "i'm good, just relaxing. you good?",
+            ]
+            _clean_lower = _clean.lower()
+            if any(t in _clean_lower for t in _compliment_triggers):
+                _shortcut_reply = random.choice(_compliment_replies)
+            elif any(t in _clean_lower for t in _small_talk_triggers) and len(_clean) < 40:
+                _shortcut_reply = random.choice(_small_talk_replies)
+            if _shortcut_reply is not None:
+                time.sleep(random.randint(15, 45))
+                if not is_paused(sender_id) and not is_blocked(sender_id):
+                    save_message(sender_id, "assistant", _shortcut_reply)
+                    send_message(sender_id, _shortcut_reply)
+                print(f"[shortcut_compliment] sent preset to {sender_id} — skipped Claude")
+                return
         # ────────────────────────────────────────────────────────────────────
 
         reply = get_mia_reply(sender_id)
