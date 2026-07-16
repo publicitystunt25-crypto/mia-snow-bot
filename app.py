@@ -3347,13 +3347,15 @@ def dashboard_export():
 
 @app.route("/dashboard/orphans")
 def dashboard_orphans():
-    """Find fans who have messages but no fan_profiles record."""
+    """Find fans with messages but no profile, or profiles with wrong total_messages. Fix both."""
     password = request.args.get("password", "")
     if password != DASHBOARD_PASSWORD:
         return "Unauthorized", 401
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # Find true orphans (messages but no profile)
     cur.execute("""
         SELECT m.user_id, COUNT(*) as message_count,
                MIN(m.created_at) as first_message, MAX(m.created_at) as last_message
@@ -3364,22 +3366,62 @@ def dashboard_orphans():
         ORDER BY message_count DESC
     """)
     orphans = cur.fetchall()
+
+    # Also find profiles with total_messages = 0 but actual messages exist
+    cur.execute("""
+        SELECT fp.user_id, COUNT(m.id) as real_count
+        FROM fan_profiles fp
+        JOIN messages m ON m.user_id = fp.user_id AND m.role = 'user'
+        WHERE fp.total_messages = 0 OR fp.total_messages IS NULL
+        GROUP BY fp.user_id
+        HAVING COUNT(m.id) > 0
+    """)
+    undercounted = cur.fetchall()
+
     cur.close()
     conn.close()
 
-    # Auto-create missing profiles while we're here
+    # Create missing profiles with correct message count
     fixed = []
     for o in orphans:
         uid = o["user_id"]
         try:
-            upsert_fan_profile(uid)
+            conn2 = get_conn()
+            cur2 = conn2.cursor()
+            cur2.execute(
+                "INSERT INTO fan_profiles (user_id, total_messages, first_message_at, last_message_at) "
+                "VALUES (%s, %s, %s, %s) ON CONFLICT (user_id) DO NOTHING",
+                (uid, o["message_count"], o["first_message"], o["last_message"])
+            )
+            conn2.commit()
+            cur2.close()
+            conn2.close()
             fixed.append(uid)
         except Exception as e:
             print(f"[orphan_fix] failed for {uid}: {e}")
 
+    # Fix undercounted profiles
+    recounted = []
+    for u in undercounted:
+        uid = u["user_id"]
+        try:
+            conn3 = get_conn()
+            cur3 = conn3.cursor()
+            cur3.execute(
+                "UPDATE fan_profiles SET total_messages = %s WHERE user_id = %s",
+                (u["real_count"], uid)
+            )
+            conn3.commit()
+            cur3.close()
+            conn3.close()
+            recounted.append(uid)
+        except Exception as e:
+            print(f"[orphan_recount] failed for {uid}: {e}")
+
     return jsonify({
         "orphans_found": len(orphans),
         "profiles_created": len(fixed),
+        "undercounted_fixed": len(recounted),
         "fans": [dict(o) for o in orphans]
     })
 
