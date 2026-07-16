@@ -303,6 +303,7 @@ def init_db():
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS music_followup_sent BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_soulties BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS bought_merch BOOLEAN DEFAULT FALSE")
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'en'")
     cur.execute("ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'dm'")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS link_clicks (
@@ -403,6 +404,9 @@ def extract_nickname(text):
 def update_fan_after_message(user_id, messages):
     """Update fan profile stats and extract key details from conversation."""
     profile = get_fan_profile(user_id)
+    if not profile:
+        upsert_fan_profile(user_id)
+        profile = get_fan_profile(user_id)
     if not profile:
         return
 
@@ -1252,7 +1256,24 @@ def get_mia_reply(user_id):
     _now = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=-4)))  # Eastern Time
     _date_context = f"[Current date/time: {_now.strftime('%A, %B %d, %Y at %I:%M %p')} Eastern Time. Use this to know what day, month, and year it is so you never reference outdated location info or events.]"
 
-    _lang_context = f"[LANGUAGE RULE: Detect the language the fan is writing in from their most recent message and reply in that same language. If they write in Spanish, reply in Spanish. If French, reply in French. If Portuguese, reply in Portuguese. Always match their language. If they write in English, reply in English.]"
+    _fan_language = profile.get("language", "en") if profile else "en"
+
+    # Detect language from latest fan message and save if non-English
+    _latest_fan_msg = next((m["content"] for m in reversed(history) if m["role"] == "user"), "")
+    _spanish_words = ["que", "con", "para", "como", "pero", "hay", "una", "los", "las", "del", "por", "este", "esta", "eso", "esa", "también", "está", "más", "todo", "quiero", "puedo", "amor", "vida", "gracias", "hola", "cómo", "qué", "sí"]
+    _spanish_hits = sum(1 for w in _spanish_words if f" {w} " in f" {_latest_fan_msg.lower()} ")
+    if _spanish_hits >= 2 and _fan_language != "es":
+        _fan_language = "es"
+        try:
+            _lc = get_conn(); _lcur = _lc.cursor()
+            _lcur.execute("UPDATE fan_profiles SET language = 'es' WHERE user_id = %s", (user_id,))
+            _lc.commit(); _lcur.close(); _lc.close()
+        except Exception: pass
+
+    if _fan_language == "es":
+        _lang_context = "[LANGUAGE RULE: This fan speaks Spanish. You MUST reply entirely in Spanish. Do not use English at all. Match their tone and slang in Spanish.]"
+    else:
+        _lang_context = "[LANGUAGE RULE: Detect the language the fan is writing in and reply in that same language. If they write in Spanish, reply in Spanish. If French, reply in French. Default to English.]"
 
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
@@ -3277,6 +3298,47 @@ def dashboard_export():
     csv = "\n".join(lines)
 
     return Response(csv, mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=mia_snow_fans.csv"})
+
+
+# ── Orphaned fan scan ────────────────────────────────────────────────────────
+
+@app.route("/dashboard/orphans")
+def dashboard_orphans():
+    """Find fans who have messages but no fan_profiles record."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return "Unauthorized", 401
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("""
+        SELECT m.user_id, COUNT(*) as message_count,
+               MIN(m.created_at) as first_message, MAX(m.created_at) as last_message
+        FROM messages m
+        LEFT JOIN fan_profiles fp ON m.user_id = fp.user_id
+        WHERE fp.user_id IS NULL AND m.role = 'user'
+        GROUP BY m.user_id
+        ORDER BY message_count DESC
+    """)
+    orphans = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    # Auto-create missing profiles while we're here
+    fixed = []
+    for o in orphans:
+        uid = o["user_id"]
+        try:
+            upsert_fan_profile(uid)
+            fixed.append(uid)
+        except Exception as e:
+            print(f"[orphan_fix] failed for {uid}: {e}")
+
+    return jsonify({
+        "orphans_found": len(orphans),
+        "profiles_created": len(fixed),
+        "fans": [dict(o) for o in orphans]
+    })
 
 
 # ── Link tracking ────────────────────────────────────────────────────────────
