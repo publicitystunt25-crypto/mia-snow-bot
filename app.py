@@ -39,7 +39,15 @@ TRACKED_LINKS = {
     "merch":      "https://miasnow.printful.me/",
     "soulties":   "https://fanlink.tv/wSNt",
     "music":      "https://linktr.ee/therealmiasnow1",  # fallback if platform unknown
+    # Traffic source links — all go to messenger, tracked separately
+    "src-ig":     "https://m.me/therealmiasnow1",
+    "src-tiktok": "https://m.me/therealmiasnow1",
+    "src-twitter": "https://m.me/therealmiasnow1",
+    "src-email":  "https://m.me/therealmiasnow1",
 }
+
+# These link names are traffic-source trackers (not content links) — shown in their own chart
+SOURCE_LINKS = {"src-ig", "src-tiktok", "src-twitter", "src-email"}
 
 def make_link(name, user_id):
     return f"{BOT_BASE_URL}/go/{name}?uid={user_id}"
@@ -1738,6 +1746,12 @@ def handle_reply(sender_id):
         if is_paused(sender_id) or is_blocked(sender_id):
             return
 
+        # If owner manually replied while Claude was thinking, stand down
+        if sender_id in _manual_replied:
+            _manual_replied.discard(sender_id)
+            print(f"[manual_reply] owner replied while Claude was thinking — standing down for {sender_id}")
+            return
+
         # Safety filter — never send meta/instruction words as a message
         reply = reply.replace(" — ", ", ").replace("—", ", ")
 
@@ -2136,6 +2150,10 @@ function renderDash(data) {
       <canvas id="growthChart" height="80"></canvas>
     </div>
     <div id="linkStats" style="display:none"></div>
+    <div id="trafficSourcesWrap" class="chart-wrap" style="display:none;margin-top:20px">
+      <h3 style="color:#888;font-size:13px;font-weight:500;margin-bottom:12px">📡 Traffic Sources — Where fans came from</h3>
+      <canvas id="trafficChart" height="60"></canvas>
+    </div>
     <div class="controls">
       <input type="text" id="search" placeholder="Search name or city..." oninput="filterTable()">
       <select id="vibeFilter" onchange="filterTable()">
@@ -2191,6 +2209,7 @@ function renderDash(data) {
   window._linkClickTiles = data.stats.link_clicks || [];
   window._linkClickTilesComment = data.stats.link_clicks_comment || [];
   window._linkRange = data.stats.link_range || 'all';
+  window._trafficSources = data.stats.traffic_sources || [];
 
   const linkColors = { spotify: '#1DB954', apple: '#fc3c44', youtube: '#FF0000', otw: '#f97316', ionwantto: '#fb923c', instagram: '#e1306c', exclusive: '#a855f7', blast: '#3b82f6', merch: '#f59e0b', music: '#22d3ee' };
   const linkNames  = { spotify: '🎵 Spotify', apple: '🍎 Apple Music', youtube: '▶️ YouTube', otw: '🎬 OTW Video', ionwantto: '🎬 Ion Want To', instagram: '📸 Instagram', exclusive: '🔒 Exclusive', blast: '📋 Blast List', merch: '👕 Merch', music: '🔗 Linktree (fallback)' };
@@ -2211,6 +2230,37 @@ function renderDash(data) {
   document.getElementById('linkStats').innerHTML =
     renderClickTiles(clicks, '💬 From DMs', '#888') +
     renderClickTiles(clicksComment, '🗨️ From Comments', '#a78bfa');
+
+  // Traffic sources chart
+  const srcWrap = document.getElementById('trafficSourcesWrap');
+  const srcData = window._trafficSources || [];
+  if (srcData.length) {
+    srcWrap.style.display = 'block';
+    const srcColors = { ig: '#e1306c', tiktok: '#69C9D0', twitter: '#1DA1F2', email: '#f59e0b' };
+    const srcNames  = { ig: 'Instagram', tiktok: 'TikTok', twitter: 'Twitter/X', email: 'Email Blast' };
+    if (window._trafficChartInstance) { window._trafficChartInstance.destroy(); window._trafficChartInstance = null; }
+    const tCtx = document.getElementById('trafficChart').getContext('2d');
+    window._trafficChartInstance = new Chart(tCtx, {
+      type: 'bar',
+      data: {
+        labels: srcData.map(s => srcNames[s.link] || s.link),
+        datasets: [{
+          data: srcData.map(s => s.clicks),
+          backgroundColor: srcData.map(s => srcColors[s.link] || '#9333ea'),
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#888' }, grid: { color: '#1a1a1a' } },
+          y: { ticks: { color: '#888', stepSize: 1 }, grid: { color: '#1a1a1a' }, beginAtZero: true }
+        }
+      }
+    });
+  } else {
+    srcWrap.style.display = 'none';
+  }
 
   filterTable();
   window._activeTab   = 'fans';
@@ -2981,6 +3031,10 @@ def dashboard_data():
             link_clicks_by_day[ln] = []
         link_clicks_by_day[ln].append({"day": str(r["day"]), "clicks": r["clicks"]})
 
+    # Traffic source clicks (src-ig, src-tiktok, src-twitter, src-email)
+    cur.execute("SELECT link_name, COUNT(*) as clicks FROM link_clicks WHERE link_name LIKE 'src-%' GROUP BY link_name ORDER BY clicks DESC")
+    traffic_sources = [{"link": r["link_name"].replace("src-", ""), "clicks": r["clicks"]} for r in cur.fetchall()]
+
     cur.close()
     conn.close()
 
@@ -3037,6 +3091,7 @@ def dashboard_data():
             "link_clicks_comment": link_clicks_comment,
             "link_clicks_by_day": link_clicks_by_day,
             "link_range": link_range,
+            "traffic_sources": traffic_sources,
         }
     })
 
@@ -3631,7 +3686,12 @@ def webhook():
             if event.get("message", {}).get("is_echo"):
                 fan_id = event.get("recipient", {}).get("id")
                 if fan_id:
-                    if text.endswith("..."):
+                    if text.strip().lower() == "take care":
+                        block_user(fan_id)
+                        with _pending_lock:
+                            _pending.pop(fan_id, None)
+                        print(f"[take_care] bot blocked for {fan_id}")
+                    elif text.endswith("..."):
                         pause_user(fan_id)
                         print(f"Bot paused for {fan_id}")
                     elif text.endswith("!!"):
