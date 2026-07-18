@@ -87,6 +87,8 @@ Your music catalog (songs you've released — know these naturally):
 - "Like Me Now"
 If anyone references one of your songs by name — even if you don't recognize the title — always own it naturally. Say things like "omg thank you fr", "that one means a lot to me", "glad you fw that one" — never correct them, never say you don't have a song by that name, never ask them to clarify which track. Just go with it and be grateful.
 
+HARD RULE — Go along with everything: If a fan references a video, post, story, photo, or anything they saw of you — even if it's unclear or you don't know exactly what they're talking about — NEVER say "i'm not catching what you're saying", "what do you mean", "you good?", or ask them to clarify. Just go with it naturally. If they say they saw you wilding out with your homegirl, laugh and own it — "lol yeah that's my girl fr, we always on some wild stuff 😂". If they reference something specific you can't place, keep it vague but real — "lol you saw that?? 😭" or "we stay on some mess fr". Never make a fan feel like you don't know what they're talking about.
+
 Yeti Gang: This is the name of your movement and your community — anyone who rocks with Mia and supports her is Yeti Gang. It's also the name of one of your merch collections (tees, hoodies, hats). If a fan asks what Yeti Gang is, explain it as your movement first: "yeti gang is my people fr — everyone who rocks with me and supports the movement. it's also a merch collection i got dropping 🤍". Never describe it as just a collection.
 
 Soul Ties: This is your album. The Soul Ties merch collection is named after it.
@@ -143,7 +145,7 @@ Flirting and personal conversation:
 - If someone asks about your OnlyFans, exclusive content, or offers to send you money, be playful and say you got some stuff on there, then drop the link: https://linktr.ee/msnow1 — do NOT send them the blast list signup after this. IMPORTANT: Only send this link if they are clearly asking about exclusive/adult content or OnlyFans specifically. If they say "subscription" in the context of music (like Spotify, Apple Music, streaming), treat it as a music question and send the music link instead — NOT the OnlyFans link.
 - Never describe the exclusive content link as "cool stuff" — just say "i got some stuff on there" or "i got you over there"
 - If someone asks about merch or clothing, send them here: https://miasnow.printful.me/
-- If someone asks for a selfie, a pic, or a photo of you — you CAN send one. Write a short natural message like "here you go 🤍" or "here 😊" or "here you go babe" or "here ya go" or "wait don't judge me 😭", then on the VERY NEXT LINE write exactly: [SEND_PHOTO] — this sends them an actual photo. Do not say you can't send photos, do not make them wait, keep it simple and warm.
+- If someone asks for a selfie, a pic, or a photo of you — you CAN send one. Write a short natural message like "here you go 🤍" or "here 😊" or "here you go babe" or "here ya go" or "wait don't judge me 😭", then on the VERY NEXT LINE write exactly: [SEND_PHOTO] — this sends them an actual photo. Do not say you can't send photos, do not make them wait, keep it simple and warm. HARD RULE: If you already sent a photo earlier in this conversation (you will see [photo] in the history), do NOT send another one unless they explicitly ask for another photo. Never send a photo twice in the same conversation unprompted.
 - HARD RULE: When someone gives you a compliment — about your looks, your music, your vibe, anything — you MUST acknowledge it first before responding to anything else in their message. Never skip over a compliment. If they say "you beautiful as hell" and also mention something else, thank them for the compliment first, then respond to the rest. Options: "thanks love 🤍", "aww thank you", "that means a lot fr", "i appreciate that", "you so sweet for that", "that just made my day", "aww stop it 😊" — rotate naturally, never repeat the same one back to back in a conversation.
 - HARD RULE: If someone calls you sexy, beautiful, fine, their favorite, or compliments YOU as a person — respond to THAT. Do not interpret it as them talking about your music or a song. "My favorite sexy like always" means they're calling you their favorite sexy girl — respond warmly to the compliment, NOT as if they're talking about a track. Read the message carefully before assuming it's about music.
 - Never call anyone "babe" — ever
@@ -553,15 +555,15 @@ def update_fan_after_message(user_id, messages):
                 break
 
     # Detect links sent
-    if "spotify.com" in combined or "fanlink.tv" in combined or "therealmiasnow1" in combined:
+    if "spotify.com" in combined or "fanlink.tv" in combined or "therealmiasnow1" in combined or "/go/spotify" in combined or "/go/apple" in combined or "/go/music" in combined:
         updates["sent_spotify"] = True
-    if "youtube.com" in combined:
+    if "youtube.com" in combined or "/go/youtube" in combined or "/go/otw" in combined or "/go/ionwantto" in combined:
         updates["sent_youtube"] = True
-    if "linktr.ee/msnow1" in combined:
+    if "linktr.ee/msnow1" in combined or "/go/exclusive" in combined:
         updates["sent_onlyfans"] = True
     if "miasnow.printful.me" in combined or "fanlink.tv/wSNt" in combined or "/go/merch" in combined:
         updates["sent_merch"] = True
-    if "fanlink.tv/wSNt" in combined:
+    if "fanlink.tv/wSNt" in combined or "/go/soulties" in combined:
         updates["sent_soulties"] = True
 
     # Detect if fan confirmed they bought merch
@@ -602,7 +604,14 @@ def update_fan_after_message(user_id, messages):
         "i love it", "i love your music", "i fw your music", "i been listening",
         "been listening", "heard it", "i heard it", "already heard", "i played it",
         "played it", "i streamed", "streamed it", "watched the video", "watched your video",
-        "favorite song", "favourite song", "my favorite", "that song", "which song"
+        "favorite song", "favourite song", "my favorite", "that song", "which song",
+        "i already", "already listened", "i've listened", "ive listened",
+        "i know your music", "been rocking", "been fw", "i rock with",
+        "been knowing", "knew about", "i already know", "lol i already",
+        "been listening to you", "been following", "i fw the", "i fw ur",
+        "i fw your", "riding with", "been riding", "i was riding",
+        "go crazy", "goes crazy", "just go crazy", "the whole", "the project",
+        "the album", "soul ties", "ion want to", "on the way", "otw",
     ]
     if any(p in user_text for p in listened_phrases):
         updates["listened_to_music"] = True
@@ -611,17 +620,24 @@ def update_fan_after_message(user_id, messages):
     # Extract favorite song if fan mentions one
     if not profile.get("favorite_song"):
         import re as _re
-        fav_patterns = [
-            r"(?:my favorite|i love|i fw|i like|favorite song is|favourite song is|that song)[^\w]+([\w\s'&]+?)(?:\s+is|\s+was|\s+hit|\.|$)",
-            r"(?:i fw|love|like)\s+([\w\s'&]+?)\s+(?:the most|fr|no cap|on god|fasho)",
-        ]
-        for _p in fav_patterns:
-            _m = _re.search(_p, user_text, _re.IGNORECASE)
-            if _m:
-                candidate = _m.group(1).strip()
-                if 2 < len(candidate) < 40 and candidate.lower() not in ["it", "your music", "the music", "music", "that", "this"]:
-                    updates["favorite_song"] = candidate
-                    break
+        _known_songs = ["don't let go", "no more", "falling too deep", "no service", "wyd", "ion want to", "on the way", "otw", "florida baybee", "the boy is mine", "all night long", "naked", "till the end", "mine", "get ready", "like me now", "toxic", "make you mine"]
+        for _song in _known_songs:
+            if _song in user_text:
+                updates["favorite_song"] = _song.title()
+                updates["listened_to_music"] = True
+                break
+        if not updates.get("favorite_song"):
+            fav_patterns = [
+                r"(?:my favorite|i love|i fw|i like|favorite song is|favourite song is|that song|personal fave|fave is)[^\w]+([\w\s'&]+?)(?:\s+is|\s+was|\s+hit|\.|$)",
+                r"(?:i fw|love|like)\s+([\w\s'&]+?)\s+(?:the most|fr|no cap|on god|fasho)",
+            ]
+            for _p in fav_patterns:
+                _m = _re.search(_p, user_text, _re.IGNORECASE)
+                if _m:
+                    candidate = _m.group(1).strip()
+                    if 2 < len(candidate) < 40 and candidate.lower() not in ["it", "your music", "the music", "music", "that", "this"]:
+                        updates["favorite_song"] = candidate
+                        break
 
     # Show interest
     if any(w in combined for w in ["show", "tour", "perform", "concert", "city"]):
@@ -1233,20 +1249,50 @@ def get_mia_reply(user_id):
 
     # Detect language from latest fan message and save if non-English
     _latest_fan_msg = next((m["content"] for m in reversed(history) if m["role"] == "user"), "")
-    _spanish_words = ["que", "con", "para", "como", "pero", "hay", "una", "los", "las", "del", "por", "este", "esta", "eso", "esa", "también", "está", "más", "todo", "quiero", "puedo", "amor", "vida", "gracias", "hola", "cómo", "qué", "sí"]
-    _spanish_hits = sum(1 for w in _spanish_words if f" {w} " in f" {_latest_fan_msg.lower()} ")
-    if _spanish_hits >= 2 and _fan_language != "es":
-        _fan_language = "es"
+
+    # Detect non-Latin scripts by Unicode range
+    _script_map = [
+        ("ar", lambda c: '؀' <= c <= 'ۿ'),   # Arabic
+        ("zh", lambda c: '一' <= c <= '鿿'),   # Chinese
+        ("ja", lambda c: '぀' <= c <= 'ヿ'),   # Japanese
+        ("ko", lambda c: '가' <= c <= '힯'),   # Korean
+        ("ru", lambda c: 'Ѐ' <= c <= 'ӿ'),   # Russian/Cyrillic
+        ("hi", lambda c: 'ऀ' <= c <= 'ॿ'),   # Hindi/Devanagari
+        ("th", lambda c: '฀' <= c <= '๿'),   # Thai
+        ("he", lambda c: '֐' <= c <= '׿'),   # Hebrew
+    ]
+    _detected_script = None
+    for _lang_code, _checker in _script_map:
+        if sum(1 for c in _latest_fan_msg if _checker(c)) >= 3:
+            _detected_script = _lang_code
+            break
+
+    if _detected_script and _fan_language != _detected_script:
+        _fan_language = _detected_script
         try:
             _lc = get_conn(); _lcur = _lc.cursor()
-            _lcur.execute("UPDATE fan_profiles SET language = 'es' WHERE user_id = %s", (user_id,))
+            _lcur.execute("UPDATE fan_profiles SET language = %s WHERE user_id = %s", (_detected_script, user_id))
             _lc.commit(); _lcur.close(); _lc.close()
         except Exception: pass
 
-    if _fan_language == "es":
-        _lang_context = "[LANGUAGE RULE: This fan speaks Spanish. You MUST reply entirely in Spanish. Do not use English at all. Match their tone and slang in Spanish.]"
+    # Spanish — detect by keywords (Latin script, needs word matching)
+    if not _detected_script:
+        _spanish_words = ["que", "con", "para", "como", "pero", "hay", "una", "los", "las", "del", "por", "este", "esta", "eso", "esa", "también", "está", "más", "todo", "quiero", "puedo", "amor", "vida", "gracias", "hola", "cómo", "qué", "sí"]
+        _spanish_hits = sum(1 for w in _spanish_words if f" {w} " in f" {_latest_fan_msg.lower()} ")
+        if _spanish_hits >= 2 and _fan_language != "es":
+            _fan_language = "es"
+            try:
+                _lc = get_conn(); _lcur = _lc.cursor()
+                _lcur.execute("UPDATE fan_profiles SET language = 'es' WHERE user_id = %s", (user_id,))
+                _lc.commit(); _lcur.close(); _lc.close()
+            except Exception: pass
+
+    _language_names = {"ar": "Arabic", "zh": "Chinese", "ja": "Japanese", "ko": "Korean", "ru": "Russian", "hi": "Hindi", "th": "Thai", "he": "Hebrew", "es": "Spanish"}
+    if _fan_language in _language_names:
+        _lang_name = _language_names[_fan_language]
+        _lang_context = f"[LANGUAGE RULE: This fan writes in {_lang_name}. You MUST reply entirely in {_lang_name}. Do not use English at all. Keep your tone warm, casual and natural in {_lang_name}.]"
     else:
-        _lang_context = "[LANGUAGE RULE: Detect the language the fan is writing in and reply in that same language. If they write in Spanish, reply in Spanish. If French, reply in French. Default to English.]"
+        _lang_context = "[LANGUAGE RULE: Detect the language the fan is writing in and reply in that exact language. This is a hard rule — if they write in French, reply in French. If Portuguese, reply in Portuguese. If Italian, reply in Italian. Match their language exactly. Default to English only if you genuinely cannot tell.]"
 
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
