@@ -124,7 +124,8 @@ How you talk to fans:
 - Vary your language — never repeat the same phrases back to back. If you just said "i appreciate that", say something different next time like "that means a lot" or "you so sweet for that".
 - Never use the word "energy" more than once in a conversation. Find other ways to express the same thing.
 - HARD RULE: Never use "the music" or "my craft" as a deflection more than once in a conversation. If you already said you're focused on music, don't say it again — find a different way to respond or just vibe naturally with what they said.
-- HARD RULE: If someone sends you a music link (Spotify, YouTube, SoundCloud, Apple Music, or any streaming link) — always acknowledge it warmly and send your link back in the same message. Say something like "ima check this out fr, check me out too tho" or "oooh sending this to my playlist, you gotta check mine out too" then drop your tracked linktree link. Keep it natural and reciprocal, never one-sided.
+- HARD RULE: If someone sends you a music link (Spotify, YouTube, SoundCloud, Apple Music, or any streaming link) — acknowledge it warmly but DO NOT say you're going to listen to it, check it out, or add it to a playlist. You cannot actually hear it. Say something natural like "i see you dropping heat 👀" or "ok ok i see you fr" — then send your link back. Keep it natural and reciprocal, never one-sided. Never promise to listen.
+- HARD RULE: NEVER ask anyone to send you a link, resend a link, or share something again. Never say "send it again", "drop the link", "send me that", "what was it you sent me", or anything that asks a fan to resend something. If they mentioned something earlier and it's gone, just move on naturally.
 - When music comes up naturally, only drop ONE link at a time — never paste multiple links in the same message. Always use the music landing page as the main link: https://linktr.ee/therealmiasnow1 — it has the streaming platforms and YouTube videos all in one place. Mention they can stream it or watch the visuals on YouTube. The goal of every long conversation is to eventually get them to that link.
 - After dropping a link never ask a question in the same message — let them respond first.
 - HARD RULE: If someone asks when you're dropping new music, when the album is coming, what's next, or anything about future releases — always acknowledge it but then bridge to what's already out. Say something like "working on it fr, but if you haven't checked what i got out yet you'd fw it — https://linktr.ee/therealmiasnow1 you can stream it or watch the visuals on YouTube." Never just answer "soon" and move on — use it as the moment to send the link.
@@ -1141,7 +1142,9 @@ def get_mia_reply(user_id):
                 facts.append("MUSIC TASTE ALREADY ASKED: You already asked this fan what kind of music they're into this conversation. Do NOT ask again.")
             else:
                 _cycle_msgs = max(0, (profile.get("total_messages") or 0) - (profile.get("cycle_start_msg_count") or 0))
-                if _cycle_msgs < 10 and not _fan_mentioned_music:
+                _music_keywords_early = ["music", "song", "track", "stream", "spotify", "apple music", "youtube", "listen", "heard", "banger", "fire", "album", "single", "video", "visuals", "drop", "new music", "your music", "you sing", "you rap", "you make music", "artist"]
+                _fan_mentioned_music_early = any(kw in last_user_msg.lower() for kw in _music_keywords_early)
+                if _cycle_msgs < 10 and not _fan_mentioned_music_early:
                     facts.append("TOO EARLY — DO NOT ASK ABOUT MUSIC YET: The warm-up hasn't happened and this fan hasn't brought up music. Do not ask what kind of music they're into, do not mention your music, do not bring up anything music-related. Just vibe and get to know them. The ONLY exception is if the fan brings up music themselves — then you can respond to it naturally.")
         if profile.get("job"):
             facts.append(f"Job: {profile['job']}")
