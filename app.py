@@ -1181,14 +1181,15 @@ def get_mia_reply(user_id):
         _otw_total = (profile.get("total_messages") or 0)
         _otw_warmup = profile.get("otw_warmup_count") or 0
         _otw_sent = profile.get("sent_otw")
-        if _otw_total >= 30 and not _otw_sent and _otw_warmup < 8:
+        _already_listened = profile.get("listened_to_music")
+        if _otw_total >= 30 and not _otw_sent and not _already_listened and _otw_warmup < 8:
             facts.append("OTW WARMUP: You're reconnecting with this fan before sharing something with them. Greet them warmly and just have a real conversation — ask how they've been, vibe with whatever they bring up. Don't mention music yet. Be genuinely present.")
-        elif _otw_total >= 30 and not _otw_sent and _otw_warmup >= 8:
-            facts.append(f"OTW DROP: The moment is right — share your song now. Work it in like this: respond to what they said first, then naturally transition — something like 'ok before i forget, i really want your honest opinion on something' or 'i need a real one to tell me what they think about this' — then say 'this is one of my favorites, tell me what you think fr' and drop: {make_link('otw', user_id)} — make it feel like you genuinely care what they think, not like a promo drop.")
+        elif _otw_total >= 30 and not _otw_sent and not _already_listened and _otw_warmup >= 8:
+            facts.append(f"OTW DROP: The moment is right — share your song now. Work it in like this: respond to what they said first, then naturally transition — something like 'ok before i forget, i really want your honest opinion on something' or 'i need a real one to tell me what they think about this' — then say 'this is one of my favorites, tell me what you think fr' and drop: {make_link('otw', user_id)} — make it feel like you genuinely care what they think, not like a promo drop. IMPORTANT: Only drop this link ONCE — do not send it again in future messages.")
         elif _otw_total >= 30 and _otw_sent and _otw_warmup < 11:
-            facts.append("OTW FEEDBACK: You just shared your song with this fan. Now focus on their reaction — ask what they thought, engage with their feedback genuinely, keep it warm and conversational. If they liked it, let that moment breathe. If they haven't listened yet, gently remind them to check it out when they get a chance.")
+            facts.append("OTW FEEDBACK: You shared your OTW song with this fan. Focus on their reaction — ask what they thought, engage with their feedback genuinely. If they already said they liked it or confirmed they heard it, DO NOT send the link again or ask them to check it out. Just vibe with their response.")
         elif _otw_total >= 30 and _otw_sent and _otw_warmup < 13:
-            facts.append("OTW WIND DOWN: You've gotten their feedback on your song. Now bring the conversation back to something casual and warm — let it feel natural, like two people just vibing. Don't force any topics. Keep replies short and genuine. You're easing back out naturally.")
+            facts.append("OTW WIND DOWN: You've gotten their feedback on your song. Now bring the conversation back to something casual and warm — let it feel natural, like two people just vibing. Don't force any topics. Keep replies short and genuine. You're easing back out naturally. DO NOT resend the OTW link.")
 
         # Listened status
         if profile.get("listened_to_music"):
@@ -1843,14 +1844,15 @@ def handle_reply(sender_id):
 
         # OTW tracking — increment warmup count through all phases; mark sent if link is in reply
         if profile and (profile.get("total_messages") or 0) >= 30:
-            _otw_url = "bVyAOIiGyIY"
             _otw_warmup_now = profile.get("otw_warmup_count") or 0
             _otw_sent_now = profile.get("sent_otw")
+            # Detect OTW link by either the YouTube ID or the /go/otw trackable URL
+            _otw_in_reply = "bVyAOIiGyIY" in reply or "/go/otw" in reply
             # Keep counting through warmup, drop, feedback, and cooldown phases
             if not _otw_sent_now or _otw_warmup_now < 13:
                 _otw_conn = get_conn()
                 _otw_cur = _otw_conn.cursor()
-                if _otw_url in reply and not _otw_sent_now:
+                if _otw_in_reply and not _otw_sent_now:
                     _otw_cur.execute("UPDATE fan_profiles SET sent_otw = TRUE, otw_warmup_count = otw_warmup_count + 1 WHERE user_id = %s", (sender_id,))
                 else:
                     _otw_cur.execute("UPDATE fan_profiles SET otw_warmup_count = otw_warmup_count + 1 WHERE user_id = %s", (sender_id,))
