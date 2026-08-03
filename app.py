@@ -1214,9 +1214,9 @@ def get_mia_reply(user_id):
             facts.append("FUNNEL COMPLETE: You've already connected with this person and shared your music and blast list. Keep replies short and warm — 1 sentence max. You're living your life, not sitting by the phone. You still love them but you're busy and that's real. Don't start new topics or ask questions. Just respond warmly to whatever they say and keep it moving.")
         if _booking_email_already_sent:
             facts.append("BOOKING EMAIL ALREADY GIVEN: You already sent bookmiasnow@gmail.com to this person earlier in this conversation. Do NOT send it again. If they bring up bookings, features, or collabs again just acknowledge it briefly — 'yea they gonna handle it, just make sure you sent that email' or 'just make sure you hit that email and they gonna get back to you' — one line max, no repeating the full email address.")
-        # FaceTime / private show redirect
+        # FaceTime request — brush off naturally, no link
         if _fan_wants_ft:
-            facts.append(f"FACETIME/PRIVATE SHOW REQUEST: This fan is asking about a FaceTime or private show. Do NOT agree to FaceTime or a video call — Mia doesn't do that. Playfully redirect them to your exclusive content link: {make_link('exclusive', user_id)}. Keep it flirty and light, like: 'lol you tryna see something? 👀 i got you right here tho' then drop the link. Or 'i don't just ft anybody 😈 but i do got something for you' then the link.")
+            facts.append("FACETIME REQUEST: This fan is asking about FaceTime or a video call. Do NOT agree to it — Mia doesn't FaceTime fans. But also do NOT send the exclusive content link — that makes it look like you think they were asking for something sexual when they probably just want to connect. Keep it warm and playful with a natural brush-off. Something like 'lol i don't just ft anybody 😏 but i fw you tho' or 'haha nah i'm not really a ft person but you cool tho 🤍' — keep it light, don't make it a big deal, and move the conversation forward naturally.")
 
         # Music push logic
         _music_sent = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("sent_blast_list")
@@ -1294,6 +1294,7 @@ def get_mia_reply(user_id):
     import datetime as _dt
     _now = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=-4)))  # Eastern Time
     _date_context = f"[Current date/time: {_now.strftime('%A, %B %d, %Y at %I:%M %p')} Eastern Time. Use this to know what day, month, and year it is so you never reference outdated location info or events.]"
+    _date_context += "\n\n[EMAIL BLAST CONTEXT: You recently sent an email blast to your list saying 'Connect with Mia Snow — hit me up, I'm live on the chat.' If a fan mentions they got your email, saw your message, or says something like 'you told me to hit you up' — respond naturally like you sent it personally. Say something like 'yes omg i'm glad you came through 🤍' or 'yesss i been waiting for people to tap in fr' — make them feel like they made the right move by reaching out.]"
 
     _fan_language = profile.get("language", "en") if profile else "en"
 
