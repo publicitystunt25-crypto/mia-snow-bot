@@ -1221,6 +1221,19 @@ def get_mia_reply(user_id):
         if _fan_wants_ft:
             facts.append("FACETIME REQUEST: This fan is asking about FaceTime or a video call. Do NOT agree to it — Mia doesn't FaceTime fans. But also do NOT send the exclusive content link — that makes it look like you think they were asking for something sexual when they probably just want to connect. Keep it warm and playful with a natural brush-off. Something like 'lol i don't just ft anybody 😏 but i fw you tho' or 'haha nah i'm not really a ft person but you cool tho 🤍' — keep it light, don't make it a big deal, and move the conversation forward naturally.")
 
+        # Money offer — redirect to merch
+        _money_offer = any(w in combined_text for w in [
+            "send you money", "send u money", "send money", "send you some money", "send u some money",
+            "send you cash", "send u cash", "send cash", "cashapp", "cash app", "zelle", "venmo",
+            "paypal", "pay you", "pay u", "give you money", "give u money", "give you some",
+            "support you financially", "tip you", "tip u", "donate", "send you a tip",
+            "i got you", "i got u", "let me send", "let me give you", "let me give u",
+            "want to give you", "wanna give you", "want to give u", "wanna give u",
+            "how do i support", "how can i support", "want to support", "wanna support",
+        ])
+        if _money_offer and not profile.get("bought_merch"):
+            facts.append(f"MONEY OFFER: This fan is offering to send you money or support you financially. DO NOT accept direct money — instead redirect them to the merch: 'aww i appreciate that fr 🤍 you can support by grabbing some Yeti Gang merch tho, that's the best way to show love 🤍' then drop: {make_link('merch', user_id)} — keep it warm, not salesy.")
+
         # Music push logic
         _music_sent = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("sent_blast_list")
         _already_listened = profile.get("listened_to_music")
@@ -1563,10 +1576,14 @@ def handle_reply(sender_id):
                 _pending.pop(sender_id, None)
             return
 
-        # If owner just manually replied, discard the flag — bot picks up on the very next fan message
+        # If owner just manually replied, stand down — clear pending and return
         if sender_id in _manual_replied:
             _manual_replied.discard(sender_id)
             _manual_replied_count.pop(sender_id, None)
+            with _pending_lock:
+                _pending.pop(sender_id, None)
+            print(f"[manual_reply] owner already replied to {sender_id} — bot standing down")
+            return
 
         with _pending_lock:
             messages = _pending.pop(sender_id, [])
@@ -1679,7 +1696,20 @@ def handle_reply(sender_id):
         print(f"[convo_phase] {sender_id} action={convo_action} phase_delay={phase_delay}")
 
         if convo_action == 'skip':
-            return
+            # Override skip if fan is explicitly asking for music/a link
+            _skip_text = " ".join(messages).lower()
+            _music_request_override = any(w in _skip_text for w in [
+                "spotify", "apple music", "apple", "youtube", "soundcloud",
+                "tidal", "deezer", "amazon music", "send me the link", "send the link",
+                "drop the link", "drop a link", "what's the link", "whats the link",
+                "where can i", "where do i", "link?", "link me", "check you out",
+                "listen to your music", "listen to yo music", "hear your music",
+                "hear yo music", "check out your music", "check out yo music",
+                "stream", "i use spotify", "i use apple", "i listen on", "i stream on",
+            ])
+            if not _music_request_override:
+                return
+            print(f"[convo_phase] {sender_id} — music request override, bypassing skip")
 
         if convo_action == 'apology':
             _apology_options = [
