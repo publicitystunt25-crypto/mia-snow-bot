@@ -577,15 +577,15 @@ def update_fan_after_message(user_id, messages):
                 break
 
     # Detect links sent
-    if "spotify.com" in combined or "fanlink.tv" in combined or "therealmiasnow1" in combined or "/go/spotify" in combined or "/go/apple" in combined or "/go/music" in combined:
+    if any(x in combined for x in ["spotify.com", "fanlink.tv", "therealmiasnow1", "/go/spotify", "/go/apple", "/go/music", "/go/soulties"]):
         updates["sent_spotify"] = True
-    if "youtube.com" in combined or "/go/youtube" in combined or "/go/otw" in combined or "/go/ionwantto" in combined:
+    if any(x in combined for x in ["youtube.com", "/go/youtube", "/go/otw", "/go/ionwantto", "/go/soulties-youtube"]):
         updates["sent_youtube"] = True
     if "linktr.ee/msnow1" in combined or "/go/exclusive" in combined:
         updates["sent_onlyfans"] = True
-    if "miasnow.printful.me" in combined or "fanlink.tv/wSNt" in combined or "/go/merch" in combined:
+    if any(x in combined for x in ["miasnow.printful.me", "fanlink.tv/wSNt", "/go/merch"]):
         updates["sent_merch"] = True
-    if "fanlink.tv/wSNt" in combined or "/go/soulties" in combined:
+    if any(x in combined for x in ["fanlink.tv/wSNt", "/go/soulties"]):
         updates["sent_soulties"] = True
 
     # Detect if fan confirmed they bought merch
@@ -600,7 +600,7 @@ def update_fan_after_message(user_id, messages):
     _fan_msgs_combined = " ".join(m for m in messages).lower()
     if any(p in _fan_msgs_combined for p in _bought_phrases):
         updates["bought_merch"] = True
-    if "forms.gle" in combined:
+    if "forms.gle" in combined or "/go/blast" in combined:
         updates["sent_blast_list"] = True
 
     # Detect vibe
@@ -1160,7 +1160,9 @@ def get_mia_reply(user_id):
                 _cycle_msgs = max(0, (profile.get("total_messages") or 0) - (profile.get("cycle_start_msg_count") or 0))
                 _music_keywords_early = ["music", "song", "track", "stream", "spotify", "apple music", "youtube", "listen", "heard", "banger", "fire", "album", "single", "video", "visuals", "drop", "new music", "your music", "you sing", "you rap", "you make music", "artist"]
                 _fan_mentioned_music_early = any(kw in last_user_msg.lower() for kw in _music_keywords_early)
-                if _cycle_msgs < 10 and not _fan_mentioned_music_early:
+                _total_msgs_early = profile.get("total_messages") or 0
+                _warm_up_threshold = 5 if _total_msgs_early >= 50 else 10
+                if _cycle_msgs < _warm_up_threshold and not _fan_mentioned_music_early:
                     facts.append("TOO EARLY — DO NOT ASK ABOUT MUSIC YET: The warm-up hasn't happened and this fan hasn't brought up music. Do not ask what kind of music they're into, do not mention your music, do not bring up anything music-related. Just vibe and get to know them. The ONLY exception is if the fan brings up music themselves — then you can respond to it naturally.")
         if profile.get("job"):
             facts.append(f"Job: {profile['job']}")
@@ -1198,7 +1200,7 @@ def get_mia_reply(user_id):
         # Links already sent
         sent_links = []
         if profile.get("sent_spotify"):
-            sent_links.append("music link (https://linktr.ee/therealmiasnow1)")
+            sent_links.append("Soul Ties music link (https://mia-snow-bot.onrender.com/go/soulties)")
         if profile.get("sent_youtube"):
             sent_links.append("YouTube link")
         if profile.get("sent_onlyfans"):
@@ -1231,19 +1233,24 @@ def get_mia_reply(user_id):
             cycle_start = profile.get("cycle_start_msg_count") or 0
             total_msgs = profile.get("total_messages") or 0
             cycle_msgs = max(0, total_msgs - cycle_start)
+            # High-message fans stuck in cycle — force push threshold
+            if total_msgs >= 50 and cycle_msgs < 10:
+                cycle_msgs = total_msgs
             funnel_restarted = profile.get("funnel_restarted")
 
             # Detect if fan mentioned music in their latest message
             _music_keywords = ["music", "song", "track", "stream", "spotify", "apple music", "youtube", "listen", "heard", "banger", "fire", "album", "single", "video", "visuals", "drop", "new music", "your music", "you sing", "you rap", "you make music", "artist"]
             _fan_mentioned_music = any(kw in last_user_msg.lower() for kw in _music_keywords)
 
+            _push_threshold = 20 if _total_msgs >= 50 else 40
+            _window_threshold = 10 if _total_msgs >= 50 else 20
             if _fan_mentioned_music:
                 facts.append(f"MUSIC TRIGGER: This fan just mentioned music — drop your link NOW in this response. Keep it very natural, like: 'omg yes send me your honest thoughts' then drop the link {make_link('music', user_id)}, or 'since you on that topic you gotta check mine out' then the link. Don't make it feel like a sales pitch — make it feel like a genuine share between two people who vibe.")
-            elif cycle_msgs >= 40 and not funnel_restarted:
+            elif cycle_msgs >= _push_threshold and not funnel_restarted:
                 facts.append(f"MUSIC PUSH — make this happen naturally in your response, don't make it feel forced or random. Think about what they just said and find a bridge to your music. For example: if they said something good happened — 'omg that's actually the energy of this song i've been working on, hold on'; if they're going through something — 'this song lowkey describes exactly what you talking about'; if the convo is light — 'ok wait i just need you to hear something real quick'. Drop: {make_link('music', user_id)} and ask them to let you know what they think.")
             elif funnel_restarted:
                 facts.append(f"SECOND CYCLE MUSIC PUSH — this fan still hasn't heard your music. This time make it feel personal, not like a routine. Try: 'ok i feel like you would actually get this song on a different level', 'i been wanting to send you this but never did, here', 'can i ask you something — have you ever actually listened to my stuff?'. Drop: {make_link('music', user_id)} — make it feel like you genuinely care what they think, not like you're promoting.")
-            elif cycle_msgs >= 20:
+            elif cycle_msgs >= _window_threshold:
                 facts.append(f"MUSIC WINDOW: You've built enough rapport — start looking for a natural moment to share your music. When it flows, drop: {make_link('music', user_id)} and ask them to let you know what they think.")
 
         # Music feedback nudge — if music was shared but feedback not yet asked
@@ -1257,7 +1264,17 @@ def get_mia_reply(user_id):
             conn2.close()
         if profile.get('funnel_restarted') and not profile.get('listened_to_music'):
             facts.append(f"YOUTUBE PUSH: You've talked to this person before but they haven't listened to your music yet. This cycle your goal is to get them to watch a YouTube video. When the moment is right, push YouTube specifically — something like 'you gotta watch the visuals fr' and drop: {make_link('youtube', user_id)} — keep it natural, don't force it early.")
-        # Merch — only mention if fan asks directly or it comes up naturally
+        # Blast list push — after music sent and not yet on blast list
+        _blast_sent = profile.get("sent_blast_list")
+        _music_sent_flag = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("sent_soulties")
+        if _music_sent_flag and not _blast_sent:
+            facts.append(f"BLAST LIST PUSH: You already shared your music with this fan. Now naturally work in the blast list — something like 'if you wanna be the first to know when i drop new stuff, get on my close network fr' or 'i only send this to people i fw heavy' then drop: {make_link('blast', user_id)} — keep it low pressure, like you're inviting them into something exclusive, not selling them something.")
+
+        # Merch push — after confirmed listener, mention once casually
+        if profile.get("listened_to_music") and not profile.get("sent_merch") and not profile.get("bought_merch"):
+            facts.append(f"MERCH MENTION: This fan has listened to your music and is clearly a supporter. Find a natural moment to casually mention the Yeti Gang merch — something like 'i got some Yeti Gang stuff too if you ever wanna rep the movement 🤍' or 'we got a whole Soul Ties collection too if you fw it like that' then drop: {make_link('merch', user_id)} — say it once, keep it light, don't push it.")
+
+        # Merch buyer — never promote again
         if profile.get("bought_merch"):
             facts.append("MERCH BUYER: This fan already bought merch — do NOT promote merch again. Just vibe with them naturally. They're already a supporter.")
 
