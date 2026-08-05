@@ -1222,7 +1222,7 @@ def get_mia_reply(user_id):
             facts.append("FACETIME REQUEST: This fan is asking about FaceTime or a video call. Do NOT agree to it — Mia doesn't FaceTime fans. But also do NOT send the exclusive content link — that makes it look like you think they were asking for something sexual when they probably just want to connect. Keep it warm and playful with a natural brush-off. Something like 'lol i don't just ft anybody 😏 but i fw you tho' or 'haha nah i'm not really a ft person but you cool tho 🤍' — keep it light, don't make it a big deal, and move the conversation forward naturally.")
 
         # Money offer — redirect to merch
-        _money_offer = any(w in combined_text for w in [
+        _money_offer = any(w in last_user_msg.lower() for w in [
             "send you money", "send u money", "send money", "send you some money", "send u some money",
             "send you cash", "send u cash", "send cash", "cashapp", "cash app", "zelle", "venmo",
             "paypal", "pay you", "pay u", "give you money", "give u money", "give you some",
