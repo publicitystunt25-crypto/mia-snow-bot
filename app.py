@@ -4121,7 +4121,7 @@ def backfill_embeddings_route():
     return "Backfill started in background — check logs", 200
 
 
-@app.route("/dashboard/catchup", methods=["POST"])
+@app.route("/dashboard/catchup", methods=["GET", "POST"])
 def dashboard_catchup():
     """Find fans who messaged today but got no bot reply, and fire handle_reply for each."""
     password = request.args.get("password", "")
