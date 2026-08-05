@@ -4121,6 +4121,60 @@ def backfill_embeddings_route():
     return "Backfill started in background — check logs", 200
 
 
+@app.route("/dashboard/catchup", methods=["POST"])
+def dashboard_catchup():
+    """Find fans who messaged today but got no bot reply, and fire handle_reply for each."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    # Find fans whose last inbound message today has no outbound reply after it
+    cur.execute("""
+        SELECT DISTINCT m.user_id,
+               MAX(m.id) as last_inbound_id,
+               MAX(m.timestamp) as last_inbound_at
+        FROM messages m
+        WHERE m.direction = 'inbound'
+          AND m.timestamp >= CURRENT_DATE
+          AND NOT EXISTS (
+              SELECT 1 FROM messages m2
+              WHERE m2.user_id = m.user_id
+                AND m2.direction = 'outbound'
+                AND m2.timestamp > m.timestamp
+          )
+        GROUP BY m.user_id
+    """)
+    ghosted = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    queued = []
+    for row in ghosted:
+        user_id = row[0]
+        if is_paused(user_id) or is_blocked(user_id):
+            continue
+        # Queue their last message into _pending and fire handle_reply
+        conn2 = get_conn()
+        cur2 = conn2.cursor()
+        cur2.execute("SELECT content FROM messages WHERE id = %s", (row[1],))
+        msg_row = cur2.fetchone()
+        cur2.close()
+        conn2.close()
+        if not msg_row:
+            continue
+        last_msg = msg_row[0]
+        with _pending_lock:
+            _pending[user_id] = [last_msg]
+        threading.Thread(target=handle_reply, args=(user_id,), daemon=True).start()
+        queued.append(user_id)
+        print(f"[catchup] queued reply for {user_id}")
+
+    return jsonify({"queued": len(queued), "user_ids": queued})
+
+
 init_db()
 
 if __name__ == "__main__":
