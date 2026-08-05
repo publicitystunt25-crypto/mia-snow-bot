@@ -4131,19 +4131,19 @@ def dashboard_catchup():
     conn = get_conn()
     cur = conn.cursor()
 
-    # Find fans whose last inbound message today has no outbound reply after it
+    # Find fans whose last user message today has no assistant reply after it
     cur.execute("""
         SELECT DISTINCT m.user_id,
-               MAX(m.id) as last_inbound_id,
-               MAX(m.timestamp) as last_inbound_at
+               MAX(m.id) as last_user_msg_id,
+               MAX(m.created_at) as last_user_msg_at
         FROM messages m
-        WHERE m.direction = 'inbound'
-          AND m.timestamp >= CURRENT_DATE
+        WHERE m.role = 'user'
+          AND m.created_at >= CURRENT_DATE
           AND NOT EXISTS (
               SELECT 1 FROM messages m2
               WHERE m2.user_id = m.user_id
-                AND m2.direction = 'outbound'
-                AND m2.timestamp > m.timestamp
+                AND m2.role = 'assistant'
+                AND m2.created_at > m.created_at
           )
         GROUP BY m.user_id
     """)
@@ -4159,7 +4159,7 @@ def dashboard_catchup():
         # Queue their last message into _pending and fire handle_reply
         conn2 = get_conn()
         cur2 = conn2.cursor()
-        cur2.execute("SELECT content FROM messages WHERE id = %s", (row[1],))
+        cur2.execute("SELECT content FROM messages WHERE id = %s AND role = 'user'", (row[1],))
         msg_row = cur2.fetchone()
         cur2.close()
         conn2.close()
