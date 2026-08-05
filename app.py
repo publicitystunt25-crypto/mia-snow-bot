@@ -3259,6 +3259,26 @@ def dashboard_stats_api():
     total_clicks = cur.fetchone()["total"]
 
     cur.execute("""
+        SELECT DATE(clicked_at AT TIME ZONE 'America/New_York') as day,
+               link_name, COUNT(*) as cnt
+        FROM link_clicks
+        WHERE clicked_at >= NOW() - INTERVAL '14 days'
+        GROUP BY day, link_name
+        ORDER BY day DESC, cnt DESC
+    """)
+    daily_rows = cur.fetchall()
+    clicks_by_day = {}
+    for r in daily_rows:
+        day_str = str(r["day"])
+        if day_str not in clicks_by_day:
+            clicks_by_day[day_str] = {"total": 0, "by_type": {}}
+        clicks_by_day[day_str]["by_type"][r["link_name"]] = r["cnt"]
+        clicks_by_day[day_str]["total"] += r["cnt"]
+
+    today_str = str(list(clicks_by_day.keys())[0]) if clicks_by_day else ""
+    clicks_today = clicks_by_day.get(today_str, {}).get("total", 0)
+
+    cur.execute("""
         SELECT COUNT(*) as total FROM fan_profiles fp
         LEFT JOIN link_clicks lc ON lc.user_id = fp.user_id
         WHERE lc.user_id IS NULL AND fp.total_messages > 0
@@ -3356,6 +3376,8 @@ def dashboard_stats_api():
         "fans_with_clicks": fans_with_clicks,
         "click_rate_pct": round(fans_with_clicks / total_fans * 100, 1) if total_fans else 0,
         "total_clicks": total_clicks,
+        "clicks_today": clicks_today,
+        "clicks_by_day": clicks_by_day,
         "clicks_by_type": clicks_by_type,
         "top_clickers": top_clickers,
         "high_msg_no_clicks": high_msg_no_clicks,
