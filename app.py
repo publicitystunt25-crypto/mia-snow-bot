@@ -4128,9 +4128,14 @@ def dashboard_catchup():
         last_msg = msg_row[0]
         with _pending_lock:
             _pending[user_id] = [last_msg]
-        threading.Thread(target=handle_reply, args=(user_id,), daemon=True).start()
+        # Stagger launches — 5 seconds apart so all 60 don't hit Claude at once
+        delay = len(queued) * 5
+        def _launch(uid, d):
+            time.sleep(d)
+            handle_reply(uid)
+        threading.Thread(target=_launch, args=(user_id, delay), daemon=True).start()
         queued.append(user_id)
-        print(f"[catchup] queued reply for {user_id}")
+        print(f"[catchup] queued reply for {user_id} (delay={delay}s)")
 
     return jsonify({"queued": len(queued), "user_ids": queued})
 
