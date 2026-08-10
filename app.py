@@ -3258,6 +3258,30 @@ def dashboard_stats_api():
     cur.execute("SELECT COUNT(*) as total FROM link_clicks")
     total_clicks = cur.fetchone()["total"]
 
+    # Messages today
+    cur.execute("""
+        SELECT
+            COUNT(*) FILTER (WHERE role = 'user') as fan_messages,
+            COUNT(*) FILTER (WHERE role = 'assistant') as bot_messages,
+            COUNT(DISTINCT user_id) FILTER (WHERE role = 'user') as active_fans
+        FROM messages
+        WHERE created_at >= CURRENT_DATE
+    """)
+    msg_today = cur.fetchone()
+
+    # Messages last 7 days by day
+    cur.execute("""
+        SELECT DATE(created_at AT TIME ZONE 'America/New_York') as day,
+               COUNT(*) FILTER (WHERE role = 'user') as fan_messages,
+               COUNT(*) FILTER (WHERE role = 'assistant') as bot_messages,
+               COUNT(DISTINCT user_id) FILTER (WHERE role = 'user') as active_fans
+        FROM messages
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+        GROUP BY day
+        ORDER BY day DESC
+    """)
+    messages_by_day = [dict(r) for r in cur.fetchall()]
+
     cur.execute("""
         SELECT DATE(clicked_at AT TIME ZONE 'America/New_York') as day,
                link_name, COUNT(*) as cnt
@@ -3303,71 +3327,7 @@ def dashboard_stats_api():
     """)
     high_msg_no_clicks = [dict(r) for r in cur.fetchall()]
 
-    # Stage 1 outcome tracking: for each link click, grab the 8 bot messages before it
-    # and analyze avg length and tone keywords
-    cur.execute("""
-        SELECT
-            lc.link_name,
-            lc.user_id,
-            lc.clicked_at,
-            m.content,
-            m.created_at
-        FROM link_clicks lc
-        JOIN messages m ON m.user_id = lc.user_id
-            AND m.role = 'assistant'
-            AND m.created_at <= lc.clicked_at
-        WHERE lc.clicked_at IS NOT NULL
-        ORDER BY lc.user_id, lc.clicked_at, m.created_at DESC
-    """)
-    raw = cur.fetchall()
-
-    # Group messages per click event, take up to 8 before each click
     from collections import defaultdict
-    click_windows = defaultdict(list)
-    seen = defaultdict(int)
-    for row in raw:
-        key = (row["user_id"], str(row["clicked_at"]))
-        if seen[key] < 8:
-            click_windows[key].append(row["content"])
-            seen[key] += 1
-
-    tone_keywords = {
-        "flirty": ["babe", "sexy", "fine", "cute", "😏", "😍", "💋", "fr though", "lowkey"],
-        "personal": ["i feel", "honestly", "real talk", "ngl", "fr", "no cap", "facts"],
-        "direct": ["check it out", "go listen", "here you go", "link", "stream", "spotify", "youtube", "apple"],
-        "playful": ["lol", "😭", "lmao", "omg", "nah", "wait", "bro", "😂", "sis"],
-        "warm": ["love", "appreciate", "thank", "🤍", "means a lot", "❤️", "aww"],
-    }
-
-    tone_counts = defaultdict(int)
-    total_msg_length = 0
-    total_msgs_analyzed = 0
-    msg_count_at_click = []
-
-    for (user_id, clicked_at), msgs in click_windows.items():
-        for msg in msgs:
-            msg_lower = msg.lower()
-            total_msg_length += len(msg)
-            total_msgs_analyzed += 1
-            for tone, words in tone_keywords.items():
-                if any(w in msg_lower for w in words):
-                    tone_counts[tone] += 1
-        msg_count_at_click.append(len(msgs))
-
-    avg_msg_length = round(total_msg_length / total_msgs_analyzed) if total_msgs_analyzed else 0
-    avg_msgs_before_click = round(sum(msg_count_at_click) / len(msg_count_at_click)) if msg_count_at_click else 0
-    tone_breakdown = {t: tone_counts[t] for t in sorted(tone_counts, key=tone_counts.get, reverse=True)}
-
-    # Which message depth does the first click typically happen at?
-    cur.execute("""
-        SELECT lc.user_id, lc.clicked_at,
-            (SELECT COUNT(*) FROM messages m2
-             WHERE m2.user_id = lc.user_id AND m2.created_at <= lc.clicked_at) as msg_depth
-        FROM link_clicks lc
-        WHERE lc.clicked_at IS NOT NULL
-    """)
-    depths = [r["msg_depth"] for r in cur.fetchall() if r["msg_depth"]]
-    avg_msg_depth_at_click = round(sum(depths) / len(depths)) if depths else 0
 
     cur.close()
     conn.close()
@@ -3378,17 +3338,17 @@ def dashboard_stats_api():
         "total_clicks": total_clicks,
         "clicks_today": clicks_today,
         "clicks_by_day": clicks_by_day,
+        "messages_today": {
+            "fan_messages": msg_today["fan_messages"],
+            "bot_messages": msg_today["bot_messages"],
+            "active_fans": msg_today["active_fans"],
+        },
+        "messages_by_day": messages_by_day,
         "clicks_by_type": clicks_by_type,
         "top_clickers": top_clickers,
         "high_msg_no_clicks": high_msg_no_clicks,
         "high_msg_no_clicks_count": len(high_msg_no_clicks),
-        "fans_zero_clicks": fans_zero_clicks,
-        "conversion_insights": {
-            "avg_msg_length_before_click": avg_msg_length,
-            "avg_msgs_before_click": avg_msgs_before_click,
-            "avg_total_msg_depth_at_click": avg_msg_depth_at_click,
-            "tone_breakdown": tone_breakdown,
-        }
+        "fans_zero_clicks": fans_zero_clicks
     })
 
 
