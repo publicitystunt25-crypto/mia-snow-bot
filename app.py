@@ -309,6 +309,7 @@ def init_db():
             on_blast_list BOOLEAN DEFAULT FALSE,
             bought_merch BOOLEAN DEFAULT FALSE,
             sent_soulties BOOLEAN DEFAULT FALSE,
+            sent_single BOOLEAN DEFAULT FALSE,
             asked_about_shows BOOLEAN DEFAULT FALSE,
             asked_about_music_feedback BOOLEAN DEFAULT FALSE,
             listened_to_music BOOLEAN DEFAULT FALSE,
@@ -332,6 +333,7 @@ def init_db():
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS bought_merch BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'en'")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS asked_music_taste BOOLEAN DEFAULT FALSE")
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_single BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'dm'")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS link_clicks (
@@ -588,6 +590,8 @@ def update_fan_after_message(user_id, messages):
         updates["sent_merch"] = True
     if any(x in combined for x in ["fanlink.tv/wSNt", "/go/soulties"]):
         updates["sent_soulties"] = True
+    if "/go/single" in combined or "fanlink.tv/xiAa" in combined:
+        updates["sent_single"] = True
 
     # Detect if fan confirmed they bought merch
     _bought_phrases = [
@@ -1234,6 +1238,11 @@ def get_mia_reply(user_id):
         ])
         if _money_offer and not profile.get("bought_merch"):
             facts.append(f"MONEY OFFER: This fan is offering to send you money or support you financially. DO NOT accept direct money — instead redirect them to the merch: 'aww i appreciate that fr 🤍 you can support by grabbing some Yeti Gang merch tho, that's the best way to show love 🤍' then drop: {make_link('merch', user_id)} — keep it warm, not salesy.")
+
+        # NEW SINGLE PUSH — always push Good Off You if they haven't gotten it yet
+        _got_single = profile.get("sent_single")
+        if not _got_single:
+            facts.append(f"NEW SINGLE: Mia JUST dropped a new single called 'Good Off You' — it's on all platforms. Your goal in this conversation is to get this fan to listen. Don't lead with it cold — let the conversation breathe for 1-2 exchanges, then find a natural moment. Use lines like 'ok wait i need you to hear something i just dropped', 'i literally just put something out and i need your honest opinion', 'since you fw me like that you gotta be one of the first to hear this'. Drop: {make_link('single', user_id)} — one link, no other links. Ask them to let you know what they think.")
 
         # Music push logic
         _music_sent = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("sent_blast_list")
