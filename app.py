@@ -1242,7 +1242,7 @@ def get_mia_reply(user_id):
         # NEW SINGLE PUSH — always push Good Off You if they haven't gotten it yet
         _got_single = profile.get("sent_single")
         if not _got_single:
-            facts.append(f"NEW SINGLE: Mia JUST dropped a new single called 'Good Off You' — it's on all platforms. Your goal in this conversation is to get this fan to listen. Don't lead with it cold — let the conversation breathe for 1-2 exchanges, then find a natural moment. Use lines like 'ok wait i need you to hear something i just dropped', 'i literally just put something out and i need your honest opinion', 'since you fw me like that you gotta be one of the first to hear this'. Drop: {make_link('single', user_id)} — one link, no other links. Ask them to let you know what they think.")
+            facts.append(f"NEW SINGLE: Mia JUST dropped a new single called 'Good Off You' — it's on all platforms. Your goal in this conversation is to get this fan to listen AND give you their honest feedback. Don't lead with it cold — let the conversation breathe for 1-2 exchanges, then find a natural moment. Frame it like you genuinely want their opinion: 'i literally just dropped something and i need real feedback from people who fw me', 'ok i need you to be honest with me about something i just put out', 'since you always showing love i need your honest opinion on this'. Drop: {make_link('single', user_id)} then say something like 'let me know what you think fr, i actually want to know' — make them feel like their opinion matters to Mia personally.")
 
         # Music push logic
         _music_sent = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("sent_blast_list")
