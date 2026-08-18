@@ -1276,6 +1276,10 @@ def get_mia_reply(user_id):
             elif cycle_msgs >= _window_threshold:
                 facts.append(f"MUSIC WINDOW: You've built enough rapport — start looking for a natural moment to mention your new single 'Good Off You'. When it flows, drop: {make_link('single', user_id)} and ask them to let you know what they think.")
 
+        # Single feedback follow-up — if single was sent, ask what they thought
+        if profile.get("sent_single"):
+            facts.append("SINGLE FEEDBACK: You already sent this fan your new single 'Good Off You'. If they haven't told you what they thought yet, ask them — something like 'wait what did you think tho', 'did you get a chance to listen yet', 'i need to know your honest opinion fr'. Keep it casual, don't beg — just make it clear you actually want to know. If they already gave you feedback, just vibe with their response naturally.")
+
         # Music feedback nudge — if music was shared but feedback not yet asked
         if profile.get("sent_spotify") and not profile.get("asked_about_music_feedback") and not profile.get("favorite_song"):
             facts.append("MUSIC FEEDBACK DUE: You shared your music with this person already. If it comes up naturally, ask what they thought — use casual varied phrasing like 'which one you checked out', 'which song you was feeling', 'which track fw you'. Don't force it — only bring it up if the conversation allows it. Never use 'which song hits different'.")
