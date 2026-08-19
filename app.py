@@ -3419,7 +3419,7 @@ def dashboard_fans_api():
         return jsonify({"error": "unauthorized"}), 401
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT user_id, fb_name, nickname, location, vibe, fan_score, total_messages, sent_spotify, sent_youtube, sent_onlyfans, sent_merch, sent_blast_list, on_blast_list, is_vip, is_girl_code, is_blocked, first_message_at, last_message_at FROM fan_profiles WHERE total_messages > 0 ORDER BY last_message_at DESC NULLS LAST")
+    cur.execute("SELECT user_id, fb_name, nickname, location, vibe, fan_score, total_messages, sent_spotify, sent_youtube, sent_onlyfans, sent_merch, sent_blast_list, on_blast_list, sent_single, gave_number, is_vip, is_girl_code, is_blocked, first_message_at, last_message_at FROM fan_profiles WHERE total_messages > 0 ORDER BY last_message_at DESC NULLS LAST")
     fans = [dict(r) for r in cur.fetchall()]
     # Attach most recent link clicked per fan
     cur.execute("SELECT user_id, array_agg(DISTINCT link_name) FILTER (WHERE link_name IS NOT NULL) as links_clicked FROM link_clicks GROUP BY user_id")
@@ -4165,15 +4165,25 @@ def dashboard_single_blast():
     if password != DASHBOARD_PASSWORD:
         return jsonify({"error": "unauthorized"}), 401
 
+    scope = request.args.get("scope", "recent")  # recent=24h active, all=everyone warmed up
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("""
-        SELECT user_id FROM fan_profiles
-        WHERE (sent_single IS NULL OR sent_single = FALSE)
-          AND is_blocked = FALSE
-          AND last_message_at >= NOW() - INTERVAL '24 hours'
-        ORDER BY last_message_at DESC
-    """)
+    if scope == "all":
+        cur.execute("""
+            SELECT user_id FROM fan_profiles
+            WHERE (sent_single IS NULL OR sent_single = FALSE)
+              AND is_blocked = FALSE
+              AND total_messages >= 8
+            ORDER BY last_message_at DESC
+        """)
+    else:
+        cur.execute("""
+            SELECT user_id FROM fan_profiles
+            WHERE (sent_single IS NULL OR sent_single = FALSE)
+              AND is_blocked = FALSE
+              AND last_message_at >= NOW() - INTERVAL '24 hours'
+            ORDER BY last_message_at DESC
+        """)
     fans = [row[0] for row in cur.fetchall()]
     cur.close()
     conn.close()
