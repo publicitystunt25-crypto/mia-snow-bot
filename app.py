@@ -35,6 +35,7 @@ TRACKED_LINKS = {
     "ionwantto":  "https://www.youtube.com/watch?v=WyfiwqI9JDA",
     "instagram":  "https://www.instagram.com/therealmiasnow",
     "exclusive":  "https://linktr.ee/msnow1",
+    "linktree":   "https://linktr.ee/therealmiasnow1",
     "blast":      "https://forms.gle/veUFhGiHetDFr1kk6",
     "merch":      "https://miasnow.printful.me/",
     "soulties":        "https://fanlink.tv/wSNt",
