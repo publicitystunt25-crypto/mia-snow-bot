@@ -1244,8 +1244,9 @@ def get_mia_reply(user_id):
         if not _got_single:
             facts.append(f"NEW SINGLE: Mia JUST dropped a new single called 'Good Off You' — it's on all platforms. Your goal is to get this fan to listen and give honest feedback — but don't rush it. Let the conversation develop naturally for at least 4-5 exchanges first. Vibe with them, respond to what they're saying, build a real connection. Once it feels warm and genuine, find a natural bridge — something like 'ok wait i need to tell you something', 'since we been talking i need your honest opinion on something i just dropped', 'i literally just put something out and i want to know what real people think'. Drop: {make_link('single', user_id)} then 'let me know what you think fr, i actually want to hear it' — make them feel like their opinion genuinely matters to Mia, not like a promo.")
 
-        # Music push logic
-        _music_sent = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("sent_blast_list")
+        # Music push logic — PAUSED while single is priority
+        # Soul Ties pushes suppressed until single gets traction
+        _music_sent = True  # treat as sent so Soul Ties facts don't fire
         _already_listened = profile.get("listened_to_music")
         _total_msgs = profile.get("total_messages") or 0
         _vibe = profile.get("vibe", "new")
@@ -1320,16 +1321,10 @@ def get_mia_reply(user_id):
             music_link = None
             platform_label = None
 
-        if music_link:
-            facts.append(f"MUSIC PLATFORM: This fan uses {platform_label}. Send them this link RIGHT NOW in this response: {music_link} — then tell them to let you know what they think. This is a conversion moment, do not delay or skip it. Say something like 'here you go, let me know what you think 🤍' or 'go check it out and tell me what you think fr' then drop the link.")
-            if not profile.get("music_link_sent_at") and not profile.get("music_followup_sent"):
-                try:
-                    _conn = get_conn(); _cur = _conn.cursor()
-                    _cur.execute("UPDATE fan_profiles SET music_link_sent_at = NOW() WHERE user_id = %s", (user_id,))
-                    _conn.commit(); _cur.close(); _conn.close()
-                except Exception: pass
-        else:
-            facts.append(f"PLATFORM UNKNOWN: You don't know what platform this person listens to music on. Before dropping a link, casually ask — something like 'which platform do you listen to music on?' or 'you on Spotify, Apple Music, or YouTube?' — then send the right tracked link based on their answer: Spotify: {make_link('spotify', user_id)}, Apple Music: {make_link('apple', user_id)}, YouTube: {make_link('youtube', user_id)}. IMPORTANT: If they mention more than one platform (e.g. 'Spotify and YouTube'), just send the general link: {make_link('music', user_id)} — it has everything in one place. If they say they don't have Spotify or Apple Music, send YouTube: {make_link('youtube', user_id)}. If they don't give a clear answer at all, send the general link: {make_link('music', user_id)}.")
+        # SINGLE PRIORITY MODE — always send the new single link, regardless of platform
+        # Soul Ties platform-specific links are paused while driving single streams
+        if not profile.get("sent_single"):
+            facts.append(f"MUSIC LINK: Send the new single 'Good Off You' — it works on all platforms: {make_link('single', user_id)} — do NOT send any Soul Ties or platform-specific links right now. The priority is getting streams on the new single.")
 
         # Tracked links for this fan — use these exact URLs
         facts.append(f"ALL TRACKED LINKS (use these exact URLs):\n- Spotify: {make_link('spotify', user_id)}\n- Apple Music: {make_link('apple', user_id)}\n- YouTube channel: {make_link('youtube', user_id)}\n- OTW video: {make_link('otw', user_id)}\n- Ion Want To video: {make_link('ionwantto', user_id)}\n- Instagram: {make_link('instagram', user_id)}\n- Exclusive content: {make_link('exclusive', user_id)}\n- Blast list: {make_link('blast', user_id)}\n- Merch: {make_link('merch', user_id)}")
