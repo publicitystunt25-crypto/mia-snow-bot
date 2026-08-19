@@ -3632,7 +3632,10 @@ def tracked_link(name):
     destination = TRACKED_LINKS.get(name)
     if not destination:
         return "Not found", 404
-    if user_id:
+    # Block Facebook/crawler preview fetches — they inflate click counts but aren't real taps
+    ua = request.headers.get("User-Agent", "").lower()
+    _is_crawler = any(bot in ua for bot in ["facebookexternalhit", "facebot", "linkedinbot", "twitterbot", "bot", "crawler", "spider", "preview"])
+    if user_id and not _is_crawler:
         try:
             conn = get_conn()
             cur = conn.cursor()
