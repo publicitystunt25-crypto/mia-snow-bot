@@ -4151,11 +4151,11 @@ def dashboard_single_blast():
     conn.close()
 
     openers = [
-        "ok i need you to hear something i just dropped fr 🤍",
-        "wait i literally just put something out and i need your honest opinion",
-        "ok real quick — i just dropped something and i want to know what you think fr",
-        "i been waiting to tell you — i just dropped a new single and i need real feedback",
-        "since you fw me like that, you gotta be one of the first to hear this",
+        "ok i need you to hear something i just dropped 🤍",
+        "wait i literally just put something out — go check it and tell me what you think",
+        "ok real quick — i just dropped a new single, go listen and be honest with me",
+        "i just dropped something and i need real feedback from people who fw me",
+        "since you fw me like that you gotta be one of the first to hear this",
     ]
 
     sent = []
@@ -4165,7 +4165,7 @@ def dashboard_single_blast():
         if is_paused(uid) or is_blocked(uid):
             return
         link = make_link("single", uid)
-        msg = f"{opener} {link} — let me know what you think fr 🤍"
+        msg = f"{opener} {link} 🤍"
         save_message(uid, "assistant", msg)
         send_message(uid, msg)
         try:
