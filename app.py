@@ -4130,6 +4130,61 @@ def dashboard_catchup():
     return jsonify({"queued": len(queued), "user_ids": queued})
 
 
+@app.route("/dashboard/single-blast", methods=["GET", "POST"])
+def dashboard_single_blast():
+    """DM the new single to all fans active in the last 24 hours who haven't received it yet."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT user_id FROM fan_profiles
+        WHERE (sent_single IS NULL OR sent_single = FALSE)
+          AND is_blocked = FALSE
+          AND last_message_at >= NOW() - INTERVAL '24 hours'
+        ORDER BY last_message_at DESC
+    """)
+    fans = [row[0] for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    openers = [
+        "ok i need you to hear something i just dropped fr 🤍",
+        "wait i literally just put something out and i need your honest opinion",
+        "ok real quick — i just dropped something and i want to know what you think fr",
+        "i been waiting to tell you — i just dropped a new single and i need real feedback",
+        "since you fw me like that, you gotta be one of the first to hear this",
+    ]
+
+    sent = []
+
+    def _blast(uid, delay, opener):
+        time.sleep(delay)
+        if is_paused(uid) or is_blocked(uid):
+            return
+        link = make_link("single", uid)
+        msg = f"{opener} {link} — let me know what you think fr 🤍"
+        save_message(uid, "assistant", msg)
+        send_message(uid, msg)
+        try:
+            c = get_conn(); cu = c.cursor()
+            cu.execute("UPDATE fan_profiles SET sent_single = TRUE WHERE user_id = %s", (uid,))
+            c.commit(); cu.close(); c.close()
+        except Exception as e:
+            print(f"[single-blast] db update error for {uid}: {e}")
+        print(f"[single-blast] sent to {uid}")
+
+    for i, uid in enumerate(fans):
+        opener = openers[i % len(openers)]
+        delay = i * 8  # 8 seconds apart
+        threading.Thread(target=_blast, args=(uid, delay, opener), daemon=True).start()
+        sent.append(uid)
+
+    return jsonify({"blasting": len(sent), "eta_minutes": round(len(sent) * 8 / 60, 1)})
+
+
 init_db()
 
 if __name__ == "__main__":
