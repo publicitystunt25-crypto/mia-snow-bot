@@ -3001,10 +3001,17 @@ def dashboard_data():
     except Exception:
         tz = "America/New_York"
 
+    # "New fan" = user whose very first message ever was today
     cur.execute("""
-        SELECT COUNT(*) as c FROM fan_profiles
-        WHERE total_messages > 0 AND DATE(first_message_at AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
-    """, (tz, tz))
+        SELECT COUNT(DISTINCT user_id) as c FROM messages m
+        WHERE role = 'user'
+          AND DATE(created_at AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
+          AND NOT EXISTS (
+              SELECT 1 FROM messages m2
+              WHERE m2.user_id = m.user_id AND m2.role = 'user'
+                AND m2.created_at < DATE_TRUNC('day', NOW() AT TIME ZONE %s) AT TIME ZONE %s
+          )
+    """, (tz, tz, tz, tz))
     new_fans_today = cur.fetchone()["c"]
 
     cur.execute("""
@@ -3014,23 +3021,30 @@ def dashboard_data():
     messages_today = cur.fetchone()["c"]
 
     cur.execute("""
-        SELECT DATE(first_message_at AT TIME ZONE %s) as day, COUNT(*) as new_fans
-        FROM fan_profiles
-        WHERE total_messages > 0 AND (first_message_at AT TIME ZONE %s) >= (NOW() AT TIME ZONE %s)::date - INTERVAL '30 days'
+        SELECT DATE(first_msg AT TIME ZONE %s) as day, COUNT(*) as new_fans
+        FROM (
+            SELECT user_id, MIN(created_at) as first_msg FROM messages WHERE role = 'user' GROUP BY user_id
+        ) sub
+        WHERE (first_msg AT TIME ZONE %s) >= (NOW() AT TIME ZONE %s)::date - INTERVAL '30 days'
         GROUP BY day ORDER BY day ASC
     """, (tz, tz, tz))
     new_fans_by_day = [{"day": str(r["day"]), "new_fans": r["new_fans"]} for r in cur.fetchall()]
 
     cur.execute("""
-        SELECT TO_CHAR(DATE_TRUNC('month', first_message_at AT TIME ZONE %s), 'YYYY-MM') as month, COUNT(*) as new_fans
-        FROM fan_profiles WHERE total_messages > 0 GROUP BY month ORDER BY month ASC
+        SELECT TO_CHAR(DATE_TRUNC('month', first_msg AT TIME ZONE %s), 'YYYY-MM') as month, COUNT(*) as new_fans
+        FROM (
+            SELECT user_id, MIN(created_at) as first_msg FROM messages WHERE role = 'user' GROUP BY user_id
+        ) sub
+        GROUP BY month ORDER BY month ASC
     """, (tz,))
     new_fans_all_time = [{"day": r["month"], "new_fans": r["new_fans"]} for r in cur.fetchall()]
 
     cur.execute("""
-        SELECT EXTRACT(HOUR FROM first_message_at AT TIME ZONE %s) as hour, COUNT(*) as new_fans
-        FROM fan_profiles
-        WHERE total_messages > 0 AND DATE(first_message_at AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
+        SELECT EXTRACT(HOUR FROM first_msg AT TIME ZONE %s) as hour, COUNT(*) as new_fans
+        FROM (
+            SELECT user_id, MIN(created_at) as first_msg FROM messages WHERE role = 'user' GROUP BY user_id
+        ) sub
+        WHERE DATE(first_msg AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
         GROUP BY hour ORDER BY hour ASC
     """, (tz, tz, tz))
     new_fans_today_by_hour = [{"hour": int(r["hour"]), "new_fans": r["new_fans"]} for r in cur.fetchall()]
