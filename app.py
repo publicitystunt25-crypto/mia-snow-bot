@@ -44,8 +44,9 @@ TRACKED_LINKS = {
     "soulties-youtube": "https://www.youtube.com/watch?v=LoTvEyVfaXo&list=OLAK5uy_kE8VPDLHF2SG65CUeBIPhZaFVKmNNXiLw",
     "soulties-deezer":  "https://www.deezer.com/us/album/875295562",
     "music":      "https://fanlink.tv/wSNt",  # Soul Ties album — all platforms
-    "single":     "https://open.spotify.com/track/5kpejJAQpIao45NAaqD34K",  # Good Off You — Spotify (fanlink.tv/xiAa was down)
+    "single":       "https://fanlink.tv/xiAa",  # Good Off You — all platforms
     "single-apple": "https://geo.music.apple.com/album/good-off-you/6801302733?i=6801302734&app=music",  # Good Off You — Apple Music
+    "single-spotify": "https://open.spotify.com/track/5kpejJAQpIao45NAaqD34K",  # Good Off You — Spotify
     # Traffic source links — all go to messenger, tracked separately
     "src-ig":     "https://m.me/therealmiasnow1",
     "src-tiktok": "https://m.me/therealmiasnow1",
