@@ -1239,47 +1239,28 @@ def get_mia_reply(user_id):
         if _money_offer and not profile.get("bought_merch"):
             facts.append(f"MONEY OFFER: This fan is offering to send you money or support you financially. DO NOT accept direct money — instead redirect them to the merch: 'aww i appreciate that fr 🤍 you can support by grabbing some Yeti Gang merch tho, that's the best way to show love 🤍' then drop: {make_link('merch', user_id)} — keep it warm, not salesy.")
 
-        # NEW SINGLE PUSH — always push Good Off You if they haven't gotten it yet
+        # NEW SINGLE — Good Off You (priority mode, Soul Ties paused)
         _got_single = profile.get("sent_single")
+        _total_msgs = profile.get("total_messages") or 0
+        _music_keywords = ["music", "song", "track", "stream", "spotify", "apple music", "youtube", "listen", "heard", "banger", "fire", "album", "single", "video", "visuals", "drop", "new music", "your music", "you sing", "you rap", "you make music", "artist"]
+        _fan_mentioned_music = any(kw in last_user_msg.lower() for kw in _music_keywords)
+
         if not _got_single:
-            facts.append(f"NEW SINGLE: Mia JUST dropped a new single called 'Good Off You' — it's on all platforms. Your goal is to get this fan to listen and give honest feedback — but don't rush it. Let the conversation develop naturally for at least 4-5 exchanges first. Vibe with them, respond to what they're saying, build a real connection. Once it feels warm and genuine, find a natural bridge — something like 'ok wait i need to tell you something', 'since we been talking i need your honest opinion on something i just dropped', 'i literally just put something out and i want to know what real people think'. Drop: {make_link('single', user_id)} then 'let me know what you think fr, i actually want to hear it' — make them feel like their opinion genuinely matters to Mia, not like a promo.")
+            if _fan_mentioned_music:
+                # Any music mention = drop the single immediately
+                facts.append(f"MUSIC TRIGGER — DROP SINGLE NOW: This fan just mentioned music. Don't wait — drop your new single 'Good Off You' right now. Say something like 'ok since you on that topic i literally JUST dropped something', 'wait you into music? i need you to hear what i just put out', 'omg perfect timing i just dropped something fr'. Drop: {make_link('single', user_id)} then ask 'let me know what you think fr, i need real feedback'.")
+            elif _total_msgs >= 8:
+                # Enough rapport built — push the single
+                facts.append(f"SINGLE PUSH: You've been talking long enough — find a natural moment this message to bring up your new single 'Good Off You'. Something like 'ok wait i need to tell you something', 'since we been vibing i need your honest opinion on something i just dropped', 'i literally just put something out and i want real people to hear it'. Drop: {make_link('single', user_id)} then ask what they think. Make it feel personal, not promotional.")
+            else:
+                # Still warming up — plant the seed
+                facts.append(f"NEW SINGLE: Mia just dropped 'Good Off You' — it's on all platforms. Keep vibing for now but your goal is to get this fan to listen once the conversation warms up. Don't drop it yet — wait until you've had a real back and forth first.")
+        else:
+            # Already sent — follow up on feedback
+            facts.append("SINGLE FEEDBACK: You already sent this fan 'Good Off You'. Your job now is to get their feedback. Ask directly — 'wait what did you think tho', 'did you listen yet fr', 'i need your honest opinion on it'. Don't let them dodge it — make it clear you actually want to know. Once they give feedback, respond genuinely to what they said.")
 
         # Music push logic — PAUSED while single is priority
-        # Soul Ties pushes suppressed until single gets traction
-        _music_sent = True  # treat as sent so Soul Ties facts don't fire
-        _already_listened = profile.get("listened_to_music")
-        _total_msgs = profile.get("total_messages") or 0
-        _vibe = profile.get("vibe", "new")
-        _no_clicks = not profile.get("sent_spotify") and not profile.get("sent_youtube")
-        if not _music_sent and not _already_listened and (_vibe == "flirty" or _total_msgs >= 20) and _no_clicks:
-            facts.append(f"WARM FAN — NO MUSIC YET: This fan has been talking to Mia for a while and is clearly invested but has never heard her music. You just dropped a new single called 'Good Off You'. Use that as the hook — 'i literally just dropped something, you gotta be one of the first to hear it', 'ok i need you to check what i just put out fr', 'since you always in my comments you should hear this first'. Drop: {make_link('single', user_id)} and ask what they think. Make it feel exciting and personal.")
-        if not _music_sent and not _already_listened:
-            cycle_start = profile.get("cycle_start_msg_count") or 0
-            total_msgs = profile.get("total_messages") or 0
-            cycle_msgs = max(0, total_msgs - cycle_start)
-            # High-message fans stuck in cycle — force push threshold
-            if total_msgs >= 50 and cycle_msgs < 10:
-                cycle_msgs = total_msgs
-            funnel_restarted = profile.get("funnel_restarted")
-
-            # Detect if fan mentioned music in their latest message
-            _music_keywords = ["music", "song", "track", "stream", "spotify", "apple music", "youtube", "listen", "heard", "banger", "fire", "album", "single", "video", "visuals", "drop", "new music", "your music", "you sing", "you rap", "you make music", "artist"]
-            _fan_mentioned_music = any(kw in last_user_msg.lower() for kw in _music_keywords)
-
-            _push_threshold = 20 if _total_msgs >= 50 else 40
-            _window_threshold = 10 if _total_msgs >= 50 else 20
-            if _fan_mentioned_music:
-                facts.append(f"MUSIC TRIGGER: This fan just mentioned music — drop your new single NOW. Say something like 'ok since you on that topic i JUST dropped something, go check it out fr' then drop: {make_link('single', user_id)} — that's your new single 'Good Off You', it's on all platforms. Make it feel exciting, not like a sales pitch.")
-            elif cycle_msgs >= _push_threshold and not funnel_restarted:
-                facts.append(f"MUSIC PUSH — you just dropped a new single called 'Good Off You'. Find a natural bridge in what they just said and work it in. Something like 'ok wait i need you to hear what i just dropped fr', 'i literally just put something out, go check it real quick', 'since we been vibing you gotta be the first to hear this'. Drop: {make_link('single', user_id)} and ask them to let you know what they think.")
-            elif funnel_restarted:
-                facts.append(f"SECOND CYCLE MUSIC PUSH — this fan still hasn't heard your music. Tell them you just dropped something new — 'ok i actually just dropped something and i feel like you'd fw it', 'i been wanting to send you something fr — i just put this out'. Drop: {make_link('single', user_id)} — make it feel genuine, not promotional.")
-            elif cycle_msgs >= _window_threshold:
-                facts.append(f"MUSIC WINDOW: You've built enough rapport — start looking for a natural moment to mention your new single 'Good Off You'. When it flows, drop: {make_link('single', user_id)} and ask them to let you know what they think.")
-
-        # Single feedback follow-up — if single was sent, ask what they thought
-        if profile.get("sent_single"):
-            facts.append("SINGLE FEEDBACK: You already sent this fan your new single 'Good Off You'. If they haven't told you what they thought yet, ask them — something like 'wait what did you think tho', 'did you get a chance to listen yet', 'i need to know your honest opinion fr'. Keep it casual, don't beg — just make it clear you actually want to know. If they already gave you feedback, just vibe with their response naturally.")
+        _music_sent = True  # suppress Soul Ties facts while single is the focus
 
         # Music feedback nudge — if music was shared but feedback not yet asked
         if profile.get("sent_spotify") and not profile.get("asked_about_music_feedback") and not profile.get("favorite_song"):
