@@ -4205,6 +4205,43 @@ def dashboard_single_blast():
     return jsonify({"blasting": len(sent), "eta_minutes": round(len(sent) * 8 / 60, 1)})
 
 
+@app.route("/dashboard/single-reblast", methods=["GET", "POST"])
+def dashboard_single_reblast():
+    """Send corrected Spotify + Apple Music links to fans who already got the broken fanlink."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT user_id FROM fan_profiles
+        WHERE sent_single = TRUE
+          AND is_blocked = FALSE
+          AND last_message_at >= NOW() - INTERVAL '48 hours'
+        ORDER BY last_message_at DESC
+    """)
+    fans = [row[0] for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    def _reblast(uid, delay):
+        time.sleep(delay)
+        if is_paused(uid) or is_blocked(uid):
+            return
+        spotify = make_link("single", uid)
+        apple = make_link("single-apple", uid)
+        msg = f"hey sorry the link i sent earlier wasn't working 😭 here's the correct one — Spotify: {spotify} | Apple Music: {apple} 🤍 lmk what you think fr"
+        save_message(uid, "assistant", msg)
+        send_message(uid, msg)
+        print(f"[single-reblast] sent corrected links to {uid}")
+
+    for i, uid in enumerate(fans):
+        threading.Thread(target=_reblast, args=(uid, i * 5), daemon=True).start()
+
+    return jsonify({"reblasting": len(fans), "eta_minutes": round(len(fans) * 5 / 60, 1)})
+
+
 init_db()
 
 if __name__ == "__main__":
