@@ -4176,6 +4176,15 @@ def dashboard_single_blast():
             print(f"[single-blast] db update error for {uid}: {e}")
         print(f"[single-blast] sent to {uid}")
 
+    # Mark sent_single immediately so bot doesn't also send it during blast
+    conn2 = get_conn()
+    cur2 = conn2.cursor()
+    for uid in fans:
+        cur2.execute("UPDATE fan_profiles SET sent_single = TRUE WHERE user_id = %s", (uid,))
+    conn2.commit()
+    cur2.close()
+    conn2.close()
+
     for i, uid in enumerate(fans):
         opener = openers[i % len(openers)]
         delay = i * 8  # 8 seconds apart
