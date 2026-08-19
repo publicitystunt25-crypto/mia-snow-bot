@@ -43,7 +43,8 @@ TRACKED_LINKS = {
     "soulties-youtube": "https://www.youtube.com/watch?v=LoTvEyVfaXo&list=OLAK5uy_kE8VPDLHF2SG65CUeBIPhZaFVKmNNXiLw",
     "soulties-deezer":  "https://www.deezer.com/us/album/875295562",
     "music":      "https://fanlink.tv/wSNt",  # Soul Ties album — all platforms
-    "single":     "https://fanlink.tv/xiAa",  # new single — all platforms
+    "single":     "https://open.spotify.com/track/5kpejJAQpIao45NAaqD34K",  # Good Off You — Spotify (fanlink.tv/xiAa was down)
+    "single-apple": "https://geo.music.apple.com/album/good-off-you/6801302733?i=6801302734&app=music",  # Good Off You — Apple Music
     # Traffic source links — all go to messenger, tracked separately
     "src-ig":     "https://m.me/therealmiasnow1",
     "src-tiktok": "https://m.me/therealmiasnow1",
@@ -334,6 +335,7 @@ def init_db():
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'en'")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS asked_music_taste BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_single BOOLEAN DEFAULT FALSE")
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS gave_number BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'dm'")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS link_clicks (
@@ -607,6 +609,12 @@ def update_fan_after_message(user_id, messages):
         updates["bought_merch"] = True
     if "forms.gle" in combined or "/go/blast" in combined:
         updates["sent_blast_list"] = True
+
+    # Detect if fan gave their phone number
+    import re as _re
+    _phone_pattern = _re.compile(r'\b(\+?1?\s?[-.]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})\b')
+    if _phone_pattern.search(_fan_msgs_combined):
+        updates["gave_number"] = True
 
     # Detect vibe
     sexual_words = ["fuck", "sex", "naked", "ass", "dick", "pussy", "body", "hot", "fine"]
@@ -1226,6 +1234,9 @@ def get_mia_reply(user_id):
         if _fan_wants_ft:
             facts.append("FACETIME REQUEST: This fan is asking about FaceTime or a video call. Do NOT agree to it — Mia doesn't FaceTime fans. But also do NOT send the exclusive content link — that makes it look like you think they were asking for something sexual when they probably just want to connect. Keep it warm and playful with a natural brush-off. Something like 'lol i don't just ft anybody 😏 but i fw you tho' or 'haha nah i'm not really a ft person but you cool tho 🤍' — keep it light, don't make it a big deal, and move the conversation forward naturally.")
 
+        if profile.get("gave_number"):
+            facts.append("PHONE NUMBER ALREADY GIVEN: This fan already gave you their phone number. HARD RULE: Do NOT ask for their number again, do not say 'hit me with your number', do not say 'lock you in', do not imply you need their contact info — you already have it. Acknowledge naturally if it comes up — something like 'yeah i got you' or 'i already got you saved' — and move on.")
+
         # Money offer — redirect to merch
         _money_offer = any(w in last_user_msg.lower() for w in [
             "send you money", "send u money", "send money", "send you some money", "send u some money",
@@ -1248,10 +1259,10 @@ def get_mia_reply(user_id):
         if not _got_single:
             if _fan_mentioned_music:
                 # Any music mention = drop the single immediately
-                facts.append(f"MUSIC TRIGGER — DROP SINGLE NOW: This fan just mentioned music. Don't wait — drop your new single 'Good Off You' right now. Say something like 'ok since you on that topic i literally JUST dropped something', 'wait you into music? i need you to hear what i just put out', 'omg perfect timing i just dropped something fr'. Drop: {make_link('single', user_id)} then ask 'let me know what you think fr, i need real feedback'.")
+                facts.append(f"MUSIC TRIGGER — DROP SINGLE NOW: This fan just mentioned music. Don't wait — drop your new single 'Good Off You' right now. Say something like 'ok since you on that topic i literally JUST dropped something', 'wait you into music? i need you to hear what i just put out', 'omg perfect timing i just dropped something fr'. Spotify: {make_link('single', user_id)} | Apple Music: {make_link('single-apple', user_id)} — drop whichever fits or both, then ask 'let me know what you think fr, i need real feedback'.")
             elif _total_msgs >= 8:
                 # Enough rapport — drop it THIS message, no more waiting
-                facts.append(f"SINGLE PUSH — DO IT NOW: You've been talking long enough, drop your new single in THIS message. Don't wait for a perfect moment — create one. Respond to what they just said in one short sentence, then pivot: 'ok but wait i need to tell you something real quick', 'before i forget — i just dropped something and i need your honest opinion', 'since we been vibing like this you gotta hear what i just put out'. Drop: {make_link('single', user_id)} then 'let me know what you think fr, i actually want to hear it'. Do NOT skip this — the single must be in this response.")
+                facts.append(f"SINGLE PUSH — DO IT NOW: You've been talking long enough, drop your new single in THIS message. Don't wait for a perfect moment — create one. Respond to what they just said in one short sentence, then pivot: 'ok but wait i need to tell you something real quick', 'before i forget — i just dropped something and i need your honest opinion', 'since we been vibing like this you gotta hear what i just put out'. Spotify: {make_link('single', user_id)} | Apple Music: {make_link('single-apple', user_id)} — drop both so they can pick their platform. Then 'let me know what you think fr, i actually want to hear it'. Do NOT skip this — the single must be in this response.")
             else:
                 # Still warming up — plant the seed
                 facts.append(f"NEW SINGLE: Mia just dropped 'Good Off You' — it's on all platforms. Keep vibing for now but your goal is to get this fan to listen. You have {8 - _total_msgs} more exchanges before you need to drop it.")
