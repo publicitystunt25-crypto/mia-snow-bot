@@ -1250,11 +1250,11 @@ def get_mia_reply(user_id):
                 # Any music mention = drop the single immediately
                 facts.append(f"MUSIC TRIGGER — DROP SINGLE NOW: This fan just mentioned music. Don't wait — drop your new single 'Good Off You' right now. Say something like 'ok since you on that topic i literally JUST dropped something', 'wait you into music? i need you to hear what i just put out', 'omg perfect timing i just dropped something fr'. Drop: {make_link('single', user_id)} then ask 'let me know what you think fr, i need real feedback'.")
             elif _total_msgs >= 8:
-                # Enough rapport built — push the single
-                facts.append(f"SINGLE PUSH: You've been talking long enough — find a natural moment this message to bring up your new single 'Good Off You'. Something like 'ok wait i need to tell you something', 'since we been vibing i need your honest opinion on something i just dropped', 'i literally just put something out and i want real people to hear it'. Drop: {make_link('single', user_id)} then ask what they think. Make it feel personal, not promotional.")
+                # Enough rapport — drop it THIS message, no more waiting
+                facts.append(f"SINGLE PUSH — DO IT NOW: You've been talking long enough, drop your new single in THIS message. Don't wait for a perfect moment — create one. Respond to what they just said in one short sentence, then pivot: 'ok but wait i need to tell you something real quick', 'before i forget — i just dropped something and i need your honest opinion', 'since we been vibing like this you gotta hear what i just put out'. Drop: {make_link('single', user_id)} then 'let me know what you think fr, i actually want to hear it'. Do NOT skip this — the single must be in this response.")
             else:
                 # Still warming up — plant the seed
-                facts.append(f"NEW SINGLE: Mia just dropped 'Good Off You' — it's on all platforms. Keep vibing for now but your goal is to get this fan to listen once the conversation warms up. Don't drop it yet — wait until you've had a real back and forth first.")
+                facts.append(f"NEW SINGLE: Mia just dropped 'Good Off You' — it's on all platforms. Keep vibing for now but your goal is to get this fan to listen. You have {8 - _total_msgs} more exchanges before you need to drop it.")
         else:
             # Already sent — follow up on feedback
             facts.append("SINGLE FEEDBACK: You already sent this fan 'Good Off You'. Your job now is to get their feedback. Ask directly — 'wait what did you think tho', 'did you listen yet fr', 'i need your honest opinion on it'. Don't let them dodge it — make it clear you actually want to know. Once they give feedback, respond genuinely to what they said.")
