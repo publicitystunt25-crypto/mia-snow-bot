@@ -3092,6 +3092,23 @@ def dashboard_data():
     cur.execute("SELECT COUNT(*) as c FROM link_clicks")
     link_clicks_total = cur.fetchone()["c"]
 
+    # Hourly breakdown for today's clicks
+    cur.execute("""
+        SELECT EXTRACT(HOUR FROM clicked_at AT TIME ZONE %s) as hour,
+               link_name, COUNT(*) as clicks
+        FROM link_clicks
+        WHERE DATE(clicked_at AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
+        GROUP BY hour, link_name ORDER BY hour ASC
+    """, (tz, tz, tz))
+    _hrows = cur.fetchall()
+    link_clicks_today_by_hour = {}
+    for r in _hrows:
+        h = int(r["hour"])
+        if h not in link_clicks_today_by_hour:
+            link_clicks_today_by_hour[h] = {"total": 0, "links": {}}
+        link_clicks_today_by_hour[h]["total"] += r["clicks"]
+        link_clicks_today_by_hour[h]["links"][r["link_name"]] = r["clicks"]
+
     cur.execute("""
         SELECT DATE(replied_at AT TIME ZONE %s) as day, COUNT(*) as comments
         FROM comment_replies
@@ -3213,6 +3230,7 @@ def dashboard_data():
             "comments_today": comments_today,
             "comments_total": comments_total,
             "link_clicks_today": link_clicks_today,
+            "link_clicks_today_by_hour": link_clicks_today_by_hour,
             "link_clicks_total": link_clicks_total,
             "comments_by_day": comments_by_day,
             "comments_all_time": comments_all_time,
@@ -4234,6 +4252,80 @@ def dashboard_single_blast():
         sent.append(uid)
 
     return jsonify({"blasting": len(sent), "eta_minutes": round(len(sent) * 8 / 60, 1)})
+
+
+@app.route("/dashboard/clicks")
+def dashboard_clicks():
+    """Detailed link click breakdown — filter by date, link, or hour."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+
+    tz = request.args.get("tz", "America/New_York")
+    days = int(request.args.get("days", 7))  # default last 7 days
+    link_filter = request.args.get("link", None)  # optional: filter to one link
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # Per-day per-link totals
+    cur.execute(f"""
+        SELECT DATE(clicked_at AT TIME ZONE %s) as day,
+               link_name,
+               COUNT(*) as clicks
+        FROM link_clicks
+        WHERE clicked_at >= NOW() - INTERVAL '{days} days'
+        {"AND link_name = %s" if link_filter else ""}
+        GROUP BY day, link_name
+        ORDER BY day DESC, clicks DESC
+    """, (tz, link_filter) if link_filter else (tz,))
+    by_day = [dict(r) for r in cur.fetchall()]
+    for r in by_day:
+        r["day"] = str(r["day"])
+
+    # Today hourly breakdown
+    cur.execute(f"""
+        SELECT EXTRACT(HOUR FROM clicked_at AT TIME ZONE %s) as hour,
+               link_name,
+               COUNT(*) as clicks
+        FROM link_clicks
+        WHERE DATE(clicked_at AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
+        {"AND link_name = %s" if link_filter else ""}
+        GROUP BY hour, link_name
+        ORDER BY hour ASC
+    """, (tz, tz, tz, link_filter) if link_filter else (tz, tz, tz))
+    today_by_hour = [dict(r) for r in cur.fetchall()]
+    for r in today_by_hour:
+        r["hour"] = int(r["hour"])
+
+    # All-time totals per link
+    cur.execute("""
+        SELECT link_name, COUNT(*) as clicks, COUNT(DISTINCT user_id) as unique_fans
+        FROM link_clicks
+        GROUP BY link_name ORDER BY clicks DESC
+    """)
+    totals = [dict(r) for r in cur.fetchall()]
+
+    # Today totals per link
+    cur.execute("""
+        SELECT link_name, COUNT(*) as clicks, COUNT(DISTINCT user_id) as unique_fans
+        FROM link_clicks
+        WHERE DATE(clicked_at AT TIME ZONE %s) = (NOW() AT TIME ZONE %s)::date
+        GROUP BY link_name ORDER BY clicks DESC
+    """, (tz, tz))
+    today_totals = [dict(r) for r in cur.fetchall()]
+
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "today_by_link": today_totals,
+        "today_by_hour": today_by_hour,
+        "last_n_days_by_link_by_day": by_day,
+        "all_time_by_link": totals,
+        "days_range": days,
+        "timezone": tz
+    })
 
 
 @app.route("/dashboard/single-reblast", methods=["GET", "POST"])
