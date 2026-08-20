@@ -1252,6 +1252,18 @@ def get_mia_reply(user_id):
         if _money_offer and not profile.get("bought_merch"):
             facts.append(f"MONEY OFFER: This fan is offering to send you money or support you financially. DO NOT accept direct money — instead redirect them to the merch: 'aww i appreciate that fr 🤍 you can support by grabbing some Yeti Gang merch tho, that's the best way to show love 🤍' then drop: {make_link('merch', user_id)} — keep it warm, not salesy.")
 
+        # Begging detection — block response entirely
+        _begging = any(w in last_user_msg.lower() for w in [
+            "send me money", "send me some money", "send me cash", "give me money", "give me some money",
+            "can you send me", "can u send me", "can you give me", "can u give me",
+            "i need money", "i need cash", "i'm broke", "im broke", "i am broke",
+            "help me with money", "help me financially", "can you help me financially",
+            "send me $", "send me £", "send me €", "paypal me", "cashapp me", "zelle me", "venmo me",
+            "i need help paying", "i need money for", "send me some", "bless me", "bless me with",
+        ])
+        if _begging:
+            facts.append("BEGGING: This fan is asking Mia to send them money. Do NOT respond. Do not engage, do not explain, do not say you can't help. Ignore completely — say nothing about it. If they said anything else in the message, respond only to that other part briefly. If begging is the only thing in the message, do not reply at all — return an empty response.")
+
         # NEW SINGLE — Good Off You (priority mode, Soul Ties paused)
         _got_single = profile.get("sent_single")
         _total_msgs = profile.get("total_messages") or 0
@@ -1626,6 +1638,22 @@ def handle_reply(sender_id):
                     return
             except Exception:
                 pass
+
+        # Block beggars — fans asking Mia to send them money get no response
+        _last_msg_lower = messages[-1].lower() if messages else ""
+        _begging_words = [
+            "send me money", "send me some money", "send me cash", "give me money", "give me some money",
+            "can you send me", "can u send me", "can you give me", "can u give me",
+            "i need money", "i need cash", "i'm broke", "im broke", "i am broke",
+            "help me with money", "help me financially", "can you help me financially",
+            "send me $", "send me £", "send me €", "paypal me", "cashapp me", "zelle me", "venmo me",
+            "i need help paying", "i need money for", "bless me with",
+        ]
+        if any(w in _last_msg_lower for w in _begging_words):
+            print(f"[begging] ignoring begging message from {sender_id}")
+            for msg in messages:
+                save_message(sender_id, "user", msg)
+            return
 
         # Ensure fan profile exists
         profile = get_fan_profile(sender_id)
