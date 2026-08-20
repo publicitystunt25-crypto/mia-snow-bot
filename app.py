@@ -1269,12 +1269,8 @@ def get_mia_reply(user_id):
                 # Still warming up — plant the seed
                 facts.append(f"NEW SINGLE: Mia just dropped 'Good Off You' — it's on all platforms. Keep vibing for now but your goal is to get this fan to listen. You have {8 - _total_msgs} more exchanges before you need to drop it.")
         else:
-            # Already sent — get feedback then push blast list and cool down
-            _blast_sent = profile.get("sent_blast_list")
-            if not _blast_sent:
-                facts.append(f"SINGLE SENT — WRAP UP THE FUNNEL: You already sent this fan 'Good Off You'. Do two things in this message: 1) Ask for their feedback naturally — 'wait what did you think tho' or 'did you get a chance to listen yet'. 2) Then invite them to your close network — 'if you wanna be the first to know when i drop new stuff, get on my list fr, i only send this to people i fw heavy' and drop: {make_link('blast', user_id)} — after this, keep responses short. You're wrapping up, not starting new convos.")
-            else:
-                facts.append("FUNNEL DONE — COOL DOWN: You've sent this fan the single and the blast list. You're done. Keep replies to 1 short sentence max. Be warm but brief — you're busy, you're living your life. Don't ask questions, don't start new topics. Just vibe and keep it moving.")
+            # Single already sent — cool down mode
+            facts.append("SINGLE SENT — COOL DOWN: You already sent this fan 'Good Off You'. You're done pushing. Keep replies to 1 short sentence max — warm but brief. You're busy, you're living your life. Don't start new topics, don't ask questions, don't send any more links. If they give you feedback on the single, respond genuinely in one line and keep it moving. That's it.")
 
         # Music push logic — PAUSED while single is priority
         _music_sent = True  # suppress Soul Ties facts while single is the focus
