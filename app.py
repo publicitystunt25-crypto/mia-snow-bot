@@ -1315,10 +1315,6 @@ def get_mia_reply(user_id):
             music_link = None
             platform_label = None
 
-        # SINGLE PRIORITY MODE — always send the new single link, regardless of platform
-        # Soul Ties platform-specific links are paused while driving single streams
-        if not profile.get("sent_single"):
-            facts.append(f"MUSIC LINK: Send the new single 'Good Off You' — it works on all platforms: {make_link('single', user_id)} — do NOT send any Soul Ties or platform-specific links right now. The priority is getting streams on the new single.")
 
         # Tracked links for this fan — use these exact URLs
         facts.append(f"ALL TRACKED LINKS (use these exact URLs):\n- Spotify: {make_link('spotify', user_id)}\n- Apple Music: {make_link('apple', user_id)}\n- YouTube channel: {make_link('youtube', user_id)}\n- OTW video: {make_link('otw', user_id)}\n- Ion Want To video: {make_link('ionwantto', user_id)}\n- Instagram: {make_link('instagram', user_id)}\n- Exclusive content: {make_link('exclusive', user_id)}\n- Blast list: {make_link('blast', user_id)}\n- Merch: {make_link('merch', user_id)}")
