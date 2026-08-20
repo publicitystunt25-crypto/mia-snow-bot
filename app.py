@@ -1229,7 +1229,7 @@ def get_mia_reply(user_id):
             music_note = " They have confirmed they listened so do NOT resend the music link." if already_listened and "music link" in " ".join(sent_links) else " Only resend the music link if it's clear from the conversation they have NOT listened yet."
             facts.append(f"HARD RULE — Links already sent to this person: {', '.join(sent_links)}.{music_note} Do NOT resend any other links under any circumstances.")
         if profile.get("sent_blast_list"):
-            facts.append("FUNNEL COMPLETE: You've already connected with this person and shared your music and blast list. Keep replies short and warm — 1 sentence max. You're living your life, not sitting by the phone. You still love them but you're busy and that's real. Don't start new topics or ask questions. Just respond warmly to whatever they say and keep it moving.")
+            facts.append("FUNNEL COMPLETE: You've already connected with this person and shared your music and blast list. Keep replies short and warm — 1 sentence max, no emoji overload. You're living your life, not sitting by the phone. You still love them but you're busy and that's real. Don't start new topics, don't ask questions, don't push any links. Just respond warmly to whatever they say and keep it moving. If they go quiet, don't follow up.")
         if _booking_email_already_sent:
             facts.append("BOOKING EMAIL ALREADY GIVEN: You already sent bookmiasnow@gmail.com to this person earlier in this conversation. Do NOT send it again. If they bring up bookings, features, or collabs again just acknowledge it briefly — 'yea they gonna handle it, just make sure you sent that email' or 'just make sure you hit that email and they gonna get back to you' — one line max, no repeating the full email address.")
         # FaceTime request — brush off naturally, no link
@@ -1269,8 +1269,12 @@ def get_mia_reply(user_id):
                 # Still warming up — plant the seed
                 facts.append(f"NEW SINGLE: Mia just dropped 'Good Off You' — it's on all platforms. Keep vibing for now but your goal is to get this fan to listen. You have {8 - _total_msgs} more exchanges before you need to drop it.")
         else:
-            # Already sent — follow up on feedback
-            facts.append("SINGLE FEEDBACK: You already sent this fan 'Good Off You'. Your job now is to get their feedback. Ask directly — 'wait what did you think tho', 'did you listen yet fr', 'i need your honest opinion on it'. Don't let them dodge it — make it clear you actually want to know. Once they give feedback, respond genuinely to what they said.")
+            # Already sent — get feedback then push blast list and cool down
+            _blast_sent = profile.get("sent_blast_list")
+            if not _blast_sent:
+                facts.append(f"SINGLE SENT — WRAP UP THE FUNNEL: You already sent this fan 'Good Off You'. Do two things in this message: 1) Ask for their feedback naturally — 'wait what did you think tho' or 'did you get a chance to listen yet'. 2) Then invite them to your close network — 'if you wanna be the first to know when i drop new stuff, get on my list fr, i only send this to people i fw heavy' and drop: {make_link('blast', user_id)} — after this, keep responses short. You're wrapping up, not starting new convos.")
+            else:
+                facts.append("FUNNEL DONE — COOL DOWN: You've sent this fan the single and the blast list. You're done. Keep replies to 1 short sentence max. Be warm but brief — you're busy, you're living your life. Don't ask questions, don't start new topics. Just vibe and keep it moving.")
 
         # Music push logic — PAUSED while single is priority
         _music_sent = True  # suppress Soul Ties facts while single is the focus
@@ -1286,10 +1290,10 @@ def get_mia_reply(user_id):
             conn2.close()
         if profile.get('funnel_restarted') and not profile.get('listened_to_music'):
             facts.append(f"YOUTUBE PUSH: You've talked to this person before but they haven't listened to your music yet. This cycle your goal is to get them to watch a YouTube video. When the moment is right, push YouTube specifically — something like 'you gotta watch the visuals fr' and drop: {make_link('youtube', user_id)} — keep it natural, don't force it early.")
-        # Blast list push — after music sent and not yet on blast list
+        # Blast list push — after music sent via old funnel path and not yet on blast list
         _blast_sent = profile.get("sent_blast_list")
         _music_sent_flag = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("sent_soulties")
-        if _music_sent_flag and not _blast_sent:
+        if _music_sent_flag and not _blast_sent and not _got_single:
             facts.append(f"BLAST LIST PUSH: You already shared your music with this fan. Now naturally work in the blast list — something like 'if you wanna be the first to know when i drop new stuff, get on my close network fr' or 'i only send this to people i fw heavy' then drop: {make_link('blast', user_id)} — keep it low pressure, like you're inviting them into something exclusive, not selling them something.")
 
         # Merch push — after confirmed listener, mention once casually
