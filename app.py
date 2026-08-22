@@ -1211,22 +1211,12 @@ def get_mia_reply(user_id):
 
         _is_international = _fan_language not in ("en", "es") or profile.get("is_international_number")
 
-        if _is_international and profile.get("is_international_number") and not _got_single:
-            # Fan sent an international phone number — they're not local, drop the single now and stop
-            facts.append(f"INTERNATIONAL NUMBER DETECTED: This fan sent you an international phone number — they're not in the US. You already have their number saved. Drop your new single 'Good Off You' now — short and warm. Link: {make_link('single', user_id)} — tell them to check it out. After this, go silent unless they engage back directly.")
-        elif _is_international:
-            # International fans — fast funnel: 2 messages then drop single, 1 more then silent
+        if _is_international:
+            # International fans — drop single immediately on first detection, then silent
             if not _got_single:
-                if _total_msgs >= 2:
-                    facts.append(f"INTERNATIONAL FAN — DROP SINGLE NOW: This fan writes in a non-English language. You've warmed up enough. Drop your new single 'Good Off You' in THIS message in their language. Keep it short and warm — something like you just dropped new music and want them to hear it. Link: {make_link('single', user_id)} — drop it and tell them to check it out. This is the last push before you go quiet.")
-                else:
-                    facts.append(f"INTERNATIONAL FAN: This fan writes in a non-English language. Reply warmly in their language — 1 short sentence only. Next message you will drop the single link and go quiet after that.")
+                facts.append(f"INTERNATIONAL FAN — DROP SINGLE NOW: This fan is not in the US. Drop your new single 'Good Off You' in THIS message. Keep it short and warm in their language if possible. Link: {make_link('single', user_id)} — drop it and move on. Do not ask questions. Do not keep the conversation going. This is the only push.")
             else:
-                # Single sent — one final warm message then done
-                if _total_msgs <= _got_single + 1 if isinstance(_got_single, int) else _total_msgs <= 4:
-                    facts.append("INTERNATIONAL FAN — FINAL MESSAGE: You already sent the single. Send one last warm short reply in their language, then you are done. Do not respond after this.")
-                else:
-                    facts.append("INTERNATIONAL FAN — SILENT: You've already sent the single and followed up. Do not reply. Return an empty response.")
+                facts.append("INTERNATIONAL FAN — SILENT: You already sent the single. Do not reply. Return an empty response.")
         elif not _got_single:
             if _fan_mentioned_music:
                 # Any music mention = drop the single immediately
