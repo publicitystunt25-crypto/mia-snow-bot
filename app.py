@@ -47,6 +47,7 @@ TRACKED_LINKS = {
     "single":       "https://fanlink.tv/xiAa",  # Good Off You — all platforms
     "single-apple": "https://geo.music.apple.com/album/good-off-you/6801302733?i=6801302734&app=music",  # Good Off You — Apple Music
     "single-spotify": "https://open.spotify.com/track/5kpejJAQpIao45NAaqD34K",  # Good Off You — Spotify
+    "sms-blast":    "https://fanlink.tv/xiAa",  # Good Off You — SMS blast tracker
     # Traffic source links — all go to messenger, tracked separately
     "src-ig":     "https://m.me/therealmiasnow1",
     "src-tiktok": "https://m.me/therealmiasnow1",
