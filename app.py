@@ -1219,6 +1219,7 @@ def get_mia_reply(user_id):
 
         # NEW SINGLE — Good Off You (priority mode, Soul Ties paused)
         _got_single = profile.get("sent_single")
+        _blast_sent = profile.get("sent_blast_list")
         _total_msgs = profile.get("total_messages") or 0
         _music_keywords = ["music", "song", "track", "stream", "spotify", "apple music", "youtube", "listen", "heard", "banger", "fire", "album", "single", "video", "visuals", "drop", "new music", "your music", "you sing", "you rap", "you make music", "artist"]
         _fan_mentioned_music = any(kw in last_user_msg.lower() for kw in _music_keywords)
@@ -1276,8 +1277,12 @@ def get_mia_reply(user_id):
                 # Still warming up — plant the seed
                 facts.append(f"NEW SINGLE: Mia just dropped 'Good Off You' — it's on all platforms. Keep vibing for now but your goal is to get this fan to listen. You have {3 - _total_msgs} more exchanges before you need to drop it.")
         else:
-            # Single already sent — push blast list then cool down
-            facts.append(f"SINGLE SENT — BLAST LIST PUSH: You already sent this fan 'Good Off You'. If they responded positively or engaged with it, this is the moment to get them on the blast list — say something like 'if you fw it get on my close network list, you'll be first to know when i drop again fr' and drop: https://mia-snow-bot.onrender.com/go/blast — keep it casual. If they haven't responded to the single yet, just reply warmly in 1 short sentence and wait. After the blast list is dropped, go to 1 sentence max replies and stop pushing anything.")
+            # Single already sent — push blast list if they clicked/listened, otherwise wait
+            _listened = profile.get("listened_to_music")
+            if _listened and not _blast_sent:
+                facts.append(f"SINGLE CLICKED — BLAST LIST PUSH NOW: This fan clicked and listened to 'Good Off You'. Drop the blast list in THIS message — say something like 'glad you fw it fr, get on my close network so you're first to know when i drop again 🤍' and drop: {make_link('blast', user_id)} — keep it short and casual. One push only. After this go to 1 sentence max replies.")
+            elif not _listened:
+                facts.append("SINGLE SENT — WAITING: You already sent this fan 'Good Off You' but they haven't clicked it yet. Just reply warmly in 1 short sentence. Do NOT push the blast list yet. Wait until they actually listen.")
 
         # Music push logic — PAUSED while single is priority
         _music_sent = True  # suppress Soul Ties facts while single is the focus
@@ -1294,7 +1299,6 @@ def get_mia_reply(user_id):
         if profile.get('funnel_restarted') and not profile.get('listened_to_music'):
             facts.append(f"YOUTUBE PUSH: You've talked to this person before but they haven't listened to your music yet. This cycle your goal is to get them to watch a YouTube video. When the moment is right, push YouTube specifically — something like 'you gotta watch the visuals fr' and drop: {make_link('youtube', user_id)} — keep it natural, don't force it early.")
         # Blast list push — after music sent via old funnel path and not yet on blast list
-        _blast_sent = profile.get("sent_blast_list")
         _music_sent_flag = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("sent_soulties")
         if _music_sent_flag and not _blast_sent and not _got_single:
             facts.append(f"BLAST LIST PUSH: You already shared your music with this fan. Now naturally work in the blast list — something like 'if you wanna be the first to know when i drop new stuff, get on my close network fr' or 'i only send this to people i fw heavy' then drop: {make_link('blast', user_id)} — keep it low pressure, like you're inviting them into something exclusive, not selling them something.")
