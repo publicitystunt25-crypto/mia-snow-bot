@@ -2809,6 +2809,39 @@ def api_link_clickers():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/locations")
+def api_locations():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    search = request.args.get("search", "").strip().lower()
+    limit = int(request.args.get("limit", 50))
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        if search:
+            cur.execute("""
+                SELECT location, COUNT(*) as fans
+                FROM fan_profiles
+                WHERE location IS NOT NULL AND location != ''
+                AND LOWER(location) LIKE %s
+                GROUP BY location ORDER BY fans DESC LIMIT %s
+            """, (f"%{search}%", limit))
+        else:
+            cur.execute("""
+                SELECT location, COUNT(*) as fans
+                FROM fan_profiles
+                WHERE location IS NOT NULL AND location != ''
+                GROUP BY location ORDER BY fans DESC LIMIT %s
+            """, (limit,))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({"search": search or "top locations", "results": [dict(r) for r in rows]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/logs")
 def api_logs():
     password = request.args.get("password", "")
