@@ -1210,6 +1210,7 @@ def get_mia_reply(user_id):
         _music_keywords = ["music", "song", "track", "stream", "spotify", "apple music", "youtube", "listen", "heard", "banger", "fire", "album", "single", "video", "visuals", "drop", "new music", "your music", "you sing", "you rap", "you make music", "artist"]
         _fan_mentioned_music = any(kw in last_user_msg.lower() for kw in _music_keywords)
 
+        _fan_language = profile.get("language", "en") if profile else "en"
         _is_international = _fan_language not in ("en", "es") or profile.get("is_international_number")
 
         if _is_international:
