@@ -2581,8 +2581,12 @@ def api_stats():
         conn = get_conn()
         cur = conn.cursor()
         from datetime import datetime, timedelta
+        import zoneinfo
+        eastern = zoneinfo.ZoneInfo("America/New_York")
+        now_et = datetime.now(eastern)
+        today_start_et = now_et.replace(hour=0, minute=0, second=0, microsecond=0)
         now = datetime.utcnow()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start = today_start_et.astimezone(zoneinfo.ZoneInfo("UTC")).replace(tzinfo=None)
 
         cur.execute("SELECT COUNT(*) FROM messages WHERE created_at >= %s", (today_start,))
         dms_today = cur.fetchone()[0]
