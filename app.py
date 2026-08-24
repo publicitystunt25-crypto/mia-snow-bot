@@ -2895,6 +2895,30 @@ def api_conversation():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/send-message", methods=["POST", "GET"])
+def api_send_message():
+    """Send a manual message to a fan as Mia."""
+    password = request.args.get("password", "") or (request.json or {}).get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.json or {}
+    uid = (data.get("uid") or request.args.get("uid", "")).strip()
+    message = (data.get("message") or request.args.get("message", "")).strip()
+    if not uid:
+        return jsonify({"error": "provide uid"}), 400
+    if not message:
+        return jsonify({"error": "provide message"}), 400
+    try:
+        send_message(uid, message)
+        save_message(uid, "assistant", message)
+        # Mark as manual reply so bot stands down on next fan message
+        _manual_replied.add(uid)
+        print(f"[manual_api] sent to {uid}: {message[:60]}")
+        return jsonify({"ok": True, "uid": uid, "message": message})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/recent-convos")
 def api_recent_convos():
     """All conversations from the last N hours, grouped by fan."""
