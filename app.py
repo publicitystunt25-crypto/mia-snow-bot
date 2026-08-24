@@ -278,6 +278,7 @@ def init_db():
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS asked_music_taste BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_single BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS gave_number BOOLEAN DEFAULT FALSE")
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS phone_number TEXT DEFAULT NULL")
     cur.execute("ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'dm'")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS link_clicks (
@@ -552,16 +553,19 @@ def update_fan_after_message(user_id, messages):
     if "forms.gle" in combined or "/go/blast" in combined:
         updates["sent_blast_list"] = True
 
-    # Detect if fan gave their phone number
+    # Detect if fan gave their phone number and extract it
     import re as _re
     _phone_pattern = _re.compile(r'\b(\+?1?\s?[-.]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})\b')
-    # Detect international phone number (starts with + followed by non-US/CA country code)
-    _intl_phone_pattern = _re.compile(r'\+(?!1\b)(\d{1,3})[\s.-]?\d')
-    if _phone_pattern.search(_fan_msgs_combined):
+    _intl_phone_pattern = _re.compile(r'(\+(?!1\b)\d{1,3}[\s.-]?\d[\d\s.\-]{5,})')
+    _us_match = _phone_pattern.search(_fan_msgs_combined)
+    _intl_match = _intl_phone_pattern.search(_fan_msgs_combined)
+    if _us_match:
         updates["gave_number"] = True
-    if _intl_phone_pattern.search(_fan_msgs_combined):
+        updates["phone_number"] = _us_match.group(1)
+    if _intl_match:
         updates["gave_number"] = True
         updates["is_international_number"] = True
+        updates["phone_number"] = _intl_match.group(1).strip()
         if updates.get("language") in (None, "en"):
             updates["language"] = "intl_phone"
 
@@ -2636,6 +2640,49 @@ def api_stats():
                 "on_blast_list": on_blast_list,
             }
         })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/export/phones")
+def export_phones():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return "unauthorized", 401
+    try:
+        import re as _re
+        import csv, io
+        _phone_pattern = _re.compile(r'\b(\+?1?\s?[-.]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})\b')
+        _intl_phone_pattern = _re.compile(r'(\+(?!1\b)\d{1,3}[\s.-]?\d[\d\s.\-]{5,})')
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # First pull saved phone numbers from profiles
+        cur.execute("SELECT user_id, fb_name, phone_number FROM fan_profiles WHERE phone_number IS NOT NULL")
+        saved = {r["user_id"]: r for r in cur.fetchall()}
+        # Then scan all messages for any we may have missed
+        cur.execute("SELECT m.user_id, fp.fb_name, m.content, m.created_at FROM messages m LEFT JOIN fan_profiles fp ON fp.user_id = m.user_id WHERE m.role = 'user' ORDER BY m.created_at ASC")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        found = {}
+        for row in rows:
+            uid = row["user_id"]
+            content = row["content"] or ""
+            m = _phone_pattern.search(content) or _intl_phone_pattern.search(content)
+            if m:
+                number = m.group(1).strip()
+                if uid not in found:
+                    found[uid] = {"name": row["fb_name"] or "", "phone": number, "uid": uid, "date": str(row["created_at"])[:10]}
+        # Merge saved profile numbers
+        for uid, r in saved.items():
+            if uid not in found:
+                found[uid] = {"name": r["fb_name"] or "", "phone": r["phone_number"], "uid": uid, "date": ""}
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Name", "Phone Number", "User ID", "Date Sent"])
+        for entry in sorted(found.values(), key=lambda x: x["name"].lower()):
+            writer.writerow([entry["name"], entry["phone"], entry["uid"], entry["date"]])
+        return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=mia_phone_numbers.csv"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
