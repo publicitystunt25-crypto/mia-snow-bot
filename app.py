@@ -2563,6 +2563,70 @@ def dashboard():
     return DASHBOARD_HTML
 
 
+@app.route("/api/stats")
+def api_stats():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        from datetime import datetime, timedelta
+        now = datetime.utcnow()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        cur.execute("SELECT COUNT(*) FROM messages WHERE created_at >= %s", (today_start,))
+        dms_today = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(DISTINCT user_id) FROM messages WHERE created_at >= %s", (today_start,))
+        unique_fans_today = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM messages WHERE created_at >= %s", (now - timedelta(hours=1),))
+        dms_last_hour = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM link_clicks WHERE clicked_at >= %s", (today_start,))
+        clicks_today = cur.fetchone()[0]
+
+        cur.execute("SELECT link_name, COUNT(*) as cnt FROM link_clicks WHERE clicked_at >= %s GROUP BY link_name ORDER BY cnt DESC", (today_start,))
+        clicks_by_link = {row[0]: row[1] for row in cur.fetchall()}
+
+        cur.execute("SELECT COUNT(*) FROM fan_profiles WHERE sent_single = true")
+        got_single = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM fan_profiles WHERE sent_single = false OR sent_single IS NULL")
+        warming_up = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM fan_profiles")
+        total_fans = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM fan_profiles WHERE sent_blast_list = true")
+        on_blast_list = cur.fetchone()[0]
+
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            "as_of": now.strftime("%Y-%m-%d %H:%M UTC"),
+            "today": {
+                "dms": dms_today,
+                "unique_fans": unique_fans_today,
+                "link_clicks": clicks_today,
+                "clicks_by_link": clicks_by_link,
+            },
+            "last_hour": {
+                "dms": dms_last_hour,
+            },
+            "all_time": {
+                "total_fans": total_fans,
+                "got_single_link": got_single,
+                "warming_up": warming_up,
+                "on_blast_list": on_blast_list,
+            }
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/admin/fix-names")
 def fix_names_route():
     password = request.args.get("password", "")
