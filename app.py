@@ -1365,6 +1365,27 @@ def get_mia_reply(user_id):
             _lc.commit(); _lcur.close(); _lc.close()
         except Exception: pass
 
+    # Non-English greetings / phrases that signal a non-English or international speaker
+    _INTL_GREETINGS = {
+        "slm": "tr", "selam": "tr", "merhaba": "tr",
+        "bonjour": "fr", "bonsoir": "fr", "salut": "fr", "merci": "fr",
+        "olá": "pt", "tudo bem": "pt", "que delicia": "pt", "bom dia": "pt", "boa tarde": "pt",
+        "ciao": "it", "buongiorno": "it",
+        "hallo": "de", "guten tag": "de",
+        "xup": "gh", "adey": "gh", "chale": "gh",
+    }
+    if not _detected_script:
+        _msg_lower_greet = _latest_fan_msg.lower()
+        for _greeting, _glang in _INTL_GREETINGS.items():
+            if _greeting in _msg_lower_greet and _fan_language == "en":
+                _fan_language = _glang
+                try:
+                    _lc = get_conn(); _lcur = _lc.cursor()
+                    _lcur.execute("UPDATE fan_profiles SET language = %s WHERE user_id = %s", (_glang, user_id))
+                    _lc.commit(); _lcur.close(); _lc.close()
+                except Exception: pass
+                break
+
     # Spanish — detect by keywords (Latin script, needs word matching)
     if not _detected_script:
         _spanish_words = ["que", "con", "para", "como", "pero", "hay", "una", "los", "las", "del", "por", "este", "esta", "eso", "esa", "también", "está", "más", "todo", "quiero", "puedo", "amor", "vida", "gracias", "hola", "cómo", "qué", "sí"]
@@ -1634,8 +1655,7 @@ def handle_reply(sender_id):
             except Exception:
                 pass
 
-        # Block beggars — fans asking Mia to send them money get no response
-        _last_msg_lower = messages[-1].lower() if messages else ""
+        # Block beggars — check last message AND recent history
         _begging_words = [
             "send me money", "send me some money", "send me cash", "give me money", "give me some money",
             "can you send me", "can u send me", "can you give me", "can u give me",
@@ -1643,8 +1663,12 @@ def handle_reply(sender_id):
             "help me with money", "help me financially", "can you help me financially",
             "send me $", "send me £", "send me €", "paypal me", "cashapp me", "zelle me", "venmo me",
             "i need help paying", "i need money for", "bless me with",
+            "i need $", "i need €", "i need £", "need money", "i don't have money", "i dont have money",
+            "he wanna eat", "she wanna eat", "they wanna eat", "for groceries", "for my child", "for food",
         ]
-        if any(w in _last_msg_lower for w in _begging_words):
+        _all_recent_msgs = " ".join(m.lower() for m in messages)
+        _begging_in_history = any(w in _all_recent_msgs for w in _begging_words)
+        if _begging_in_history:
             print(f"[begging] ignoring begging message from {sender_id}")
             for msg in messages:
                 save_message(sender_id, "user", msg)
