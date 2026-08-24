@@ -1224,7 +1224,40 @@ def get_mia_reply(user_id):
         _fan_mentioned_music = any(kw in last_user_msg.lower() for kw in _music_keywords)
 
         _fan_language = profile.get("language", "en") if profile else "en"
-        _is_international = _fan_language not in ("en", "es") or profile.get("is_international_number")
+
+        # International countries — English-speaking fans from outside US/Canada
+        _INTL_COUNTRIES = {
+            "ghana", "nigeria", "kenya", "ethiopia", "tanzania", "uganda", "cameroon", "senegal",
+            "ivory coast", "côte d'ivoire", "sierra leone", "liberia", "gambia", "zambia", "zimbabwe",
+            "malawi", "mozambique", "botswana", "namibia", "rwanda", "burundi", "south sudan", "somalia",
+            "south africa", "egypt", "morocco", "algeria", "tunisia", "libya", "sudan",
+            "uk", "united kingdom", "england", "scotland", "wales", "ireland", "australia", "new zealand",
+            "india", "pakistan", "bangladesh", "philippines", "jamaica", "trinidad", "barbados", "haiti",
+            "ghana", "togo", "benin", "burkina faso", "mali", "niger", "chad", "angola", "congo",
+            "democratic republic of congo", "drc", "gabon", "equatorial guinea", "cape verde",
+            "brazil", "colombia", "venezuela", "peru", "ecuador", "bolivia", "argentina", "chile",
+            "france", "germany", "italy", "spain", "portugal", "netherlands", "belgium", "sweden",
+            "norway", "denmark", "finland", "poland", "ukraine", "russia", "turkey", "iran", "iraq",
+            "saudi arabia", "uae", "dubai", "qatar", "kuwait", "bahrain", "jordan", "lebanon", "israel",
+            "china", "japan", "south korea", "indonesia", "malaysia", "vietnam", "thailand", "myanmar",
+            "akasombo", "accra", "lagos", "nairobi", "johannesburg", "cape town", "cairo", "casablanca",
+            "abuja", "kumasi", "dakar", "kinshasa", "addis ababa", "kampala", "dar es salaam",
+        }
+        _fan_location = (profile.get("location") or "").lower()
+        _location_is_international = any(country in _fan_location for country in _INTL_COUNTRIES)
+
+        # Also detect international from recent messages mentioning a country
+        _recent_user_msgs = " ".join(
+            m.get("content", "").lower() for m in history[-6:] if m.get("role") == "user"
+        )
+        _msg_mentions_intl = any(country in _recent_user_msgs for country in _INTL_COUNTRIES)
+
+        _is_international = (
+            _fan_language not in ("en", "es")
+            or profile.get("is_international_number")
+            or _location_is_international
+            or _msg_mentions_intl
+        )
 
         if _is_international:
             # International fans — drop single immediately on first detection, then silent
