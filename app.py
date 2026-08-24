@@ -1232,12 +1232,12 @@ def get_mia_reply(user_id):
             if _fan_mentioned_music:
                 # Any music mention = drop the single immediately
                 facts.append(f"MUSIC TRIGGER — DROP SINGLE NOW: This fan just mentioned music. Don't wait — drop your new single 'Good Off You' right now. Say something like 'ok since you on that topic i literally JUST dropped something', 'wait you into music? i need you to hear what i just put out', 'omg perfect timing i just dropped something fr'. Spotify: {make_link('single', user_id)} | Apple Music: {make_link('single-apple', user_id)} — drop whichever fits or both, then ask 'let me know what you think fr, i need real feedback'.")
-            elif _total_msgs >= 5:
+            elif _total_msgs >= 3:
                 # Enough rapport — drop it THIS message, no more waiting
                 facts.append(f"SINGLE PUSH — DO IT NOW: You've been talking long enough, drop your new single in THIS message. Don't wait for a perfect moment — create one. Respond to what they just said in one short sentence, then pivot: 'ok but wait i need to tell you something real quick', 'before i forget — i just dropped something and i need your honest opinion', 'since we been vibing like this you gotta hear what i just put out'. Spotify: {make_link('single', user_id)} | Apple Music: {make_link('single-apple', user_id)} — drop both so they can pick their platform. Then 'let me know what you think fr, i actually want to hear it'. Do NOT skip this — the single must be in this response.")
             else:
                 # Still warming up — plant the seed
-                facts.append(f"NEW SINGLE: Mia just dropped 'Good Off You' — it's on all platforms. Keep vibing for now but your goal is to get this fan to listen. You have {5 - _total_msgs} more exchanges before you need to drop it.")
+                facts.append(f"NEW SINGLE: Mia just dropped 'Good Off You' — it's on all platforms. Keep vibing for now but your goal is to get this fan to listen. You have {3 - _total_msgs} more exchanges before you need to drop it.")
         else:
             # Single already sent — push blast list then cool down
             facts.append(f"SINGLE SENT — BLAST LIST PUSH: You already sent this fan 'Good Off You'. If they responded positively or engaged with it, this is the moment to get them on the blast list — say something like 'if you fw it get on my close network list, you'll be first to know when i drop again fr' and drop: https://mia-snow-bot.onrender.com/go/blast — keep it casual. If they haven't responded to the single yet, just reply warmly in 1 short sentence and wait. After the blast list is dropped, go to 1 sentence max replies and stop pushing anything.")
