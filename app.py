@@ -2895,6 +2895,212 @@ def api_conversation():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/recent-convos")
+def api_recent_convos():
+    """All conversations from the last N hours, grouped by fan."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    hours = int(request.args.get("hours", 24))
+    limit = int(request.args.get("limit", 50))  # max fans to return
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Get fans who had activity in the window
+        cur.execute("""
+            SELECT DISTINCT m.user_id, fp.fb_name, fp.location, fp.language,
+                   fp.total_messages, fp.sent_single, fp.sent_blast_list, fp.vibe
+            FROM messages m
+            LEFT JOIN fan_profiles fp ON fp.user_id = m.user_id
+            WHERE m.created_at >= NOW() - INTERVAL '%s hours'
+            ORDER BY fp.total_messages DESC NULLS LAST
+            LIMIT %s
+        """, (hours, limit))
+        fans = cur.fetchall()
+        result = []
+        for fan in fans:
+            cur.execute("""
+                SELECT role, content, created_at AT TIME ZONE 'America/New_York' as at
+                FROM messages WHERE user_id = %s
+                AND created_at >= NOW() - INTERVAL '%s hours'
+                ORDER BY created_at ASC
+            """, (fan["user_id"], hours))
+            msgs = cur.fetchall()
+            result.append({
+                "uid": fan["user_id"],
+                "name": fan["fb_name"],
+                "location": fan["location"],
+                "language": fan["language"],
+                "total_messages": fan["total_messages"],
+                "sent_single": fan["sent_single"],
+                "sent_blast_list": fan["sent_blast_list"],
+                "vibe": fan["vibe"],
+                "messages": [{"role": m["role"], "content": m["content"], "at": str(m["at"])} for m in msgs]
+            })
+        cur.close()
+        conn.close()
+        return jsonify({"hours": hours, "fan_count": len(result), "fans": result})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/search-messages")
+def api_search_messages():
+    """Search all messages ever sent/received for a keyword."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    q = request.args.get("q", "").strip()
+    role = request.args.get("role", "")  # "user", "assistant", or blank for both
+    days = int(request.args.get("days", 0))  # 0 = all time
+    if not q:
+        return jsonify({"error": "provide q= search term"}), 400
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        base = """
+            SELECT m.user_id, fp.fb_name, fp.location, m.role, m.content,
+                   m.created_at AT TIME ZONE 'America/New_York' as at
+            FROM messages m
+            LEFT JOIN fan_profiles fp ON fp.user_id = m.user_id
+            WHERE LOWER(m.content) LIKE %s
+        """
+        params = [f"%{q.lower()}%"]
+        if role in ("user", "assistant"):
+            base += " AND m.role = %s"
+            params.append(role)
+        if days > 0:
+            base += " AND m.created_at >= NOW() - INTERVAL '%s days'"
+            params.append(days)
+        base += " ORDER BY m.created_at DESC LIMIT 100"
+        cur.execute(base, params)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({"query": q, "count": len(rows), "results": [
+            {"uid": r["user_id"], "name": r["fb_name"], "location": r["location"],
+             "role": r["role"], "content": r["content"], "at": str(r["at"])} for r in rows
+        ]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/fan-summary")
+def api_fan_summary():
+    """High-level stats on all fans ever — funnel breakdown, top locations, top languages."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT COUNT(*) as total FROM fan_profiles")
+        total = cur.fetchone()["total"]
+        cur.execute("SELECT COUNT(*) as n FROM fan_profiles WHERE sent_single = TRUE")
+        got_single = cur.fetchone()["n"]
+        cur.execute("SELECT COUNT(*) as n FROM fan_profiles WHERE sent_blast_list = TRUE")
+        on_blast = cur.fetchone()["n"]
+        cur.execute("SELECT COUNT(*) as n FROM fan_profiles WHERE gave_number = TRUE")
+        gave_number = cur.fetchone()["n"]
+        cur.execute("""
+            SELECT location, COUNT(*) as n FROM fan_profiles
+            WHERE location IS NOT NULL AND location != ''
+            GROUP BY location ORDER BY n DESC LIMIT 20
+        """)
+        top_locations = cur.fetchall()
+        cur.execute("""
+            SELECT language, COUNT(*) as n FROM fan_profiles
+            WHERE language IS NOT NULL AND language != ''
+            GROUP BY language ORDER BY n DESC LIMIT 10
+        """)
+        top_languages = cur.fetchall()
+        cur.execute("""
+            SELECT DATE(created_at AT TIME ZONE 'America/New_York') as day, COUNT(DISTINCT user_id) as fans
+            FROM messages WHERE role = 'user'
+            GROUP BY day ORDER BY day DESC LIMIT 30
+        """)
+        daily_fans = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({
+            "total_fans": total,
+            "got_single": got_single,
+            "on_blast_list": on_blast,
+            "gave_phone": gave_number,
+            "top_locations": [dict(r) for r in top_locations],
+            "top_languages": [dict(r) for r in top_languages],
+            "daily_active_fans": [{"day": str(r["day"]), "fans": r["fans"]} for r in daily_fans]
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/top-fans")
+def api_top_fans():
+    """Fans ranked by total messages — your most engaged fans."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    limit = int(request.args.get("limit", 25))
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT user_id, fb_name, location, language, total_messages,
+                   sent_single, sent_blast_list, gave_number, phone_number, vibe, fan_score,
+                   last_seen AT TIME ZONE 'America/New_York' as last_seen
+            FROM fan_profiles
+            ORDER BY total_messages DESC NULLS LAST
+            LIMIT %s
+        """, (limit,))
+        fans = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({"fans": [dict(f) for f in fans]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/message-volume")
+def api_message_volume():
+    """Message counts by hour or day — see when fans are most active."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    period = request.args.get("period", "day")  # "hour" or "day"
+    days = int(request.args.get("days", 7))
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        if period == "hour":
+            cur.execute("""
+                SELECT DATE_TRUNC('hour', created_at AT TIME ZONE 'America/New_York') as bucket,
+                       COUNT(*) FILTER (WHERE role='user') as fan_msgs,
+                       COUNT(*) FILTER (WHERE role='assistant') as bot_msgs
+                FROM messages
+                WHERE created_at >= NOW() - INTERVAL '%s days'
+                GROUP BY bucket ORDER BY bucket DESC LIMIT 168
+            """, (days,))
+        else:
+            cur.execute("""
+                SELECT DATE(created_at AT TIME ZONE 'America/New_York') as bucket,
+                       COUNT(*) FILTER (WHERE role='user') as fan_msgs,
+                       COUNT(*) FILTER (WHERE role='assistant') as bot_msgs,
+                       COUNT(DISTINCT user_id) FILTER (WHERE role='user') as unique_fans
+                FROM messages
+                WHERE created_at >= NOW() - INTERVAL '%s days'
+                GROUP BY bucket ORDER BY bucket DESC
+            """, (days,))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({"period": period, "days": days, "buckets": [
+            {k: str(v) if hasattr(v, 'isoformat') else v for k, v in dict(r).items()} for r in rows
+        ]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/admin/fix-names")
 def fix_names_route():
     password = request.args.get("password", "")
