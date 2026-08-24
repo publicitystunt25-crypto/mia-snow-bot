@@ -1937,6 +1937,26 @@ def handle_reply(sender_id):
             save_message(sender_id, "assistant", reply)
             send_message(sender_id, reply)
 
+        # Flag sent_single if the reply contains the single link
+        if ("/go/single" in reply or "fanlink.tv/xiAa" in reply) and profile and not profile.get("sent_single"):
+            try:
+                _sc = get_conn(); _scur = _sc.cursor()
+                _scur.execute("UPDATE fan_profiles SET sent_single = TRUE WHERE user_id = %s", (sender_id,))
+                _sc.commit(); _scur.close(); _sc.close()
+                print(f"[sent_single] flagged {sender_id}")
+            except Exception as _se:
+                print(f"[sent_single] error: {_se}")
+
+        # Flag sent_blast_list if the reply contains the blast link
+        if ("/go/blast" in reply or "forms.gle" in reply) and profile and not profile.get("sent_blast_list"):
+            try:
+                _bc = get_conn(); _bcur = _bc.cursor()
+                _bcur.execute("UPDATE fan_profiles SET sent_blast_list = TRUE WHERE user_id = %s", (sender_id,))
+                _bc.commit(); _bcur.close(); _bc.close()
+                print(f"[sent_blast_list] flagged {sender_id}")
+            except Exception as _be:
+                print(f"[sent_blast_list] error: {_be}")
+
         # OTW tracking — increment warmup count through all phases; mark sent if link is in reply
         if profile and (profile.get("total_messages") or 0) >= 30:
             _otw_warmup_now = profile.get("otw_warmup_count") or 0
