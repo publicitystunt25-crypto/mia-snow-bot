@@ -2588,19 +2588,19 @@ def api_stats():
         now = datetime.utcnow()
         today_start = today_start_et.astimezone(zoneinfo.ZoneInfo("UTC")).replace(tzinfo=None)
 
-        cur.execute("SELECT COUNT(*) FROM messages WHERE created_at >= %s", (today_start,))
+        cur.execute("SELECT COUNT(*) FROM messages WHERE DATE(created_at AT TIME ZONE 'America/New_York') = (NOW() AT TIME ZONE 'America/New_York')::date")
         dms_today = cur.fetchone()[0]
 
-        cur.execute("SELECT COUNT(DISTINCT user_id) FROM messages WHERE created_at >= %s", (today_start,))
+        cur.execute("SELECT COUNT(DISTINCT user_id) FROM messages WHERE DATE(created_at AT TIME ZONE 'America/New_York') = (NOW() AT TIME ZONE 'America/New_York')::date")
         unique_fans_today = cur.fetchone()[0]
 
-        cur.execute("SELECT COUNT(*) FROM messages WHERE created_at >= %s", (now - timedelta(hours=1),))
+        cur.execute("SELECT COUNT(*) FROM messages WHERE created_at >= NOW() - INTERVAL '1 hour'")
         dms_last_hour = cur.fetchone()[0]
 
-        cur.execute("SELECT COUNT(*) FROM link_clicks WHERE clicked_at >= %s", (today_start,))
+        cur.execute("SELECT COUNT(*) FROM link_clicks WHERE DATE(clicked_at AT TIME ZONE 'America/New_York') = (NOW() AT TIME ZONE 'America/New_York')::date")
         clicks_today = cur.fetchone()[0]
 
-        cur.execute("SELECT link_name, COUNT(*) as cnt FROM link_clicks WHERE clicked_at >= %s GROUP BY link_name ORDER BY cnt DESC", (today_start,))
+        cur.execute("SELECT link_name, COUNT(*) as cnt FROM link_clicks WHERE DATE(clicked_at AT TIME ZONE 'America/New_York') = (NOW() AT TIME ZONE 'America/New_York')::date GROUP BY link_name ORDER BY cnt DESC")
         clicks_by_link = {row[0]: row[1] for row in cur.fetchall()}
 
         cur.execute("SELECT COUNT(*) FROM fan_profiles WHERE sent_single = true")
