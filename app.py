@@ -1243,6 +1243,12 @@ def get_mia_reply(user_id):
             "china", "japan", "south korea", "indonesia", "malaysia", "vietnam", "thailand", "myanmar",
             "akasombo", "accra", "lagos", "nairobi", "johannesburg", "cape town", "cairo", "casablanca",
             "abuja", "kumasi", "dakar", "kinshasa", "addis ababa", "kampala", "dar es salaam",
+            "caracas", "bogota", "medellín", "medellin", "cali", "lima", "quito", "buenos aires",
+            "santiago", "mexico city", "guadalajara", "monterrey", "havana", "santo domingo",
+            "san jose", "guatemala city", "tegucigalpa", "managua", "panama city",
+            "madrid", "barcelona", "lisbon", "porto", "paris", "london", "luleå", "lulea",
+            "mexico", "cuba", "dominican republic", "el salvador", "honduras", "nicaragua",
+            "costa rica", "panama", "paraguay", "uruguay", "guadalupe", "martinique",
         }
         _fan_location = (profile.get("location") or "").lower()
         _location_is_international = any(country in _fan_location for country in _INTL_COUNTRIES)
@@ -1253,8 +1259,11 @@ def get_mia_reply(user_id):
         )
         _msg_mentions_intl = any(country in _recent_user_msgs for country in _INTL_COUNTRIES)
 
+        # Spanish is domestic ONLY if location is clearly US — otherwise treat as international
+        _spanish_and_international = _fan_language == "es" and (_location_is_international or _msg_mentions_intl)
         _is_international = (
             _fan_language not in ("en", "es")
+            or _spanish_and_international
             or profile.get("is_international_number")
             or _location_is_international
             or _msg_mentions_intl
