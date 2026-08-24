@@ -13,6 +13,15 @@ import json
 
 app = Flask(__name__)
 
+# In-memory log buffer — last 300 lines
+import collections
+_LOG_BUFFER = collections.deque(maxlen=300)
+_orig_print = print
+def print(*args, **kwargs):
+    line = " ".join(str(a) for a in args)
+    _LOG_BUFFER.append(line)
+    _orig_print(*args, **kwargs)
+
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 ANTHROPIC_COMMENTS_API_KEY = os.environ.get("ANTHROPIC_COMMENTS_API_KEY", ANTHROPIC_API_KEY)
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
@@ -2622,6 +2631,59 @@ def api_stats():
                 "warming_up": warming_up,
                 "on_blast_list": on_blast_list,
             }
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/logs")
+def api_logs():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    n = int(request.args.get("n", 100))
+    lines = list(_LOG_BUFFER)[-n:]
+    return jsonify({"lines": lines, "total_buffered": len(_LOG_BUFFER)})
+
+
+@app.route("/api/conversation")
+def api_conversation():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    uid = request.args.get("uid", "").strip()
+    if not uid:
+        # Search by name if no uid
+        name = request.args.get("name", "").strip().lower()
+        if not name:
+            return jsonify({"error": "provide uid or name"}), 400
+        try:
+            conn = get_conn()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT user_id, fb_name FROM fan_profiles WHERE LOWER(fb_name) LIKE %s LIMIT 5", (f"%{name}%",))
+            matches = cur.fetchall()
+            cur.close()
+            conn.close()
+            if not matches:
+                return jsonify({"error": "no fan found with that name"})
+            if len(matches) > 1:
+                return jsonify({"multiple_matches": [{"uid": r["user_id"], "name": r["fb_name"]} for r in matches]})
+            uid = matches[0]["user_id"]
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT fb_name, location, language, total_messages, convo_phase, sent_single, sent_blast_list, vibe, fan_score FROM fan_profiles WHERE user_id = %s", (uid,))
+        profile = cur.fetchone()
+        cur.execute("SELECT role, content, created_at FROM messages WHERE user_id = %s ORDER BY created_at DESC LIMIT 30", (uid,))
+        messages = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({
+            "uid": uid,
+            "profile": dict(profile) if profile else None,
+            "conversation": [{"role": m["role"], "content": m["content"], "at": str(m["created_at"])} for m in reversed(messages)]
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
