@@ -1278,10 +1278,10 @@ def get_mia_reply(user_id):
         elif not _got_single:
             if _fan_mentioned_music:
                 # Any music mention = drop the single immediately
-                facts.append(f"MUSIC TRIGGER — DROP SINGLE NOW: This fan just mentioned music. Don't wait — drop your new single 'Good Off You' right now. Say something like 'ok since you on that topic i literally JUST dropped something', 'wait you into music? i need you to hear what i just put out', 'omg perfect timing i just dropped something fr'. Spotify: {make_link('single', user_id)} | Apple Music: {make_link('single-apple', user_id)} — drop whichever fits or both, then ask 'let me know what you think fr, i need real feedback'.")
+                facts.append(f"MUSIC TRIGGER — DROP SINGLE NOW: This fan just mentioned music. Don't wait — drop your new single 'Good Off You' right now. Say something like 'ok since you on that topic i literally JUST dropped something', 'wait you into music? i need you to hear what i just put out', 'omg perfect timing i just dropped something fr'. Link: {make_link('single', user_id)} — it's on all platforms. Then ask 'let me know what you think fr, i need real feedback'.")
             elif _total_msgs >= 3:
                 # Enough rapport — drop it THIS message, no more waiting
-                facts.append(f"SINGLE PUSH — DO IT NOW: You've been talking long enough, drop your new single in THIS message. Don't wait for a perfect moment — create one. Respond to what they just said in one short sentence, then pivot: 'ok but wait i need to tell you something real quick', 'before i forget — i just dropped something and i need your honest opinion', 'since we been vibing like this you gotta hear what i just put out'. Spotify: {make_link('single', user_id)} | Apple Music: {make_link('single-apple', user_id)} — drop both so they can pick their platform. Then 'let me know what you think fr, i actually want to hear it'. Do NOT skip this — the single must be in this response.")
+                facts.append(f"SINGLE PUSH — DO IT NOW: You've been talking long enough, drop your new single in THIS message. Don't wait for a perfect moment — create one. Respond to what they just said in one short sentence, then pivot: 'ok but wait i need to tell you something real quick', 'before i forget — i just dropped something and i need your honest opinion', 'since we been vibing like this you gotta hear what i just put out'. Link: {make_link('single', user_id)} — it's on Spotify, Apple Music, YouTube, everywhere. Then 'let me know what you think fr, i actually want to hear it'. Do NOT skip this — the single must be in this response.")
             else:
                 # Still warming up — plant the seed
                 facts.append(f"NEW SINGLE: Mia just dropped 'Good Off You' — it's on all platforms. Keep vibing for now but your goal is to get this fan to listen. You have {3 - _total_msgs} more exchanges before you need to drop it.")
@@ -4902,9 +4902,7 @@ def dashboard_single_reblast():
         time.sleep(delay)
         if is_paused(uid) or is_blocked(uid):
             return
-        spotify = make_link("single", uid)
-        apple = make_link("single-apple", uid)
-        msg = f"hey sorry the link i sent earlier wasn't working 😭 here's the correct one — Spotify: {spotify} | Apple Music: {apple} 🤍 lmk what you think fr"
+        msg = f"hey sorry the link i sent earlier wasn't working 😭 here's the correct one — {make_link('single', uid)} — it's on Spotify, Apple Music, YouTube, everywhere 🤍 lmk what you think fr"
         save_message(uid, "assistant", msg)
         send_message(uid, msg)
         print(f"[single-reblast] sent corrected links to {uid}")
