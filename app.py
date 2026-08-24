@@ -2898,12 +2898,14 @@ def api_conversation():
 @app.route("/api/send-message", methods=["POST", "GET"])
 def api_send_message():
     """Send a manual message to a fan as Mia."""
-    password = request.args.get("password", "") or (request.json or {}).get("password", "")
+    data = {}
+    if request.method == "POST" and request.is_json:
+        data = request.get_json(silent=True) or {}
+    password = request.args.get("password", "") or data.get("password", "")
     if password != DASHBOARD_PASSWORD:
         return jsonify({"error": "unauthorized"}), 401
-    data = request.json or {}
-    uid = (data.get("uid") or request.args.get("uid", "")).strip()
-    message = (data.get("message") or request.args.get("message", "")).strip()
+    uid = (request.args.get("uid") or data.get("uid", "")).strip()
+    message = (request.args.get("message") or data.get("message", "")).strip()
     if not uid:
         return jsonify({"error": "provide uid"}), 400
     if not message:
