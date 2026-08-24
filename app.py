@@ -2744,6 +2744,51 @@ def export_phones():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/link-clickers")
+def api_link_clickers():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    link = request.args.get("link", "").strip()
+    if not link:
+        return jsonify({"error": "provide link= param (e.g. ?link=spotify)"}), 400
+    days = int(request.args.get("days", 1))
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT lc.user_id, lc.clicked_at, fp.fb_name, fp.location, fp.language, fp.total_messages
+            FROM link_clicks lc
+            LEFT JOIN fan_profiles fp ON fp.user_id = lc.user_id
+            WHERE lc.link_name = %s
+            AND lc.clicked_at >= NOW() - INTERVAL '%s days'
+            ORDER BY lc.clicked_at DESC
+        """, (link, days))
+        clickers = cur.fetchall()
+        results = []
+        for fan in clickers:
+            uid = fan["user_id"]
+            cur.execute("""
+                SELECT role, content, created_at FROM messages
+                WHERE user_id = %s ORDER BY created_at DESC LIMIT 20
+            """, (uid,))
+            msgs = cur.fetchall()
+            results.append({
+                "uid": uid,
+                "name": fan["fb_name"] or "",
+                "location": fan["location"] or "",
+                "language": fan["language"] or "en",
+                "total_messages": fan["total_messages"],
+                "clicked_at": str(fan["clicked_at"]),
+                "conversation": [{"role": m["role"], "content": m["content"], "at": str(m["created_at"])} for m in reversed(msgs)]
+            })
+        cur.close()
+        conn.close()
+        return jsonify({"link": link, "days": days, "count": len(results), "clickers": results})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/logs")
 def api_logs():
     password = request.args.get("password", "")
