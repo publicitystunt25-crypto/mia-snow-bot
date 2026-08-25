@@ -2855,6 +2855,36 @@ def api_locations():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/clicks-by-hour")
+def api_clicks_by_hour():
+    """Clicks broken down by hour for today."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    days = int(request.args.get("days", 1))
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT
+                DATE_TRUNC('hour', clicked_at AT TIME ZONE 'America/New_York') as hour,
+                link_name,
+                COUNT(*) as clicks
+            FROM link_clicks
+            WHERE clicked_at >= NOW() - INTERVAL '%s days'
+            GROUP BY hour, link_name
+            ORDER BY hour DESC, clicks DESC
+        """, (days,))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({"days": days, "rows": [
+            {"hour": str(r["hour"]), "link": r["link_name"], "clicks": r["clicks"]} for r in rows
+        ]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/logs")
 def api_logs():
     password = request.args.get("password", "")
