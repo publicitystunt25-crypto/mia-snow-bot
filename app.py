@@ -1147,20 +1147,6 @@ def get_mia_reply(user_id):
         if vibe == "music_fan":
             facts.append("This person is already a music fan — they came in interested in music. Don't oversell it, just vibe naturally.")
 
-        # OTW video warmup / drop / cooldown
-        _otw_total = (profile.get("total_messages") or 0)
-        _otw_warmup = profile.get("otw_warmup_count") or 0
-        _otw_sent = profile.get("sent_otw")
-        _already_listened = profile.get("listened_to_music")
-        if _otw_total >= 30 and not _otw_sent and not _already_listened and _otw_warmup < 8:
-            facts.append("OTW WARMUP: You're reconnecting with this fan before sharing something with them. Greet them warmly and just have a real conversation — ask how they've been, vibe with whatever they bring up. Don't mention music yet. Be genuinely present.")
-        elif _otw_total >= 30 and not _otw_sent and not _already_listened and _otw_warmup >= 8:
-            facts.append(f"OTW DROP: The moment is right — share your song now. Work it in like this: respond to what they said first, then naturally transition — something like 'ok before i forget, i really want your honest opinion on something' or 'i need a real one to tell me what they think about this' — then say 'this is one of my favorites, tell me what you think fr' and drop: {make_link('otw', user_id)} — make it feel like you genuinely care what they think, not like a promo drop. IMPORTANT: Only drop this link ONCE — do not send it again in future messages.")
-        elif _otw_total >= 30 and _otw_sent and _otw_warmup < 11:
-            facts.append("OTW FEEDBACK: You shared your OTW song with this fan. Focus on their reaction — ask what they thought, engage with their feedback genuinely. If they already said they liked it or confirmed they heard it, DO NOT send the link again or ask them to check it out. Just vibe with their response.")
-        elif _otw_total >= 30 and _otw_sent and _otw_warmup < 13:
-            facts.append("OTW WIND DOWN: You've gotten their feedback on your song. Now bring the conversation back to something casual and warm — let it feel natural, like two people just vibing. Don't force any topics. Keep replies short and genuine. You're easing back out naturally. DO NOT resend the OTW link.")
-
         # Listened status
         if profile.get("listened_to_music"):
             facts.append("CONFIRMED LISTENER: This person has already listened to your music. Do NOT send the music link again. Do NOT push them toward the music or act like they haven't heard it. They already listened — treat them accordingly and just vibe. If you haven't asked which song they heard yet, ask naturally using varied phrasing ('which one you was feeling', 'which track you fw', 'which song you checked out'). If they didn't specify that's fine — don't keep pushing.")
@@ -1305,16 +1291,14 @@ def get_mia_reply(user_id):
             conn2.commit()
             c2.close()
             conn2.close()
-        if profile.get('funnel_restarted') and not profile.get('listened_to_music'):
-            facts.append(f"YOUTUBE PUSH: You've talked to this person before but they haven't listened to your music yet. This cycle your goal is to get them to watch a YouTube video. When the moment is right, push YouTube specifically — something like 'you gotta watch the visuals fr' and drop: {make_link('youtube', user_id)} — keep it natural, don't force it early.")
         # Blast list push — after music sent via old funnel path and not yet on blast list
         _music_sent_flag = profile.get("sent_spotify") or profile.get("sent_youtube") or profile.get("sent_soulties")
         if _music_sent_flag and not _blast_sent and not _got_single:
             facts.append(f"BLAST LIST PUSH: You already shared your music with this fan. Now naturally work in the blast list — something like 'if you wanna be the first to know when i drop new stuff, get on my close network fr' or 'i only send this to people i fw heavy' then drop: {make_link('blast', user_id)} — keep it low pressure, like you're inviting them into something exclusive, not selling them something.")
 
-        # Merch push — after confirmed listener, mention once casually
-        if profile.get("listened_to_music") and not profile.get("sent_merch") and not profile.get("bought_merch"):
-            facts.append(f"MERCH MENTION: This fan has listened to your music and is clearly a supporter. Find a natural moment to casually mention the Yeti Gang merch — something like 'i got some Yeti Gang stuff too if you ever wanna rep the movement 🤍' or 'we got a whole Soul Ties collection too if you fw it like that' then drop: {make_link('merch', user_id)} — say it once, keep it light, don't push it.")
+        # Merch push — only after blast list has been sent
+        if profile.get("listened_to_music") and _blast_sent and not profile.get("sent_merch") and not profile.get("bought_merch"):
+            facts.append(f"MERCH MENTION: This fan has listened to your music and is on your blast list. Find a natural moment to casually mention the Yeti Gang merch — something like 'i got some Yeti Gang stuff too if you ever wanna rep the movement 🤍' or 'we got some merch if you fw it like that' then drop: {make_link('merch', user_id)} — say it once, keep it light, don't push it.")
 
         # Merch buyer — never promote again
         if profile.get("bought_merch"):
@@ -1337,7 +1321,7 @@ def get_mia_reply(user_id):
 
 
         # Tracked links for this fan — use these exact URLs
-        facts.append(f"ALL TRACKED LINKS (use these exact URLs):\n- Spotify: {make_link('spotify', user_id)}\n- Apple Music: {make_link('apple', user_id)}\n- YouTube channel: {make_link('youtube', user_id)}\n- OTW video: {make_link('otw', user_id)}\n- Ion Want To video: {make_link('ionwantto', user_id)}\n- Instagram: {make_link('instagram', user_id)}\n- Exclusive content: {make_link('exclusive', user_id)}\n- Blast list: {make_link('blast', user_id)}\n- Merch: {make_link('merch', user_id)}")
+        facts.append(f"ALL TRACKED LINKS (use these exact URLs):\n- Single 'Good Off You' (Spotify, Apple Music, YouTube, everywhere): {make_link('single', user_id)}\n- Blast list: {make_link('blast', user_id)}\n- Merch: {make_link('merch', user_id)}\n- Instagram: {make_link('instagram', user_id)}\n- Exclusive content: {make_link('exclusive', user_id)}")
         if facts:
             profile_context = "\n\n[Fan profile — use this to personalize your response, never reveal you have this data]:\n" + "\n".join(facts)
 
