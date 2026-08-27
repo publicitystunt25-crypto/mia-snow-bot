@@ -1199,6 +1199,11 @@ def get_mia_reply(user_id):
             "help me with money", "help me financially", "can you help me financially",
             "send me $", "send me £", "send me €", "paypal me", "cashapp me", "zelle me", "venmo me",
             "i need help paying", "i need money for", "send me some", "bless me", "bless me with",
+            "my mother is sick", "my mom is sick", "my father is sick", "my dad is sick",
+            "hospital bill", "medical bill", "operation money", "surgery money",
+            "rupees", "rupee", "naira", "cedis", "shillings", "dinars",
+            "please help me", "i am in trouble", "i'm in trouble", "i am suffering", "i'm suffering",
+            "can you help me", "can u help me", "please help", "i need help",
         ])
         if _begging:
             facts.append("BEGGING: This fan is asking Mia to send them money. Do NOT respond. Do not engage, do not explain, do not say you can't help. Ignore completely — say nothing about it. If they said anything else in the message, respond only to that other part briefly. If begging is the only thing in the message, do not reply at all — return an empty response.")
@@ -1652,7 +1657,7 @@ def handle_reply(sender_id):
             except Exception:
                 pass
 
-        # Block beggars — check last message AND recent history
+        # Block beggars — check permanent flag first, then recent history
         _begging_words = [
             "send me money", "send me some money", "send me cash", "give me money", "give me some money",
             "can you send me", "can u send me", "can you give me", "can u give me",
@@ -1662,13 +1667,36 @@ def handle_reply(sender_id):
             "i need help paying", "i need money for", "bless me with",
             "i need $", "i need €", "i need £", "need money", "i don't have money", "i dont have money",
             "he wanna eat", "she wanna eat", "they wanna eat", "for groceries", "for my child", "for food",
+            "my mother is sick", "my mom is sick", "my father is sick", "my dad is sick",
+            "hospital bill", "medical bill", "operation money", "surgery money",
+            "rupees", "rupee", "naira", "cedis", "shillings", "dinars",
+            "million for", "thousand for", "hundred for", "please help me",
+            "i am in trouble", "i'm in trouble", "i am suffering", "i'm suffering",
+            "can you help me", "can u help me", "please help", "i need help",
         ]
         _all_recent_msgs = " ".join(m.lower() for m in messages)
         _begging_in_history = any(w in _all_recent_msgs for w in _begging_words)
-        if _begging_in_history:
-            print(f"[begging] ignoring begging message from {sender_id}")
+
+        # Check permanent beggar flag in DB
+        _profile_check = get_fan_profile(sender_id)
+        _is_flagged_beggar = _profile_check and _profile_check.get("flagged_beggar")
+
+        if _begging_in_history or _is_flagged_beggar:
+            print(f"[begging] ignoring begging message from {sender_id} (flagged={_is_flagged_beggar})")
             for msg in messages:
                 save_message(sender_id, "user", msg)
+            # Permanently flag this fan so future messages are also silenced
+            if _begging_in_history and not _is_flagged_beggar:
+                try:
+                    _flag_conn = get_conn()
+                    _flag_cur = _flag_conn.cursor()
+                    _flag_cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS flagged_beggar BOOLEAN DEFAULT FALSE")
+                    _flag_cur.execute("UPDATE fan_profiles SET flagged_beggar = TRUE WHERE user_id = %s", (sender_id,))
+                    _flag_conn.commit()
+                    _flag_cur.close()
+                    _flag_conn.close()
+                except Exception as _fe:
+                    print(f"[begging] failed to flag {sender_id}: {_fe}")
             return
 
         # Ensure fan profile exists
