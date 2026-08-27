@@ -1204,6 +1204,10 @@ def get_mia_reply(user_id):
             "rupees", "rupee", "naira", "cedis", "shillings", "dinars",
             "please help me", "i am in trouble", "i'm in trouble", "i am suffering", "i'm suffering",
             "can you help me", "can u help me", "please help", "i need help",
+            "i'm very poor", "im very poor", "i am very poor", "i'm poor", "im poor", "i am poor",
+            "i need moneys", "i need money", "send me $", "yes send me",
+            "help me please", "please help me", "i'm hungry", "im hungry", "i am hungry",
+            "i have no money", "i got no money", "no money", "i'm broke", "im broke",
         ])
         if _begging:
             facts.append("BEGGING: This fan is asking Mia to send them money. Do NOT respond. Do not engage, do not explain, do not say you can't help. Ignore completely — say nothing about it. If they said anything else in the message, respond only to that other part briefly. If begging is the only thing in the message, do not reply at all — return an empty response.")
@@ -1673,6 +1677,9 @@ def handle_reply(sender_id):
             "million for", "thousand for", "hundred for", "please help me",
             "i am in trouble", "i'm in trouble", "i am suffering", "i'm suffering",
             "can you help me", "can u help me", "please help", "i need help",
+            "i'm very poor", "im very poor", "i am very poor", "i'm poor", "im poor", "i am poor",
+            "i need moneys", "help me please", "i'm hungry", "im hungry", "i am hungry",
+            "i have no money", "i got no money", "no money",
         ]
         _all_recent_msgs = " ".join(m.lower() for m in messages)
         _begging_in_history = any(w in _all_recent_msgs for w in _begging_words)
