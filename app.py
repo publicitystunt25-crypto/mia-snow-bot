@@ -1411,14 +1411,23 @@ def get_mia_reply(user_id):
     else:
         _lang_context = "[LANGUAGE RULE: Detect the language the fan is writing in and reply in that exact language. This is a hard rule — if they write in French, reply in French. If Portuguese, reply in Portuguese. If Italian, reply in Italian. Match their language exactly. Default to English only if you genuinely cannot tell.]"
 
+    # Low-engagement mode for fans who confirmed they listened AND are on the blast list
+    _low_engagement = profile and profile.get("listened_to_music") and profile.get("sent_blast_list")
+    _low_engagement_context = (
+        "[LOW-ENGAGEMENT MODE: This fan has already listened to the music and joined the blast list — they've completed the funnel. "
+        "Keep your reply to 1 short sentence max. Do NOT ask questions. Do NOT push anything. "
+        "Just be warm but brief — you're busy and don't have time to chat all day. Save tokens.]"
+    ) if _low_engagement else None
+
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=300,
+        max_tokens=75 if _low_engagement else 300,
         system=[
             {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral", "ttl": "1h"}},
             {"type": "text", "text": _date_context},
             {"type": "text", "text": _lang_context},
             *([{"type": "text", "text": profile_context}] if profile_context else []),
+            *([{"type": "text", "text": _low_engagement_context}] if _low_engagement_context else []),
         ],
         messages=history,
     )
