@@ -2697,23 +2697,33 @@ def api_stats():
         import zoneinfo
         eastern = zoneinfo.ZoneInfo("America/New_York")
         now_et = datetime.now(eastern)
-        today_start_et = now_et.replace(hour=0, minute=0, second=0, microsecond=0)
         now = datetime.utcnow()
-        today_start = today_start_et.astimezone(zoneinfo.ZoneInfo("UTC")).replace(tzinfo=None)
 
-        cur.execute("SELECT COUNT(*) FROM messages WHERE DATE(created_at AT TIME ZONE 'America/New_York') = (NOW() AT TIME ZONE 'America/New_York')::date")
+        # Support ?date=YYYY-MM-DD to query any past day
+        date_param = request.args.get("date", "")
+        if date_param:
+            try:
+                query_date = datetime.strptime(date_param, "%Y-%m-%d").date()
+            except ValueError:
+                return jsonify({"error": "invalid date format, use YYYY-MM-DD"}), 400
+        else:
+            query_date = now_et.date()
+
+        date_str = str(query_date)
+
+        cur.execute("SELECT COUNT(*) FROM messages WHERE DATE(created_at AT TIME ZONE 'America/New_York') = %s", (date_str,))
         dms_today = cur.fetchone()[0]
 
-        cur.execute("SELECT COUNT(DISTINCT user_id) FROM messages WHERE DATE(created_at AT TIME ZONE 'America/New_York') = (NOW() AT TIME ZONE 'America/New_York')::date")
+        cur.execute("SELECT COUNT(DISTINCT user_id) FROM messages WHERE DATE(created_at AT TIME ZONE 'America/New_York') = %s", (date_str,))
         unique_fans_today = cur.fetchone()[0]
 
         cur.execute("SELECT COUNT(*) FROM messages WHERE created_at >= NOW() - INTERVAL '1 hour'")
         dms_last_hour = cur.fetchone()[0]
 
-        cur.execute("SELECT COUNT(*) FROM link_clicks WHERE DATE(clicked_at AT TIME ZONE 'America/New_York') = (NOW() AT TIME ZONE 'America/New_York')::date")
+        cur.execute("SELECT COUNT(*) FROM link_clicks WHERE DATE(clicked_at AT TIME ZONE 'America/New_York') = %s", (date_str,))
         clicks_today = cur.fetchone()[0]
 
-        cur.execute("SELECT link_name, COUNT(*) as cnt FROM link_clicks WHERE DATE(clicked_at AT TIME ZONE 'America/New_York') = (NOW() AT TIME ZONE 'America/New_York')::date GROUP BY link_name ORDER BY cnt DESC")
+        cur.execute("SELECT link_name, COUNT(*) as cnt FROM link_clicks WHERE DATE(clicked_at AT TIME ZONE 'America/New_York') = %s GROUP BY link_name ORDER BY cnt DESC", (date_str,))
         clicks_by_link = {row[0]: row[1] for row in cur.fetchall()}
 
         cur.execute("SELECT COUNT(*) FROM fan_profiles WHERE sent_single = true")
@@ -2733,6 +2743,7 @@ def api_stats():
 
         return jsonify({
             "as_of": now.strftime("%Y-%m-%d %H:%M UTC"),
+            "date": date_str,
             "today": {
                 "dms": dms_today,
                 "unique_fans": unique_fans_today,
