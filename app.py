@@ -57,6 +57,7 @@ TRACKED_LINKS = {
     "single-apple": "https://geo.music.apple.com/album/good-off-you/6801302733?i=6801302734&app=music",  # Good Off You — Apple Music
     "single-spotify": "https://open.spotify.com/track/5kpejJAQpIao45NAaqD34K",  # Good Off You — Spotify
     "sms-blast":    "https://fanlink.tv/xiAa",  # Good Off You — SMS blast tracker
+    "new-drop":     "https://fanlink.tv/xkuh",  # New single drop blast
     # Traffic source links — all go to messenger, tracked separately
     "src-ig":     "https://m.me/therealmiasnow1",
     "src-tiktok": "https://m.me/therealmiasnow1",
@@ -4867,6 +4868,54 @@ def dashboard_single_blast():
     for i, uid in enumerate(fans):
         opener = openers[i % len(openers)]
         delay = i * 8  # 8 seconds apart
+        threading.Thread(target=_blast, args=(uid, delay, opener), daemon=True).start()
+        sent.append(uid)
+
+    return jsonify({"blasting": len(sent), "eta_minutes": round(len(sent) * 8 / 60, 1)})
+
+
+@app.route("/dashboard/new-drop-blast", methods=["GET", "POST"])
+def dashboard_new_drop_blast():
+    """DM the new drop to all warmed-up fans with a trackable link."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT user_id FROM fan_profiles
+        WHERE is_blocked = FALSE
+          AND total_messages >= 4
+        ORDER BY last_message_at DESC
+    """)
+    fans = [row[0] for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    openers = [
+        "ok i just dropped something tonight and you gotta hear it fr",
+        "wait — i literally just put this out tonight, go check it and tell me what you think 🤍",
+        "i just dropped a new one tonight, be honest with me when you listen",
+        "since you fw me like that you gotta be one of the first to hear this new drop 🤍",
+        "ok real quick — i just dropped something new tonight, go listen fr",
+    ]
+
+    sent = []
+
+    def _blast(uid, delay, opener):
+        time.sleep(delay)
+        if is_paused(uid) or is_blocked(uid):
+            return
+        link = make_link("new-drop", uid)
+        msg = f"{opener} {link}"
+        save_message(uid, "assistant", msg)
+        send_message(uid, msg)
+        print(f"[new-drop-blast] sent to {uid}")
+
+    for i, uid in enumerate(fans):
+        opener = openers[i % len(openers)]
+        delay = i * 8
         threading.Thread(target=_blast, args=(uid, delay, opener), daemon=True).start()
         sent.append(uid)
 
