@@ -4896,11 +4896,11 @@ def dashboard_new_drop_blast():
     conn.close()
 
     openers = [
-        "ok i just dropped something tonight and you gotta hear it fr",
-        "wait — i literally just put this out tonight, go check it and tell me what you think 🤍",
-        "i just dropped a new one tonight, be honest with me when you listen",
-        "since you fw me like that you gotta be one of the first to hear this new drop 🤍",
-        "ok real quick — i just dropped something new tonight, go listen fr",
+        "ok i just dropped BAGS tonight and you gotta hear it fr",
+        "wait — i literally just put out BAGS tonight, go check it and tell me what you think 🤍",
+        "i just dropped BAGS tonight, be honest with me when you listen",
+        "since you fw me like that you gotta be one of the first to hear BAGS 🤍",
+        "ok real quick — BAGS just dropped tonight, go listen fr",
     ]
 
     sent = []
