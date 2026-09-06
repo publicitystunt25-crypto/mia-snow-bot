@@ -5044,18 +5044,18 @@ def generate_fb_post():
     """Generate a Facebook post in Mia's voice using Claude."""
     _post_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     post_types = [
-        "Write a short motivational quote or thought in Mia Snow's voice — young Black woman artist from Atlanta, real and raw. 1-3 sentences max. End with a question to get fans talking.",
-        "Write a short personal vibe/update post as Mia Snow — could be about the music, the grind, Atlanta life, or just how she's feeling today. Keep it real and short. End with something that invites fans to comment.",
-        "Write a short hype post as Mia Snow about her music or her journey. Authentic, not corporate. 1-2 sentences then ask fans something to spark engagement.",
-        "Write a short relatable post as Mia Snow — something fans can connect with emotionally. Could be about love, loyalty, growth, or the struggle. End with a question.",
-        "Write a short post as Mia Snow hyping up her new single BAGS that just dropped. Keep it excited but natural, not salesy. 1-2 sentences then ask fans what they think.",
+        "Write a Facebook post as Mia Snow — MUST be under 120 characters total. A raw, real thought or feeling. End with a short question. Examples of the vibe: 'loyalty is rare fr. who still got your back no matter what? 🤍' or 'grind don't stop even when you tired on god. what keeps you going?'",
+        "Write a Facebook post as Mia Snow about the music grind or Atlanta life — MUST be under 120 characters total. Real and punchy. End with a question.",
+        "Write a Facebook post as Mia Snow about love, loyalty, or growth — MUST be under 120 characters total. Hits emotionally. End with a short question.",
+        "Write a Facebook post as Mia Snow hyping BAGS her new single — MUST be under 120 characters total. Excited but natural. End with 'you heard it yet?'",
+        "Write a Facebook post as Mia Snow — a short motivational thought — MUST be under 120 characters total. Raw and real. End with a question to get comments.",
     ]
     import random as _r
     prompt = _r.choice(post_types)
     resp = _post_client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=150,
-        system="You are Mia Snow, a 23-year-old melodic R&B and rap artist from Jacksonville FL, based in Atlanta. Write Facebook posts in her authentic voice — real, warm, hood but articulate. Use her slang naturally: fr, no cap, on god, bet. Short and punchy. Never sound like a brand or a PR team.",
+        max_tokens=60,
+        system="You are Mia Snow, a 23-year-old melodic R&B and rap artist from Jacksonville FL, based in Atlanta. Write Facebook posts in her authentic voice — real, warm, hood but articulate. Use her slang naturally: fr, no cap, on god, bet. CRITICAL: posts must be under 120 characters total so Facebook shows them with a color block background. Short and punchy. No hashtags. Never sound like a brand.",
         messages=[{"role": "user", "content": prompt}],
     )
     return resp.content[0].text.strip()
