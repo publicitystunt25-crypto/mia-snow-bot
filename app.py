@@ -5070,26 +5070,33 @@ def publish_fb_post(message):
     return result
 
 
+_QUOTE_QUEUE = [
+    "real love don't keep score 🤍 you ever had someone love you without conditions?",
+    "growth hurt but it was worth it fr. what's one thing you had to let go to level up?",
+    "you can't pour from an empty cup on god. when's the last time you chose yourself?",
+    "the right people find you when you stop chasing the wrong ones 🤍 you believe that?",
+    "healed enough to know what i deserve. what does real love look like to you?",
+]
+_quote_index = [0]  # mutable so the thread can update it
+_last_post_time = [0.0]
+_POST_INTERVAL_SECONDS = 6 * 3600  # every 6 hours
+
+
 def fb_auto_post_loop():
-    """Run twice a day — 10 AM ET and 7 PM ET."""
-    import datetime, zoneinfo
-    eastern = zoneinfo.ZoneInfo("America/New_York")
-    post_hours = {10, 19}  # 10 AM and 7 PM ET
-    posted_today = set()
+    """Post every 6 hours, cycling through the quote queue."""
+    import time as _time
+    # Fire first post immediately on startup
+    _time.sleep(10)
     while True:
-        now_et = datetime.datetime.now(eastern)
-        key = (now_et.date(), now_et.hour)
-        if now_et.hour in post_hours and key not in posted_today:
-            try:
-                msg = generate_fb_post()
-                publish_fb_post(msg)
-                posted_today.add(key)
-                # Clean old keys
-                today = now_et.date()
-                posted_today = {k for k in posted_today if k[0] == today}
-            except Exception as e:
-                print(f"[fb-post] error: {e}")
-        time.sleep(60)  # check every minute
+        try:
+            msg = _QUOTE_QUEUE[_quote_index[0] % len(_QUOTE_QUEUE)]
+            publish_fb_post(msg)
+            print(f"[fb-post] posted quote #{_quote_index[0]}: {msg[:60]}")
+            _last_post_time[0] = _time.time()
+            _quote_index[0] += 1
+        except Exception as e:
+            print(f"[fb-post] error: {e}")
+        _time.sleep(_POST_INTERVAL_SECONDS)
 
 
 threading.Thread(target=fb_auto_post_loop, daemon=True).start()
