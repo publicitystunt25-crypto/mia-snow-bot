@@ -31,6 +31,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 IG_ACCESS_TOKEN = os.environ.get("IG_ACCESS_TOKEN")
 IG_VERIFY_TOKEN = os.environ.get("IG_VERIFY_TOKEN", "miasnow_ig_2026")
 FB_COMMENTS_PAGE_TOKEN = os.environ.get("FB_COMMENTS_PAGE_TOKEN")
+FB_PUBLISH_TOKEN = os.environ.get("FB_PUBLISH_TOKEN", "EAAeBeilOvlIBSSVIHyCMUVeAUtbvsXyCFEGSfWpfk61ICY9RzEeONAZC4UNQHP6MyIeBN55vcpM2StiOt98Sd8h1RXTuvsARWCFuRCoDPZCwFL8fsAMxQWcUpcCVap24ZCU7vN30Q7v3ypLJZAFTuipjk7t0X0ieUqzW1dqytMIvlxN8uQacazKYxVggybDRHY14c8DxfJgZCt4oe7jZBKJfYgxT9hMP1YHvm6pqdsla3SakPPdIsXGfwqZBh5sWRtJaoaAgZCd7RWkjmvFEILYXfEHw3sbZB7uoHz0ZCGCAZDZD")
+FB_PAGE_ID = "399823799880555"
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "miasnow2024")
 MAX_HISTORY = 6
 OWNER_ID = "506635664"  # Nathaniel Peterson
@@ -5034,6 +5036,79 @@ def dashboard_single_reblast():
 
 
 init_db()
+
+
+# ── Facebook Auto-Poster ──────────────────────────────────────────────────────
+
+def generate_fb_post():
+    """Generate a Facebook post in Mia's voice using Claude."""
+    _post_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    post_types = [
+        "Write a short motivational quote or thought in Mia Snow's voice — young Black woman artist from Atlanta, real and raw. 1-3 sentences max. End with a question to get fans talking.",
+        "Write a short personal vibe/update post as Mia Snow — could be about the music, the grind, Atlanta life, or just how she's feeling today. Keep it real and short. End with something that invites fans to comment.",
+        "Write a short hype post as Mia Snow about her music or her journey. Authentic, not corporate. 1-2 sentences then ask fans something to spark engagement.",
+        "Write a short relatable post as Mia Snow — something fans can connect with emotionally. Could be about love, loyalty, growth, or the struggle. End with a question.",
+        "Write a short post as Mia Snow hyping up her new single BAGS that just dropped. Keep it excited but natural, not salesy. 1-2 sentences then ask fans what they think.",
+    ]
+    import random as _r
+    prompt = _r.choice(post_types)
+    resp = _post_client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=150,
+        system="You are Mia Snow, a 23-year-old melodic R&B and rap artist from Jacksonville FL, based in Atlanta. Write Facebook posts in her authentic voice — real, warm, hood but articulate. Use her slang naturally: fr, no cap, on god, bet. Short and punchy. Never sound like a brand or a PR team.",
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return resp.content[0].text.strip()
+
+
+def publish_fb_post(message):
+    """Post a text update to Mia's Facebook page."""
+    url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/feed"
+    resp = requests.post(url, data={"message": message, "access_token": FB_PUBLISH_TOKEN})
+    result = resp.json()
+    print(f"[fb-post] published: {result}")
+    return result
+
+
+def fb_auto_post_loop():
+    """Run twice a day — 10 AM ET and 7 PM ET."""
+    import datetime, zoneinfo
+    eastern = zoneinfo.ZoneInfo("America/New_York")
+    post_hours = {10, 19}  # 10 AM and 7 PM ET
+    posted_today = set()
+    while True:
+        now_et = datetime.datetime.now(eastern)
+        key = (now_et.date(), now_et.hour)
+        if now_et.hour in post_hours and key not in posted_today:
+            try:
+                msg = generate_fb_post()
+                publish_fb_post(msg)
+                posted_today.add(key)
+                # Clean old keys
+                today = now_et.date()
+                posted_today = {k for k in posted_today if k[0] == today}
+            except Exception as e:
+                print(f"[fb-post] error: {e}")
+        time.sleep(60)  # check every minute
+
+
+threading.Thread(target=fb_auto_post_loop, daemon=True).start()
+
+
+@app.route("/dashboard/fb-post-now", methods=["POST"])
+def fb_post_now():
+    """Manually trigger a Facebook post right now."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    custom_message = request.json.get("message") if request.is_json else None
+    try:
+        msg = custom_message or generate_fb_post()
+        result = publish_fb_post(msg)
+        return jsonify({"posted": True, "message": msg, "result": result})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
