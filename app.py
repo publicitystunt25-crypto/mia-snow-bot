@@ -5071,11 +5071,11 @@ def publish_fb_post(message):
 
 
 _QUOTE_QUEUE = [
-    "real love don't keep score 🤍 you ever had someone love you without conditions?",
-    "growth hurt but it was worth it fr. what's one thing you had to let go to level up?",
-    "you can't pour from an empty cup on god. when's the last time you chose yourself?",
-    "the right people find you when you stop chasing the wrong ones 🤍 you believe that?",
-    "healed enough to know what i deserve. what does real love look like to you?",
+    "real love don't keep score 🤍",
+    "growth hurt but it was worth it fr",
+    "you can't pour from an empty cup on god",
+    "the right people find you when you stop chasing the wrong ones 🤍",
+    "healed enough to know what i deserve",
 ]
 _quote_index = [0]  # mutable so the thread can update it
 _last_post_time = [0.0]
