@@ -5085,8 +5085,8 @@ _POST_INTERVAL_SECONDS = 6 * 3600  # every 6 hours
 def fb_auto_post_loop():
     """Post every 6 hours, cycling through the quote queue."""
     import time as _time
-    # Fire first post immediately on startup
-    _time.sleep(10)
+    # Wait the full interval before first auto-post
+    _time.sleep(_POST_INTERVAL_SECONDS)
     while True:
         try:
             msg = _QUOTE_QUEUE[_quote_index[0] % len(_QUOTE_QUEUE)]
