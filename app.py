@@ -5098,7 +5098,8 @@ def fb_auto_post_loop():
                 print(f"[fb-post] error: {e}")
 
 
-threading.Thread(target=fb_auto_post_loop, daemon=True).start()
+# Auto-loop disabled — manual posting only via /dashboard/fb-post-now
+# threading.Thread(target=fb_auto_post_loop, daemon=True).start()
 
 
 @app.route("/dashboard/fb-post-now", methods=["POST"])
