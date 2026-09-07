@@ -5084,19 +5084,18 @@ _POST_INTERVAL_SECONDS = 6 * 3600  # every 6 hours
 
 def fb_auto_post_loop():
     """Post every 6 hours, cycling through the quote queue."""
-    import time as _time
-    # Wait the full interval before first auto-post
-    _time.sleep(_POST_INTERVAL_SECONDS)
     while True:
-        try:
-            msg = _QUOTE_QUEUE[_quote_index[0] % len(_QUOTE_QUEUE)]
-            publish_fb_post(msg)
-            print(f"[fb-post] posted quote #{_quote_index[0]}: {msg[:60]}")
-            _last_post_time[0] = _time.time()
-            _quote_index[0] += 1
-        except Exception as e:
-            print(f"[fb-post] error: {e}")
-        _time.sleep(_POST_INTERVAL_SECONDS)
+        time.sleep(60)
+        elapsed = time.time() - _last_post_time[0]
+        if elapsed >= _POST_INTERVAL_SECONDS:
+            try:
+                msg = _QUOTE_QUEUE[_quote_index[0] % len(_QUOTE_QUEUE)]
+                publish_fb_post(msg)
+                print(f"[fb-post] auto posted quote #{_quote_index[0]}: {msg[:60]}")
+                _last_post_time[0] = time.time()
+                _quote_index[0] += 1
+            except Exception as e:
+                print(f"[fb-post] error: {e}")
 
 
 threading.Thread(target=fb_auto_post_loop, daemon=True).start()
@@ -5110,7 +5109,12 @@ def fb_post_now():
         return jsonify({"error": "unauthorized"}), 401
     custom_message = request.json.get("message") if request.is_json else None
     try:
-        msg = custom_message or generate_fb_post()
+        if custom_message:
+            msg = custom_message
+        else:
+            msg = _QUOTE_QUEUE[_quote_index[0] % len(_QUOTE_QUEUE)]
+            _quote_index[0] += 1
+        _last_post_time[0] = time.time()
         result = publish_fb_post(msg)
         return jsonify({"posted": True, "message": msg, "result": result})
     except Exception as e:
