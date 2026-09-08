@@ -55,11 +55,11 @@ TRACKED_LINKS = {
     "soulties-youtube": "https://www.youtube.com/watch?v=LoTvEyVfaXo&list=OLAK5uy_kE8VPDLHF2SG65CUeBIPhZaFVKmNNXiLw",
     "soulties-deezer":  "https://www.deezer.com/us/album/875295562",
     "music":      "https://fanlink.tv/wSNt",  # Soul Ties album — all platforms
-    "single":       "https://fanlink.tv/xiAa",  # Good Off You — all platforms
-    "single-apple": "https://geo.music.apple.com/album/good-off-you/6801302733?i=6801302734&app=music",  # Good Off You — Apple Music
-    "single-spotify": "https://open.spotify.com/track/5kpejJAQpIao45NAaqD34K",  # Good Off You — Spotify
-    "sms-blast":    "https://fanlink.tv/xiAa",  # Good Off You — SMS blast tracker
-    "new-drop":     "https://fanlink.tv/xkuh",  # New single drop blast
+    "single":       "https://fanlink.tv/xkuh",  # BAGS — all platforms
+    "single-apple": "https://fanlink.tv/xkuh",  # BAGS — Apple Music
+    "single-spotify": "https://fanlink.tv/xkuh",  # BAGS — Spotify
+    "sms-blast":    "https://fanlink.tv/xkuh",  # BAGS — SMS blast tracker
+    "new-drop":     "https://fanlink.tv/xkuh",  # BAGS — new drop blast
     # Traffic source links — all go to messenger, tracked separately
     "src-ig":     "https://m.me/therealmiasnow1",
     "src-tiktok": "https://m.me/therealmiasnow1",
@@ -97,9 +97,9 @@ WHO YOU ARE:
 - "bestie" only if they're from The Girl Code group.
 
 YOUR MUSIC CATALOG:
-"Don't Let Go" feat. Waka Flocka Flame, "No More" feat. Derez De'Shon, "Falling Too Deep", "No Service", "WYD", "Ion Want To" (has video: https://www.youtube.com/watch?v=WyfiwqI9JDA), "On The Way (OTW)" (has video: https://www.youtube.com/watch?v=bVyAOIiGyIY), "Florida Baybee", "The Boy Is Mine", "All Night Long", "Naked", "Till the End", "Mine", "Get Ready", "Like Me Now", "Good Off You" (current single), "BAGS" (brand new single — just dropped tonight, posted on your page). If a fan mentions ANY song name — own it warmly, never deny or ask for clarification.
+"Don't Let Go" feat. Waka Flocka Flame, "No More" feat. Derez De'Shon, "Falling Too Deep", "No Service", "WYD", "Ion Want To" (has video: https://www.youtube.com/watch?v=WyfiwqI9JDA), "On The Way (OTW)" (has video: https://www.youtube.com/watch?v=bVyAOIiGyIY), "Florida Baybee", "The Boy Is Mine", "All Night Long", "Naked", "Till the End", "Mine", "Get Ready", "Like Me Now", "Good Off You", "BAGS" (current single — this is the one you're pushing now). If a fan mentions ANY song name — own it warmly, never deny or ask for clarification.
 
-NEW DROP — BAGS: You just dropped "BAGS" tonight. When a fan responds to the new drop link or mentions BAGS, ask for their honest feedback in ONE short question ("what you think?" or "be honest with me, how was it?" — keep it short). After they reply with feedback, keep the rest of the conversation very brief — 1 sentence max, no follow-up questions. You got your feedback, you're busy, stay warm but short.
+CURRENT SINGLE — BAGS: BAGS is your current single. Always push BAGS, never Good Off You. When fans respond to the link or mention BAGS, ask for their honest feedback in ONE short question ("what you think?" or "be honest with me, how was it?"). After they reply, keep it brief — 1 sentence max, no follow-up questions.
 
 Yeti Gang = your movement and community. Also a merch collection. Lead with movement first.
 Soul Ties = your album. Soul Ties merch is named after it.
@@ -4872,6 +4872,62 @@ def dashboard_single_blast():
     for i, uid in enumerate(fans):
         opener = openers[i % len(openers)]
         delay = i * 8  # 8 seconds apart
+        threading.Thread(target=_blast, args=(uid, delay, opener), daemon=True).start()
+        sent.append(uid)
+
+    return jsonify({"blasting": len(sent), "eta_minutes": round(len(sent) * 8 / 60, 1)})
+
+
+@app.route("/dashboard/bags-catchup-blast", methods=["GET", "POST"])
+def dashboard_bags_catchup_blast():
+    """Send BAGS to fans who got Good Off You but haven't gotten BAGS yet."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+
+    conn = get_conn()
+    cur = conn.cursor()
+    # Target: sent_single = true (got Good Off You) but haven't gotten new-drop link
+    # We track this by checking if they've ever received a new-drop link in messages
+    cur.execute("""
+        SELECT fp.user_id FROM fan_profiles fp
+        WHERE fp.sent_single = TRUE
+          AND fp.is_blocked = FALSE
+          AND NOT EXISTS (
+              SELECT 1 FROM messages m
+              WHERE m.user_id = fp.user_id
+                AND m.role = 'assistant'
+                AND m.content LIKE '%new-drop%'
+          )
+        ORDER BY fp.last_message_at DESC
+    """)
+    fans = [row[0] for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    openers = [
+        "ok i dropped something new called BAGS you gotta check it fr",
+        "since you fw Good Off You you definitely need to hear BAGS 🤍",
+        "my new one BAGS just dropped, be honest with me when you listen",
+        "you heard BAGS yet? this one hits different fr",
+        "i got a new one out called BAGS, go check it and tell me what you think 🤍",
+    ]
+
+    sent = []
+
+    def _blast(uid, delay, opener):
+        time.sleep(delay)
+        if is_paused(uid) or is_blocked(uid):
+            return
+        link = make_link("new-drop", uid)
+        msg = f"{opener} {link}"
+        save_message(uid, "assistant", msg)
+        send_message(uid, msg)
+        print(f"[bags-catchup] sent to {uid}")
+
+    for i, uid in enumerate(fans):
+        opener = openers[i % len(openers)]
+        delay = i * 8
         threading.Thread(target=_blast, args=(uid, delay, opener), daemon=True).start()
         sent.append(uid)
 
