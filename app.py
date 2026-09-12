@@ -4062,7 +4062,7 @@ def dashboard_fans_api():
         return jsonify({"error": "unauthorized"}), 401
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT user_id, fb_name, nickname, location, vibe, fan_score, total_messages, sent_spotify, sent_youtube, sent_onlyfans, sent_merch, sent_blast_list, on_blast_list, sent_single, gave_number, is_vip, is_girl_code, is_blocked, first_message_at, last_message_at FROM fan_profiles WHERE total_messages > 0 ORDER BY last_message_at DESC NULLS LAST")
+    cur.execute("SELECT user_id, fb_name, nickname, location, vibe, fan_score, total_messages, sent_spotify, sent_youtube, sent_onlyfans, sent_merch, sent_blast_list, on_blast_list, sent_single, gave_number, is_vip, is_girl_code, is_blocked, first_message_at, last_message_at, ad_referral FROM fan_profiles WHERE total_messages > 0 ORDER BY last_message_at DESC NULLS LAST")
     fans = [dict(r) for r in cur.fetchall()]
     # Attach most recent link clicked per fan
     cur.execute("SELECT user_id, array_agg(DISTINCT link_name) FILTER (WHERE link_name IS NOT NULL) as links_clicked FROM link_clicks GROUP BY user_id")
@@ -4384,6 +4384,28 @@ def webhook():
         # ── Handle DMs ────────────────────────────────────────────────────────
         for event in entry.get("messaging", []):
             sender_id = event["sender"]["id"]
+
+            # Capture Facebook ad referral on first contact
+            _referral = event.get("referral") or event.get("message", {}).get("referral")
+            if _referral:
+                _ref_source = _referral.get("source", "")
+                _ref_type = _referral.get("type", "")
+                _ref_ad_id = _referral.get("ad_id", "") or _referral.get("ads_context_data", {}).get("ad_id", "")
+                _ref_str = f"source={_ref_source} type={_ref_type} ad_id={_ref_ad_id}"
+                print(f"[referral] {sender_id} came via ad referral: {_ref_str}")
+                try:
+                    _rconn = get_conn()
+                    _rcur = _rconn.cursor()
+                    _rcur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS ad_referral TEXT")
+                    _rcur.execute(
+                        "UPDATE fan_profiles SET ad_referral = %s WHERE user_id = %s AND (ad_referral IS NULL OR ad_referral = '')",
+                        (_ref_str, sender_id)
+                    )
+                    _rconn.commit()
+                    _rcur.close()
+                    _rconn.close()
+                except Exception as _re:
+                    print(f"[referral] db error: {_re}")
 
             msg_obj = event.get("message", {})
             text = msg_obj.get("text")
