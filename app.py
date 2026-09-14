@@ -65,10 +65,12 @@ TRACKED_LINKS = {
     "src-tiktok": "https://m.me/therealmiasnow1",
     "src-twitter": "https://m.me/therealmiasnow1",
     "src-email":  "https://m.me/therealmiasnow1",
+    # Facebook ad — sends to BAGS, tracks ad traffic
+    "src-fb-ad":  "https://fanlink.tv/xkuh",
 }
 
 # These link names are traffic-source trackers (not content links) — shown in their own chart
-SOURCE_LINKS = {"src-ig", "src-tiktok", "src-twitter", "src-email"}
+SOURCE_LINKS = {"src-ig", "src-tiktok", "src-twitter", "src-email", "src-fb-ad"}
 
 def make_link(name, user_id):
     return f"{BOT_BASE_URL}/go/{name}?uid={user_id}"
