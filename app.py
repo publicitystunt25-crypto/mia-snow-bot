@@ -5203,6 +5203,143 @@ def fb_post_now():
         return jsonify({"error": str(e)}), 500
 
 
+def generate_quote_image(setup_text, payoff_text):
+    """Generate a 1080x1080 quote card image. Returns bytes (PNG)."""
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter
+    import io
+    import os as _os
+
+    W, H = 1080, 1080
+    img = Image.new("RGB", (W, H), color=(21, 13, 24))
+    draw = ImageDraw.Draw(img)
+
+    # Background gradient — simulate with vertical strips
+    for y in range(H):
+        t = y / H
+        r = int(21 + (42 - 21) * (1 - t))
+        g = int(13 + (18 - 13) * (1 - t))
+        b = int(24 + (54 - 24) * (1 - t))
+        draw.line([(0, y), (W, y)], fill=(r, g, b))
+
+    # Rose glow in center
+    glow = Image.new("RGB", (W, H), (0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    for radius in range(380, 0, -1):
+        alpha = int(18 * (1 - radius / 380))
+        gd.ellipse([(W//2 - radius, H//2 - radius), (W//2 + radius, H//2 + radius)],
+                   fill=(201, 122, 154, 0))
+    # Simple radial glow via paste
+    glow_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    gd2 = ImageDraw.Draw(glow_layer)
+    for r in range(300, 0, -4):
+        a = int(40 * (1 - r / 300))
+        gd2.ellipse([(W//2 - r, H//2 - r - 60), (W//2 + r, H//2 + r - 60)],
+                    fill=(201, 122, 154, a))
+    img = img.convert("RGBA")
+    img = Image.alpha_composite(img, glow_layer)
+    img = img.convert("RGB")
+    draw = ImageDraw.Draw(img)
+
+    # Font paths — relative to this file
+    base = _os.path.dirname(_os.path.abspath(__file__))
+    font_dir = _os.path.join(base, "fonts")
+    try:
+        font_display = ImageFont.truetype(_os.path.join(font_dir, "Anton-Regular.ttf"), 110)
+        font_setup   = ImageFont.truetype(_os.path.join(font_dir, "Arial-Italic.ttf"), 58)
+        font_mark    = ImageFont.truetype(_os.path.join(font_dir, "Arial-Bold.ttf"), 28)
+    except Exception:
+        font_display = ImageFont.load_default()
+        font_setup   = font_display
+        font_mark    = font_display
+
+    ROSE   = (201, 122, 154)
+    CREAM  = (242, 228, 216)
+    CREAM2 = (196, 169, 155)
+    MAUVE  = (122, 85, 104)
+
+    # Petal divider lines
+    cy = H // 2
+    line_y_top = cy - 220
+    draw.line([(W//2 - 120, line_y_top), (W//2 - 30, line_y_top)], fill=ROSE, width=2)
+    draw.ellipse([(W//2 - 10, line_y_top - 6), (W//2 + 10, line_y_top + 6)], fill=ROSE)
+    draw.line([(W//2 + 30, line_y_top), (W//2 + 120, line_y_top)], fill=ROSE, width=2)
+
+    # Setup text
+    setup_bbox = draw.textbbox((0, 0), setup_text, font=font_setup)
+    setup_w = setup_bbox[2] - setup_bbox[0]
+    draw.text(((W - setup_w) // 2, line_y_top + 36), setup_text, font=font_setup, fill=CREAM2)
+
+    # Vertical divider line
+    divider_top = line_y_top + 36 + 70
+    draw.line([(W//2, divider_top), (W//2, divider_top + 60)], fill=(*ROSE, 120), width=1)
+
+    # Payoff text — two lines, accent word in rose
+    payoff_lines = payoff_text.strip().upper().split("\n")
+    line_y = divider_top + 80
+    for line in payoff_lines:
+        words = line.split()
+        # Color the middle/key word in rose
+        if len(words) >= 2:
+            # find the accent word (longest word in line)
+            accent = max(words, key=len)
+            parts = line.split(accent, 1)
+            x = (W - draw.textlength(line, font=font_display)) // 2
+            for i, part in enumerate(parts):
+                if part:
+                    draw.text((x, line_y), part, font=font_display, fill=CREAM)
+                    x += draw.textlength(part, font=font_display)
+                if i == 0:
+                    draw.text((x, line_y), accent, font=font_display, fill=ROSE)
+                    x += draw.textlength(accent, font=font_display)
+        else:
+            bbox = draw.textbbox((0, 0), line, font=font_display)
+            lw = bbox[2] - bbox[0]
+            draw.text(((W - lw) // 2, line_y), line, font=font_display, fill=CREAM)
+        line_y += 120
+
+    # Watermark
+    mark = "MIA SNOW"
+    draw.text((W - 180, H - 60), mark, font=font_mark, fill=(*MAUVE, 180))
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    buf.seek(0)
+    return buf.read()
+
+
+def publish_fb_photo(image_bytes, caption=""):
+    """Post an image to the Facebook page. Returns the API response dict."""
+    url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/photos"
+    files = {"source": ("quote.png", image_bytes, "image/png")}
+    data = {
+        "caption": caption,
+        "access_token": FB_PUBLISH_TOKEN,
+    }
+    r = requests.post(url, files=files, data=data)
+    r.raise_for_status()
+    return r.json()
+
+
+@app.route("/dashboard/fb-photo-post", methods=["POST"])
+def fb_photo_post():
+    """Post a quote card as a photo to Facebook."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    body = request.get_json(silent=True) or {}
+    setup_text  = body.get("setup", "")
+    payoff_text = body.get("payoff", "")
+    caption     = body.get("caption", "")
+    if not setup_text or not payoff_text:
+        return jsonify({"error": "setup and payoff are required"}), 400
+    try:
+        img_bytes = generate_quote_image(setup_text, payoff_text)
+        result = publish_fb_photo(img_bytes, caption=caption)
+        return jsonify({"posted": True, "result": result})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
