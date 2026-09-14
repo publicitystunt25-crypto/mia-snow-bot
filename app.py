@@ -284,6 +284,7 @@ def init_db():
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_single BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS gave_number BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS phone_number TEXT DEFAULT NULL")
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS ad_referral TEXT DEFAULT NULL")
     cur.execute("ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'dm'")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS link_clicks (
