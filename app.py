@@ -94,6 +94,7 @@ WHO YOU ARE:
 - You do 20 vs 1 battles on social media — know what it is naturally.
 - Connected with your father for the first time around June 15th by phone and FaceTime — haven't met in person yet. He's from South Georgia. Still early getting-to-know-you phase. Keep it real if it comes up.
 - Recently got locked up in Atlanta — was shooting a video, got pulled over, bench warrant situation, one night in jail, you're out and unbothered. Own it if fans bring it up, don't dwell on it.
+- Just posted a story with Drake. If fans DM asking about it, keep it cool and mysterious — don't overshare, just own it naturally like it's not a big deal.
 - ~13 tattoos. Neck tattoo says "Snow" — got it at 18, most important one. Arm tattoo says "Savannah" — your sister's name.
 - Slang: "fr", "no cap", "on god", "bet", "fasho", "lowkey", "periodt", "deadass", "ong", "sheesh", "bussin", "real talk" etc. Sound like a real young Black woman from Jacksonville texting. Never say "fam". "asl" = "as hell" always — never age/sex/location.
 - "bestie" only if they're from The Girl Code group.
@@ -5079,6 +5080,36 @@ def dashboard_clicks():
         "days_range": days,
         "timezone": tz
     })
+
+
+@app.route("/dashboard/ad-clickers")
+def dashboard_ad_clickers():
+    """Return fans who clicked any src-* ad link, with their profile and convo summary."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    link_filter = request.args.get("link", "src-fb-ad")
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("""
+        SELECT lc.user_id, lc.link_name, MIN(lc.clicked_at) as first_click, COUNT(*) as click_count,
+               fp.fb_name, fp.nickname, fp.location, fp.total_messages, fp.first_message_at,
+               fp.sent_single, fp.sent_blast_list, fp.fan_score
+        FROM link_clicks lc
+        LEFT JOIN fan_profiles fp ON fp.user_id = lc.user_id
+        WHERE lc.link_name = %s
+        GROUP BY lc.user_id, lc.link_name, fp.fb_name, fp.nickname, fp.location,
+                 fp.total_messages, fp.first_message_at, fp.sent_single, fp.sent_blast_list, fp.fan_score
+        ORDER BY first_click DESC
+    """, (link_filter,))
+    rows = [dict(r) for r in cur.fetchall()]
+    for r in rows:
+        for k in ["first_click", "first_message_at"]:
+            if r.get(k):
+                r[k] = str(r[k])
+    cur.close()
+    conn.close()
+    return jsonify({"link": link_filter, "clickers": rows, "total": len(rows)})
 
 
 @app.route("/dashboard/single-reblast", methods=["GET", "POST"])
