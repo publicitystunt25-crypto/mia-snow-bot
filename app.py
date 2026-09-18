@@ -5214,6 +5214,47 @@ def fb_auto_post_loop():
 # threading.Thread(target=fb_auto_post_loop, daemon=True).start()
 
 
+_post_queue_status = []  # tracks scheduled queue progress
+
+def _run_post_queue(messages, interval_seconds):
+    """Background thread: post messages one at a time with a delay between each."""
+    for i, msg in enumerate(messages):
+        if i > 0:
+            time.sleep(interval_seconds)
+        try:
+            publish_fb_post(msg)
+            _post_queue_status.append({"posted": True, "message": msg[:80], "index": i})
+            print(f"[post-queue] posted {i+1}/{len(messages)}: {msg[:60]}")
+        except Exception as e:
+            _post_queue_status.append({"posted": False, "message": msg[:80], "error": str(e), "index": i})
+            print(f"[post-queue] error on {i+1}: {e}")
+
+
+@app.route("/dashboard/fb-post-queue", methods=["POST"])
+def fb_post_queue():
+    """Schedule a list of posts to go out at a set interval."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    body = request.get_json(silent=True) or {}
+    messages = body.get("messages", [])
+    interval_minutes = int(body.get("interval_minutes", 120))
+    if not messages:
+        return jsonify({"error": "messages array required"}), 400
+    _post_queue_status.clear()
+    threading.Thread(target=_run_post_queue, args=(messages, interval_minutes * 60), daemon=True).start()
+    return jsonify({"queued": len(messages), "interval_minutes": interval_minutes,
+                    "eta_hours": round(len(messages) * interval_minutes / 60, 1)})
+
+
+@app.route("/dashboard/fb-post-queue-status")
+def fb_post_queue_status():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify({"posted_so_far": len(_post_queue_status), "log": list(_post_queue_status)})
+
+
 @app.route("/dashboard/fb-post-now", methods=["POST"])
 def fb_post_now():
     """Manually trigger a Facebook post right now."""
