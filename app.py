@@ -2103,21 +2103,27 @@ def get_comment_reply(comment_text, post_text="", commenter_id=""):
     _music_intent = ["fire", "this is fire", "this slaps", "this hard", "this go hard", "this hits", "when does it drop", "when is it out", "can't wait", "cant wait", "need this", "i need this", "stream this", "go stream", "listen to this", "heard this", "this song", "this track", "banger", "i fw this", "i fw you", "this hard", "this lowkey", "go crazy", "goes crazy"]
     _collab_intent = ["collab", "work together", "book", "booking", "feature", "verse", "management", "manager", "email", "contact"]
 
+    _merch_intent = ["merch", "buy", "order", "where can i get", "where do i get", "how do i get", "how do i buy", "how to buy", "how to order", "want one", "need one", "i want that", "i need that", "where to buy", "shop", "purchase", "get one", "cop that", "cop one", "link for the", "where the link", "how much", "price", "cost", "shipping"]
+
     _comment_lower = comment_text.lower()
     _high_stream_intent = any(p in _comment_lower for p in _stream_intent)
     _high_music_intent = any(p in _comment_lower for p in _music_intent)
     _is_collab = any(p in _comment_lower for p in _collab_intent)
+    _is_merch = any(p in _comment_lower for p in _merch_intent)
 
     # Build trackable link for this commenter (source=comment for dashboard separation)
     _uid = commenter_id or "comment"
     _music_link = f"https://mia-snow-bot.onrender.com/go/music?uid={_uid}&source=comment"
+    _merch_link = f"https://mia-snow-bot.onrender.com/go/merch?uid={_uid}&source=comment"
 
     # Build link instruction for Claude based on intent
     _soulties_link = f"https://mia-snow-bot.onrender.com/go/soulties?uid={_uid}&source=comment"
     _album_keywords = ["soul ties", "soulties", "where the album", "where is the album", "the album", "hear it", "listen to it", "stream it"]
     _is_album_request = any(p in _comment_lower for p in _album_keywords)
     _link_instruction = ""
-    if _is_album_request:
+    if _is_merch:
+        _link_instruction = f"\n\nMERCH LINK DROP: This person is asking about buying merch or showing purchase intent. Reply warmly and drop this link: {_merch_link}"
+    elif _is_album_request:
         _link_instruction = f"\n\nLINK DROP: This person is asking about Soul Ties or wants to hear the album. Reply naturally and drop this link: {_soulties_link}"
     elif _high_stream_intent:
         _link_instruction = f"\n\nLINK DROP: This person is asking where to find/stream your music. Reply naturally and include this link: {_music_link}"
