@@ -145,6 +145,7 @@ FLIRTING:
 - Phone numbers: "send me your number i'll lock you in 🖤". If they send it: "i just locked you in 🖤".
 - OnlyFans/exclusive content: "i got some stuff on there" + drop exclusive link. Only for explicit requests — not music subscriptions.
 - Merch: https://miasnow.printful.me/
+- MERCH PUSH MODE ACTIVE (48 hours): You are actively pushing merch right now. Two sales just came in and momentum is building. In EVERY conversation — if rapport exists and it hasn't been mentioned yet — find a natural moment to bring up the merch. Create real urgency: "people been grabbing it fast fr", "we moving units rn", "grabbed yours yet?". Use the merch tracked link from the fan profile context. Don't be robotic — weave it in naturally. If they show ANY interest ("oh that's cool", "where can I get it", "how much") — close immediately with the link and make it feel exclusive. Treat every convo as a sales opportunity without being obvious about it.
 
 OWNING EVERYTHING:
 - If a fan says they saw you somewhere, know you, have a photo of you, saw a post — OWN IT every time. "lol yea that was me fr" / "oh you caught that 👀". BANNED: "that wasn't me", "you might be confused", "i don't know what you're talking about" — never.
@@ -4964,6 +4965,72 @@ def dashboard_bags_catchup_blast():
         sent.append(uid)
 
     return jsonify({"blasting": len(sent), "eta_minutes": round(len(sent) * 8 / 60, 1)})
+
+
+@app.route("/dashboard/merch-blast", methods=["GET", "POST"])
+def dashboard_merch_blast():
+    """DM merch link to engaged fans who have never gotten a merch pitch."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+
+    min_msgs = int(request.args.get("min_msgs", 20))
+    limit = int(request.args.get("limit", 500))
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT fp.user_id FROM fan_profiles fp
+        WHERE fp.sent_merch = FALSE
+          AND fp.bought_merch = FALSE
+          AND fp.is_blocked = FALSE
+          AND fp.total_messages >= %s
+          AND NOT EXISTS (
+              SELECT 1 FROM messages m
+              WHERE m.user_id = fp.user_id
+                AND m.role = 'assistant'
+                AND m.content LIKE '%%merch%%'
+          )
+        ORDER BY fp.total_messages DESC
+        LIMIT %s
+    """, (min_msgs, limit))
+    fans = [row[0] for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    openers = [
+        "yo we just dropped some new merch and i had to let my people know first 🖤",
+        "real quick — my merch just went live and people been grabbing it fast fr 🤍",
+        "we moving units on the merch rn and i wanted you to know before it's gone 🖤",
+        "just want my real ones to know the merch is up fr 🤍",
+        "two sales already today lol grab yours before it's gone fr 🖤",
+    ]
+
+    def _merch_blast(uid, delay, opener):
+        time.sleep(delay)
+        if is_paused(uid) or is_blocked(uid):
+            return
+        link = make_link("merch", uid)
+        msg = f"{opener} {link}"
+        save_message(uid, "assistant", msg)
+        send_message(uid, msg)
+        try:
+            _conn = get_conn()
+            _cur = _conn.cursor()
+            _cur.execute("UPDATE fan_profiles SET sent_merch = TRUE WHERE user_id = %s", (uid,))
+            _conn.commit()
+            _cur.close()
+            _conn.close()
+        except Exception:
+            pass
+        print(f"[merch-blast] sent to {uid}")
+
+    for i, uid in enumerate(fans):
+        opener = openers[i % len(openers)]
+        delay = i * 8
+        threading.Thread(target=_merch_blast, args=(uid, delay, opener), daemon=True).start()
+
+    return jsonify({"blasting": len(fans), "eta_minutes": round(len(fans) * 8 / 60, 1)})
 
 
 @app.route("/dashboard/new-drop-blast", methods=["GET", "POST"])
