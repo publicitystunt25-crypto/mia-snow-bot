@@ -5504,6 +5504,47 @@ def fb_photo_post():
         return jsonify({"error": str(e)}), 500
 
 
+_photo_queue_status = []
+
+def _run_photo_queue(posts, interval_seconds):
+    for i, p in enumerate(posts):
+        try:
+            img_bytes = generate_quote_image(p["setup"], p["payoff"])
+            result = publish_fb_photo(img_bytes, caption=p.get("caption", ""))
+            _photo_queue_status.append({"index": i, "setup": p["setup"], "result": result})
+            print(f"[photo-queue] posted {i+1}/{len(posts)}: {p['setup'][:40]}")
+        except Exception as e:
+            _photo_queue_status.append({"index": i, "setup": p["setup"], "error": str(e)})
+            print(f"[photo-queue] error on {i+1}/{len(posts)}: {e}")
+        if i < len(posts) - 1:
+            time.sleep(interval_seconds)
+
+
+@app.route("/dashboard/fb-photo-queue", methods=["POST"])
+def fb_photo_queue():
+    """Queue multiple quote card photo posts at a set interval."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    body = request.get_json(silent=True) or {}
+    posts = body.get("posts", [])
+    interval_minutes = int(body.get("interval_minutes", 360))
+    if not posts:
+        return jsonify({"error": "posts array required"}), 400
+    _photo_queue_status.clear()
+    threading.Thread(target=_run_photo_queue, args=(posts, interval_minutes * 60), daemon=True).start()
+    return jsonify({"queued": len(posts), "interval_minutes": interval_minutes,
+                    "eta_hours": round(len(posts) * interval_minutes / 60, 1)})
+
+
+@app.route("/dashboard/fb-photo-queue-status")
+def fb_photo_queue_status():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify({"posted_so_far": len(_photo_queue_status), "log": list(_photo_queue_status)})
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
