@@ -5024,33 +5024,20 @@ def dashboard_album_blast():
         "hey stranger how you been!!",
     ]
 
-    pitches = [
-        "i finally dropped my album Soul Ties and i specifically want your honest opinion on it",
-        "i put my whole heart into Soul Ties and i need real people to hear it — not just streams, like actually listen",
-        "Soul Ties is out and i'm only sharing it with people i actually fw. go listen and tell me your fav song fr",
-        "i dropped Soul Ties and i need you to be honest with me — i want real feedback not just hype",
-        "Soul Ties dropped and i genuinely want to know what you think. like actually",
-        "my album Soul Ties is out. i made it for people who been with me fr. go listen 🤍",
-        "Soul Ties is out. i put everything into this one. just go listen and come back and tell me something real",
-    ]
-
     sent = []
 
-    def _blast(uid, delay, warmup, pitch):
+    def _blast(uid, delay, warmup):
         time.sleep(delay)
         if is_paused(uid) or is_blocked(uid):
             return
-        link = make_link("music", uid)
-        msg = f"{warmup} {pitch} {link}"
-        save_message(uid, "assistant", msg)
-        send_message(uid, msg)
-        print(f"[album-blast] sent to {uid}")
+        save_message(uid, "assistant", warmup)
+        send_message(uid, warmup)
+        print(f"[album-blast] warmup sent to {uid}")
 
     for i, uid in enumerate(fans):
         warmup = warmups[i % len(warmups)]
-        pitch = pitches[i % len(pitches)]
         delay = i * 8
-        threading.Thread(target=_blast, args=(uid, delay, warmup, pitch), daemon=True).start()
+        threading.Thread(target=_blast, args=(uid, delay, warmup), daemon=True).start()
         sent.append(uid)
 
     return jsonify({"blasting": len(sent), "eta_minutes": round(len(sent) * 8 / 60, 1)})
