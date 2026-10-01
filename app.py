@@ -80,14 +80,17 @@ def get_conn():
     return psycopg2.connect(DATABASE_URL.strip(), sslmode="require")
 
 # ── Mia Snow persona ─────────────────────────────────────────────────────────
-SYSTEM_PROMPT = """⚠️ OVERRIDE — MERCH SALES MODE ACTIVE: Your ONE job right now is selling merch. Every single message must move toward the merch sale. No exceptions.
+SYSTEM_PROMPT = """⚠️ OVERRIDE — STREAMS MODE ACTIVE: Your ONE job right now is getting people to listen to the Soul Ties album and give you real feedback on it. Every conversation must move toward the album.
 
-- Whatever they say, reply in ONE sentence max, then bring up merch. Every time. No small talk. No chatting. No questions about their life.
-- Use humor, flirtation, urgency, exclusivity — whatever fits their vibe — but EVERY reply ends with merch or is moving toward merch.
-- If they already got the merch link, ask if they grabbed it yet. If they said yes, celebrate and ask them to send a pic. If no — close harder.
-- Openers (pick based on their vibe): "you out here looking regular when you could be repping me fr 😭", "i already know you'd rock my stuff 👀", "real ones been grabbing the merch — you next?", "two sales already today lol don't sleep on it fr", "i'm only telling people i fw — merch is live 🖤"
-- The merch link comes from their fan profile context — ALWAYS use that tracked link, never hardcode a URL.
-- If they ask about anything else — music, life, etc — one word answer then RIGHT BACK to merch. You are a closer.
+STREAMS FUNNEL — follow this order strictly:
+1. If they have NOT heard the album yet → get them to listen. Use the album link from their fan profile context. Be personal: "i need real ears on this fr", "i made this one different, you'd get it", "tell me what you think after fr i wanna know".
+2. If they ARE listening or just got the link → follow up: "what you think so far?" or "be honest with me" — ONE question only.
+3. If they gave feedback → thank them genuinely in 1 sentence, then move to the blast list: "you should be on my vip list so you hear everything first — want me to add you?" Use the blast link from their fan profile context.
+4. If they're already on the blast list → they're done. Be warm and brief. No album push needed.
+
+- Check their fan profile context first. If listened_to_music=true, skip to step 3. If sent_blast_list=true, skip to step 4.
+- Keep replies 1-2 sentences. Natural. Don't sound like a promo bot.
+- Never hardcode URLs — always use tracked links from fan profile context.
 
 You are Mia Snow, a melodic R&B and melodic rap artist from Jacksonville, Florida, talking to fans in your Facebook inbox. Your name is Mia Snow — most people call you Mia or Snow.
 
@@ -1442,8 +1445,13 @@ def get_mia_reply(user_id):
     else:
         _lang_context = "[LANGUAGE RULE: Detect the language the fan is writing in and reply in that exact language. This is a hard rule — if they write in French, reply in French. If Portuguese, reply in Portuguese. If Italian, reply in Italian. Match their language exactly. Default to English only if you genuinely cannot tell.]"
 
-    # Low-engagement mode disabled during merch sales push
-    _low_engagement_context = None
+    # Low-engagement mode for fans who confirmed they listened AND are on the blast list
+    _low_engagement = profile and profile.get("listened_to_music") and profile.get("sent_blast_list")
+    _low_engagement_context = (
+        "[LOW-ENGAGEMENT MODE: This fan has already listened to the music and joined the blast list — they've completed the funnel. "
+        "Keep your reply to 1 short sentence max. Do NOT ask questions. Do NOT push anything. "
+        "Just be warm but brief — you're busy and don't have time to chat all day. Save tokens.]"
+    ) if _low_engagement else None
 
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
@@ -4973,6 +4981,60 @@ def dashboard_bags_catchup_blast():
         save_message(uid, "assistant", msg)
         send_message(uid, msg)
         print(f"[bags-catchup] sent to {uid}")
+
+    for i, uid in enumerate(fans):
+        opener = openers[i % len(openers)]
+        delay = i * 8
+        threading.Thread(target=_blast, args=(uid, delay, opener), daemon=True).start()
+        sent.append(uid)
+
+    return jsonify({"blasting": len(sent), "eta_minutes": round(len(sent) * 8 / 60, 1)})
+
+
+@app.route("/dashboard/album-blast", methods=["GET", "POST"])
+def dashboard_album_blast():
+    """DM Soul Ties album link to fans who haven't heard it yet."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+
+    limit = int(request.args.get("limit", 500))
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT fp.user_id FROM fan_profiles fp
+        WHERE fp.listened_to_music = FALSE
+          AND fp.is_blocked = FALSE
+          AND fp.total_messages >= 3
+        ORDER BY fp.last_message_at DESC
+        LIMIT %s
+    """, (limit,))
+    fans = [row[0] for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    openers = [
+        "i dropped my album Soul Ties — i need real ears on it fr",
+        "you gotta hear Soul Ties, i put everything into this one 🤍",
+        "real talk i made Soul Ties for people like you. go listen and tell me what you think",
+        "my album Soul Ties is out — be honest with me when you listen, i need real feedback",
+        "Soul Ties just dropped and i'm only telling people i fw — go check it 🤍",
+        "i need you to hear Soul Ties and tell me what you think fr, no cap",
+        "you would get Soul Ties. go listen and come back and tell me your fav song",
+    ]
+
+    sent = []
+
+    def _blast(uid, delay, opener):
+        time.sleep(delay)
+        if is_paused(uid) or is_blocked(uid):
+            return
+        link = make_link("music", uid)
+        msg = f"{opener} {link}"
+        save_message(uid, "assistant", msg)
+        send_message(uid, msg)
+        print(f"[album-blast] sent to {uid}")
 
     for i, uid in enumerate(fans):
         opener = openers[i % len(openers)]
