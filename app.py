@@ -5015,13 +5015,13 @@ def dashboard_album_blast():
     conn.close()
 
     warmups = [
-        "hey been thinking about you 🤍",
-        "omg i was just thinking i haven't talked to you in a min",
-        "hey you!! i been meaning to reach out",
-        "heyy i missed you fr",
-        "hey stranger lol i been mia (no pun intended 😭)",
-        "hey i was just thinking about the people that actually rock with me",
-        "hey!! been a minute",
+        "hey how you been??",
+        "heyy how you doing fr",
+        "hey!! how you been",
+        "sorry for the late reply been super busy fr",
+        "hey been crazy busy but how you been tho",
+        "omg sorry i been mia lol how you doing",
+        "hey stranger how you been!!",
     ]
 
     pitches = [
