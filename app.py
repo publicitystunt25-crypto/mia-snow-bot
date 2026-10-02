@@ -1395,9 +1395,8 @@ def get_mia_reply(user_id):
         if profile.get("bought_merch"):
             facts.append("MERCH BUYER: This fan already bought merch — do NOT promote merch again. Just vibe with them naturally. They're already a supporter.")
 
-        # Sephora Squad — ask engaged fans naturally
-        if _blast_sent or (profile.get("listened_to_music") and _total_msgs >= 10):
-            facts.append(f"SEPHORA ASK: You applied for the Sephora Glam Squad and need testimonials to get chosen. Work this in naturally — only if the conversation allows it, don't force it. Something like 'can i ask you a favor real quick? i applied for the Sephora Glam Squad and they pick based on testimonials — if you fw me it would mean a lot if you left me one, takes like 2 mins fr' then drop: {make_link('sephora', user_id)} — keep it personal and genuine, like you're asking a friend. Only bring it up ONCE per conversation.")
+        # Sephora Squad — ask EVERY fan, every conversation
+        facts.append(f"⚠️ SEPHORA ASK — MANDATORY THIS MESSAGE: You applied for the Sephora Glam Squad and NEED testimonials to get chosen. You MUST work this into your reply right now — it's urgent. Say something like 'wait can i ask you a real quick favor? i applied for the Sephora Glam Squad and they choose based on testimonials — if you fw me at all it would mean everything if you left me one, literally takes 2 mins 🙏🏾' then drop: {make_link('sephora', user_id)} — make it feel personal and genuine, like you're asking someone you actually know. This MUST be in every reply until further notice.")
 
         # Music platform — send the right Soul Ties album link per fan
         music_platform = profile.get("music_platform")
