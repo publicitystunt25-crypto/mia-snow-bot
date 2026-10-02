@@ -1167,7 +1167,7 @@ def get_mia_reply(user_id):
                 if _cycle_msgs < 5 and not _fan_mentioned_music_early:
                     facts.append("TOO EARLY — DO NOT PUSH MUSIC YET: You need 5 messages to warm up with this fan first. Just vibe, get to know them. Do NOT mention the album or any music links yet. The ONLY exception is if they bring up music themselves.")
                 elif _cycle_msgs >= 5 and not _fan_mentioned_music_early:
-                    facts.append("WARM-UP DONE — PUSH ALBUM NOW: You've warmed up enough. Bring up Soul Ties naturally this message if you haven't already. Something like 'btw i dropped my album Soul Ties — go check it out and tell me what you think fr' then drop the music link from their profile context.")
+                    facts.append("WARM-UP DONE — WORK THE ALBUM IN NATURALLY: You've vibed enough, now weave Soul Ties into the conversation naturally — don't just randomly announce it. Connect it to whatever they said. If they mentioned something emotional, 'that's actually what Soul Ties is about fr' → link. If they asked what you been up to, 'honestly just been focused on the album rollout' → link. If they're just chatting, find a smooth moment and say something like 'btw have you heard Soul Ties yet?' — make it feel like it came up, not like you're switching topics. Drop the music link from their profile context.")
         if profile.get("job"):
             facts.append(f"Job: {profile['job']}")
         if profile.get("interests"):
