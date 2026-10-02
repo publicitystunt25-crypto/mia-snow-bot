@@ -67,6 +67,8 @@ TRACKED_LINKS = {
     "src-email":  "https://m.me/therealmiasnow1",
     # Facebook ad — sends to BAGS, tracks ad traffic
     "src-fb-ad":  "https://fanlink.tv/xkuh",
+    # Sephora Squad testimonial
+    "sephora":    "https://go.sephorasquad.com/testimonial/submit/7b87ade3-2367-44db-af54-9f5457a3a604",
 }
 
 # These link names are traffic-source trackers (not content links) — shown in their own chart
