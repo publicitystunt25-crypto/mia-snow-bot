@@ -333,6 +333,15 @@ def init_db():
             replied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS scheduled_posts (
+            id SERIAL PRIMARY KEY,
+            message TEXT NOT NULL,
+            scheduled_at TIMESTAMP NOT NULL,
+            posted_at TIMESTAMP DEFAULT NULL,
+            status TEXT DEFAULT 'pending'
+        )
+    """)
     conn.commit()
     cur.close()
     conn.close()
@@ -1028,6 +1037,43 @@ def _followup_loop():
         run_music_followups()
 
 threading.Thread(target=_followup_loop, daemon=True).start()
+
+
+def _scheduled_post_loop():
+    """Check DB every 60s for posts due to go out. Survives server restarts."""
+    while True:
+        try:
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT id, message FROM scheduled_posts
+                WHERE status = 'pending' AND scheduled_at <= NOW()
+                ORDER BY scheduled_at ASC
+                LIMIT 5
+            """)
+            due = cur.fetchall()
+            cur.close()
+            conn.close()
+            for post_id, message in due:
+                try:
+                    publish_fb_post(message)
+                    conn2 = get_conn()
+                    cur2 = conn2.cursor()
+                    cur2.execute(
+                        "UPDATE scheduled_posts SET status='posted', posted_at=NOW() WHERE id=%s",
+                        (post_id,)
+                    )
+                    conn2.commit()
+                    cur2.close()
+                    conn2.close()
+                    print(f"[scheduled-post] posted id={post_id}: {message[:60]}")
+                except Exception as e:
+                    print(f"[scheduled-post] error on id={post_id}: {e}")
+        except Exception as e:
+            print(f"[scheduled-post-loop] error: {e}")
+        time.sleep(60)
+
+threading.Thread(target=_scheduled_post_loop, daemon=True).start()
 
 
 def notify_owner(fan_id, reason):
@@ -5386,7 +5432,7 @@ def _run_post_queue(messages, interval_seconds):
 
 @app.route("/dashboard/fb-post-queue", methods=["POST"])
 def fb_post_queue():
-    """Schedule a list of posts to go out at a set interval."""
+    """Schedule a list of posts in the DB — survives server restarts."""
     password = request.args.get("password", "")
     if password != DASHBOARD_PASSWORD:
         return jsonify({"error": "unauthorized"}), 401
@@ -5395,10 +5441,23 @@ def fb_post_queue():
     interval_minutes = int(body.get("interval_minutes", 120))
     if not messages:
         return jsonify({"error": "messages array required"}), 400
-    _post_queue_status.clear()
-    threading.Thread(target=_run_post_queue, args=(messages, interval_minutes * 60), daemon=True).start()
+    conn = get_conn()
+    cur = conn.cursor()
+    # Cancel any existing pending posts first
+    cur.execute("UPDATE scheduled_posts SET status='cancelled' WHERE status='pending'")
+    # Schedule new posts
+    for i, msg in enumerate(messages):
+        delay_minutes = i * interval_minutes
+        cur.execute(
+            "INSERT INTO scheduled_posts (message, scheduled_at) VALUES (%s, NOW() + INTERVAL '%s minutes')",
+            (msg, delay_minutes)
+        )
+    conn.commit()
+    cur.close()
+    conn.close()
     return jsonify({"queued": len(messages), "interval_minutes": interval_minutes,
-                    "eta_hours": round(len(messages) * interval_minutes / 60, 1)})
+                    "eta_hours": round(len(messages) * interval_minutes / 60, 1),
+                    "note": "persisted to DB — survives restarts"})
 
 
 @app.route("/dashboard/fb-post-queue-status")
@@ -5406,7 +5465,18 @@ def fb_post_queue_status():
     password = request.args.get("password", "")
     if password != DASHBOARD_PASSWORD:
         return jsonify({"error": "unauthorized"}), 401
-    return jsonify({"posted_so_far": len(_post_queue_status), "log": list(_post_queue_status)})
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id, message, scheduled_at, posted_at, status FROM scheduled_posts ORDER BY scheduled_at ASC")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify({
+        "total": len(rows),
+        "pending": sum(1 for r in rows if r[4] == 'pending'),
+        "posted": sum(1 for r in rows if r[4] == 'posted'),
+        "posts": [{"id": r[0], "message": r[1][:80], "scheduled_at": str(r[2]), "posted_at": str(r[3]), "status": r[4]} for r in rows]
+    })
 
 
 @app.route("/dashboard/fb-post-now", methods=["POST"])
