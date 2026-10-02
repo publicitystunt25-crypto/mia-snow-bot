@@ -315,6 +315,8 @@ def init_db():
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS gave_number BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS phone_number TEXT DEFAULT NULL")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS ad_referral TEXT DEFAULT NULL")
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_sephora BOOLEAN DEFAULT FALSE")
+    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS clicked_sephora BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'dm'")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS link_clicks (
@@ -582,6 +584,8 @@ def update_fan_after_message(user_id, messages):
         updates["sent_soulties"] = True
     if "/go/single" in combined or "fanlink.tv/xiAa" in combined:
         updates["sent_single"] = True
+    if "/go/sephora" in combined or "sephorasquad.com" in combined:
+        updates["sent_sephora"] = True
 
     # Detect if fan confirmed they bought merch
     _bought_phrases = [
@@ -1704,6 +1708,14 @@ def handle_reply(sender_id):
         if is_paused(sender_id) or is_blocked(sender_id):
             with _pending_lock:
                 _pending.pop(sender_id, None)
+            return
+
+        # Sephora gate — if we asked and they haven't clicked the link, don't reply
+        _sephora_profile = get_fan_profile(sender_id)
+        if _sephora_profile and _sephora_profile.get("sent_sephora") and not _sephora_profile.get("clicked_sephora"):
+            with _pending_lock:
+                _pending.pop(sender_id, None)
+            print(f"[sephora-gate] not responding to {sender_id} — sephora ask sent but not clicked")
             return
 
         # If owner just manually replied, stand down — clear pending and return
@@ -4370,6 +4382,8 @@ def tracked_link(name):
             conn = get_conn()
             cur = conn.cursor()
             cur.execute("INSERT INTO link_clicks (user_id, link_name, source) VALUES (%s, %s, %s)", (user_id, name, source))
+            if name == "sephora" and user_id:
+                cur.execute("UPDATE fan_profiles SET clicked_sephora = TRUE WHERE user_id = %s", (user_id,))
             conn.commit()
             cur.close()
             conn.close()
