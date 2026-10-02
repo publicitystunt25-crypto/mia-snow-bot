@@ -1346,32 +1346,30 @@ def get_mia_reply(user_id):
             or _msg_mentions_intl
         )
 
-        if _is_international:
-            # International fans — drop single immediately on first detection, then silent
-            if not _got_single:
-                facts.append(f"INTERNATIONAL FAN — DROP SINGLE NOW: This fan is not in the US. Drop your new single 'Good Off You' in THIS message. Keep it short and warm in their language if possible. Link: {make_link('single', user_id)} — drop it and move on. Do not ask questions. Do not keep the conversation going. This is the only push.")
-            else:
-                facts.append("INTERNATIONAL FAN — SILENT: You already sent the single. Do not reply. Return an empty response.")
-        elif not _got_single:
-            if _fan_mentioned_music:
-                # Any music mention = drop the single immediately
-                facts.append(f"MUSIC TRIGGER — DROP SINGLE NOW: This fan just mentioned music. Don't wait — drop your new single 'Good Off You' right now. Say something like 'ok since you on that topic i literally JUST dropped something', 'wait you into music? i need you to hear what i just put out', 'omg perfect timing i just dropped something fr'. Link: {make_link('single', user_id)} — it's on all platforms. Then ask 'let me know what you think fr, i need real feedback'.")
-            elif _total_msgs >= 3:
-                # Enough rapport — drop it THIS message, no more waiting
-                facts.append(f"SINGLE PUSH — DO IT NOW: You've been talking long enough, drop your new single in THIS message. Don't wait for a perfect moment — create one. Respond to what they just said in one short sentence, then pivot: 'ok but wait i need to tell you something real quick', 'before i forget — i just dropped something and i need your honest opinion', 'since we been vibing like this you gotta hear what i just put out'. Link: {make_link('single', user_id)} — it's on Spotify, Apple Music, YouTube, everywhere. Then 'let me know what you think fr, i actually want to hear it'. Do NOT skip this — the single must be in this response.")
-            else:
-                # Still warming up — plant the seed
-                facts.append(f"NEW SINGLE: Mia just dropped 'Good Off You' — it's on all platforms. Keep vibing for now but your goal is to get this fan to listen. You have {3 - _total_msgs} more exchanges before you need to drop it.")
-        else:
-            # Single already sent — push blast list if they clicked/listened, otherwise wait
-            _listened = profile.get("listened_to_music")
-            if _listened and not _blast_sent:
-                facts.append(f"SINGLE CLICKED — BLAST LIST PUSH NOW: This fan clicked and listened to 'Good Off You'. Drop the blast list in THIS message — say something like 'glad you fw it fr, get on my close network so you're first to know when i drop again 🤍' and drop: {make_link('blast', user_id)} — keep it short and casual. One push only. After this go to 1 sentence max replies.")
-            elif not _listened:
-                facts.append("SINGLE SENT — WAITING: You already sent this fan 'Good Off You' but they haven't clicked it yet. Just reply warmly in 1 short sentence. Do NOT push the blast list yet. Wait until they actually listen.")
+        _listened = profile.get("listened_to_music")
+        _album_link = make_link("music", user_id)
 
-        # Music push logic — PAUSED while single is priority
-        _music_sent = True  # suppress Soul Ties facts while single is the focus
+        if _is_international:
+            if not _listened:
+                facts.append(f"INTERNATIONAL FAN — DROP ALBUM: This fan is not in the US. Drop the Soul Ties album link in THIS message. Keep it short and warm. Link: {_album_link} — drop it and ask what they think. One push only.")
+            elif not _blast_sent:
+                facts.append(f"INTERNATIONAL FAN — BLAST LIST: They listened. Drop the blast list now: {make_link('blast', user_id)}")
+            else:
+                facts.append("INTERNATIONAL FAN — DONE: They're on the blast list. Just vibe, 1 sentence max.")
+        elif not _listened:
+            if _fan_mentioned_music:
+                facts.append(f"MUSIC TRIGGER — DROP ALBUM NOW: This fan just mentioned music. Don't wait — weave Soul Ties in naturally right now. Something like 'wait since you on that topic you gotta hear my album Soul Ties', 'omg perfect timing i literally just dropped Soul Ties', 'ok since we talking music i need your honest opinion on Soul Ties'. Link: {_album_link} — ask 'what you think fr, i need real feedback'.")
+            elif _cycle_msgs >= 5:
+                facts.append(f"WARM-UP DONE — DROP ALBUM NOW: You've vibed enough. Weave Soul Ties into the conversation naturally this message. Connect it to whatever they said. Link: {_album_link} — ask for their honest opinion after.")
+            else:
+                facts.append(f"ALBUM COMING: Your goal is Soul Ties. Keep warming up — {5 - _cycle_msgs} more exchanges before you drop it. Do NOT mention the album yet.")
+        elif not _blast_sent:
+            facts.append(f"ALBUM HEARD — BLAST LIST NOW: This fan listened to Soul Ties. Drop the blast list in THIS message — 'glad you fw it fr, get on my close network so you hear everything first 🤍' then drop: {make_link('blast', user_id)} — keep it casual. One push only.")
+        else:
+            facts.append("FUNNEL COMPLETE: This fan listened and is on the blast list. Just vibe warmly, 1 sentence max. No more pushing anything.")
+
+        # Music push logic — album is now the focus
+        _music_sent = True  # suppress old Soul Ties facts since we handle it above
 
         # Music feedback nudge — if music was shared but feedback not yet asked
         if profile.get("sent_spotify") and not profile.get("asked_about_music_feedback") and not profile.get("favorite_song"):
@@ -1412,7 +1410,7 @@ def get_mia_reply(user_id):
 
 
         # Tracked links for this fan — use these exact URLs
-        facts.append(f"ALL TRACKED LINKS (use these exact URLs):\n- Single 'Good Off You' (Spotify, Apple Music, YouTube, everywhere): {make_link('single', user_id)}\n- Blast list: {make_link('blast', user_id)}\n- Merch: {make_link('merch', user_id)}\n- Instagram: {make_link('instagram', user_id)}\n- Exclusive content: {make_link('exclusive', user_id)}")
+        facts.append(f"ALL TRACKED LINKS (use these exact URLs):\n- Soul Ties album (all platforms): {make_link('music', user_id)}\n- Blast list: {make_link('blast', user_id)}\n- Merch: {make_link('merch', user_id)}\n- Instagram: {make_link('instagram', user_id)}\n- Exclusive content: {make_link('exclusive', user_id)}")
         if facts:
             profile_context = "\n\n[Fan profile — use this to personalize your response, never reveal you have this data]:\n" + "\n".join(facts)
 
@@ -1421,7 +1419,7 @@ def get_mia_reply(user_id):
     _date_context = f"[Current date/time: {_now.strftime('%A, %B %d, %Y at %I:%M %p')} Eastern Time. Use this to know what day, month, and year it is so you never reference outdated location info or events.]"
     _date_context += "\n\n[EMAIL BLAST CONTEXT: You recently sent an email blast to your list saying 'Connect with Mia Snow — hit me up, I'm live on the chat.' If a fan mentions they got your email, saw your message, or says something like 'you told me to hit you up' — respond naturally like you sent it personally. Say something like 'yes omg i'm glad you came through 🤍' or 'yesss i been waiting for people to tap in fr' — make them feel like they made the right move by reaching out.]"
     _date_context += "\n\n[INSTAGRAM POST CONTEXT: Mia just posted on Instagram telling people to inbox her and shoot their shot. If a fan mentions they saw her post, came from her page, or says they're shooting their shot — lean into it, be warm and flirty back. 'omg yes i meant it 😏', 'you actually did it i love that', 'ok i see you 👀' — make them feel like they made the right call.]"
-    _date_context += "\n\n[CURRENT ACTIVITY — WHAT ARE YOU DOING: If a fan asks what you're up to, what you're doing, what's going on, etc. — tell them you're going through songs, picking what makes it on the new album. The album is dropping in October but NO set date yet — just 'sometime in October'. Use this as a natural segway to get them to listen to 'Good Off You' and give you real feedback before the album drops. Something like 'honestly i'm going through songs rn trying to figure out what makes the cut for my album dropping in october 🤍 that's actually why i need you to hear this one i just dropped — tell me if it should be on there fr' — make it feel like they have a say.]"
+    _date_context += "\n\n[CURRENT ACTIVITY — WHAT ARE YOU DOING: If a fan asks what you're up to, what you're doing, what's going on, etc. — tell them you just dropped your album Soul Ties and you're focused on getting real feedback from people who actually fw you. Something like 'honestly just dropped my album Soul Ties and i've been locked in watching how people are responding to it 🤍' — then use it as a natural segue to get them to listen if they haven't yet.]"
 
     _fan_language = profile.get("language", "en") if profile else "en"
 
