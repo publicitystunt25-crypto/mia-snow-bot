@@ -2059,7 +2059,7 @@ def handle_reply(sender_id):
 
         # Final guard — if a manual reply was recorded while Claude was generating, stand down
         _last_manual_t = _manual_replied_time.get(sender_id, 0)
-        if _last_manual_t and (time.time() - _last_manual_t) < 300:
+        if _last_manual_t and (time.time() - _last_manual_t) < 600:
             _manual_replied.discard(sender_id)
             print(f"[manual_reply] late echo guard — owner replied {int(time.time()-_last_manual_t)}s ago, standing down for {sender_id}")
             return
@@ -5149,6 +5149,7 @@ def dashboard_sephora_blast():
         full_msg = f"{msg} {link}"
         save_message(uid, "assistant", full_msg)
         send_message(uid, full_msg)
+        upsert_fan_profile(uid, sent_sephora=True)
         print(f"[sephora-blast] sent to {uid}")
 
     for i, uid in enumerate(fans):
@@ -5527,6 +5528,28 @@ def fb_post_queue():
     return jsonify({"queued": len(messages), "interval_minutes": interval_minutes,
                     "eta_hours": round(len(messages) * interval_minutes / 60, 1),
                     "note": "persisted to DB — survives restarts"})
+
+
+@app.route("/dashboard/backfill-sephora-sent", methods=["GET", "POST"])
+def backfill_sephora_sent():
+    """Mark sent_sephora=true for all fans who already received the blast."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE fan_profiles SET sent_sephora = TRUE
+        WHERE user_id IN (
+            SELECT DISTINCT user_id FROM messages
+            WHERE role = 'assistant' AND content LIKE '%go/sephora%'
+        )
+    """)
+    updated = cur.rowcount
+    conn.commit()
+    cur.close()
+    conn.close()
+    return jsonify({"updated": updated})
 
 
 @app.route("/dashboard/fb-post-queue-status")
