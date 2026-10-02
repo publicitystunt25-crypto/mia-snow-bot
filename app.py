@@ -1395,8 +1395,9 @@ def get_mia_reply(user_id):
         if profile.get("bought_merch"):
             facts.append("MERCH BUYER: This fan already bought merch — do NOT promote merch again. Just vibe with them naturally. They're already a supporter.")
 
-        # Sephora Squad — ask EVERY fan, every conversation
-        facts.append(f"⚠️ SEPHORA ASK — MANDATORY THIS MESSAGE: You applied for the Sephora Glam Squad and NEED testimonials to get chosen. You MUST work this into your reply right now — it's urgent. Say something like 'wait can i ask you a real quick favor? i applied for the Sephora Glam Squad and they choose based on testimonials — if you fw me at all it would mean everything if you left me one, literally takes 2 mins 🙏🏾' then drop: {make_link('sephora', user_id)} — make it feel personal and genuine, like you're asking someone you actually know. This MUST be in every reply until further notice.")
+        # Sephora Squad — ask engaged fans naturally
+        if _blast_sent or (profile.get("listened_to_music") and _total_msgs >= 10):
+            facts.append(f"SEPHORA ASK: You applied for the Sephora Glam Squad and need testimonials to get chosen. Work this in naturally — something like 'can i ask you a favor real quick? i applied for the Sephora Glam Squad and they pick based on testimonials — if you fw me it would mean a lot if you left me one, takes like 2 mins fr' then drop: {make_link('sephora', user_id)} — keep it personal and genuine. Only bring it up ONCE per conversation.")
 
         # Music platform — send the right Soul Ties album link per fan
         music_platform = profile.get("music_platform")
@@ -5089,6 +5090,57 @@ def dashboard_album_blast():
         warmup = warmups[i % len(warmups)]
         delay = i * 8
         threading.Thread(target=_blast, args=(uid, delay, warmup), daemon=True).start()
+        sent.append(uid)
+
+    return jsonify({"blasting": len(sent), "eta_minutes": round(len(sent) * 8 / 60, 1)})
+
+
+@app.route("/dashboard/sephora-blast", methods=["GET", "POST"])
+def dashboard_sephora_blast():
+    """DM Sephora testimonial ask to warm fans (blast list or 10+ messages and listened)."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+
+    limit = int(request.args.get("limit", 1000))
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT fp.user_id FROM fan_profiles fp
+        WHERE fp.is_blocked = FALSE
+          AND (fp.sent_blast_list = TRUE OR (fp.listened_to_music = TRUE AND fp.total_messages >= 10))
+        ORDER BY fp.last_message_at DESC
+        LIMIT %s
+    """, (limit,))
+    fans = [row[0] for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    messages = [
+        "wait can i ask you a real quick favor? i applied for the Sephora Glam Squad and they choose based on testimonials — if you fw me at all it would mean everything if you left me one fr, literally takes 2 mins 🙏🏾",
+        "hey can i ask you something? i applied to join the Sephora Glam Squad and i need testimonials to get picked — would you leave me one? it takes like 2 minutes and it would genuinely mean a lot to me 🤍",
+        "ok i need a favor fr 🙏🏾 i applied for the Sephora Glam Squad and they pick based on testimonials — if you fw my vibe would you drop me a quick one? takes 2 mins i promise",
+        "can i be real with you for a sec? i applied for Sephora's Glam Squad and it's something i really want — they choose based on testimonials and i need people who actually rock with me to leave one 🤍 would you?",
+        "i don't ask for much but i need this one fr 😭 applied for the Sephora Glam Squad and they pick based on testimonials — takes 2 mins, means the world to me 🙏🏾",
+    ]
+
+    sent = []
+
+    def _blast(uid, delay, msg):
+        time.sleep(delay)
+        if is_paused(uid) or is_blocked(uid):
+            return
+        link = make_link("sephora", uid)
+        full_msg = f"{msg} {link}"
+        save_message(uid, "assistant", full_msg)
+        send_message(uid, full_msg)
+        print(f"[sephora-blast] sent to {uid}")
+
+    for i, uid in enumerate(fans):
+        msg = messages[i % len(messages)]
+        delay = i * 8
+        threading.Thread(target=_blast, args=(uid, delay, msg), daemon=True).start()
         sent.append(uid)
 
     return jsonify({"blasting": len(sent), "eta_minutes": round(len(sent) * 8 / 60, 1)})
