@@ -1164,8 +1164,10 @@ def get_mia_reply(user_id):
                 _fan_mentioned_music_early = any(kw in last_user_msg.lower() for kw in _music_keywords_early)
                 _total_msgs_early = profile.get("total_messages") or 0
                 _warm_up_threshold = 5 if _total_msgs_early >= 50 else 10
-                if _cycle_msgs < _warm_up_threshold and not _fan_mentioned_music_early:
-                    facts.append("STREAMS MODE — PUSH ALBUM EARLY: After 1-2 messages to warm up, bring up Soul Ties naturally. Don't wait. Something like 'btw i dropped my album Soul Ties — go check it out and tell me what you think fr' then drop the music link. Get them to the album fast.")
+                if _cycle_msgs < 5 and not _fan_mentioned_music_early:
+                    facts.append("TOO EARLY — DO NOT PUSH MUSIC YET: You need 5 messages to warm up with this fan first. Just vibe, get to know them. Do NOT mention the album or any music links yet. The ONLY exception is if they bring up music themselves.")
+                elif _cycle_msgs >= 5 and not _fan_mentioned_music_early:
+                    facts.append("WARM-UP DONE — PUSH ALBUM NOW: You've warmed up enough. Bring up Soul Ties naturally this message if you haven't already. Something like 'btw i dropped my album Soul Ties — go check it out and tell me what you think fr' then drop the music link from their profile context.")
         if profile.get("job"):
             facts.append(f"Job: {profile['job']}")
         if profile.get("interests"):
