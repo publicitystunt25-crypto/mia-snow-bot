@@ -5530,6 +5530,36 @@ def fb_post_queue():
                     "note": "persisted to DB — survives restarts"})
 
 
+@app.route("/dashboard/search-messages")
+def search_messages():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    q = request.args.get("q", "")
+    days = int(request.args.get("days", 3))
+    role = request.args.get("role", "assistant")
+    exclude = request.args.get("exclude", "")
+    conn = get_conn()
+    cur = conn.cursor()
+    query = """
+        SELECT m.user_id, m.content, m.created_at
+        FROM messages m
+        WHERE m.role = %s
+          AND m.content ILIKE %s
+          AND m.created_at > NOW() - INTERVAL '%s days'
+    """
+    params = [role, f"%{q}%", days]
+    if exclude:
+        query += " AND m.content NOT ILIKE %s"
+        params.append(f"%{exclude}%")
+    query += " ORDER BY m.created_at DESC LIMIT 200"
+    cur.execute(query, params)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify({"count": len(rows), "results": [{"user_id": r[0], "content": r[1], "created_at": str(r[2])} for r in rows]})
+
+
 @app.route("/dashboard/backfill-sephora-sent", methods=["GET", "POST"])
 def backfill_sephora_sent():
     """Mark sent_sephora=true for all fans who already received the blast."""
