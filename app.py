@@ -1364,13 +1364,13 @@ def get_mia_reply(user_id):
                 facts.append("INTERNATIONAL FAN — DONE: They're on the blast list. Just vibe, 1 sentence max.")
         elif not _listened:
             if _fan_mentioned_music:
-                facts.append(f"MUSIC TRIGGER — DROP ALBUM NOW: This fan just mentioned music. Don't wait — weave Soul Ties in naturally right now. Something like 'wait since you on that topic you gotta hear my album Soul Ties', 'omg perfect timing i literally just dropped Soul Ties', 'ok since we talking music i need your honest opinion on Soul Ties'. Link: {_album_link} — ask 'what you think fr, i need real feedback'.")
+                facts.append(f"MUSIC TRIGGER — YOU MUST PASTE THIS EXACT LINK IN YOUR REPLY: {_album_link} — weave it in naturally, something like 'ok since you on that topic you gotta hear Soul Ties fr [link]' or 'omg perfect timing i just dropped this [link]'. The link MUST appear in your response verbatim. Do not describe it, do not say 'all platforms', PASTE the link.")
             elif _cycle_msgs >= 5:
-                facts.append(f"WARM-UP DONE — DROP ALBUM NOW: You've vibed enough. Weave Soul Ties into the conversation naturally this message. Connect it to whatever they said. Link: {_album_link} — ask for their honest opinion after.")
+                facts.append(f"WARM-UP DONE — YOU MUST PASTE THIS EXACT LINK IN YOUR REPLY: {_album_link} — connect it to what they said then paste the link. Example: 'that's actually what Soul Ties is about fr [link]' or 'btw you gotta hear Soul Ties [link]'. The link MUST appear in your response verbatim. Do not say 'go stream' without the link.")
             else:
                 facts.append(f"ALBUM COMING: Your goal is Soul Ties. Keep warming up — {5 - _cycle_msgs} more exchanges before you drop it. Do NOT mention the album yet.")
         elif not _blast_sent:
-            facts.append(f"ALBUM HEARD — BLAST LIST NOW: This fan listened to Soul Ties. Drop the blast list in THIS message — 'glad you fw it fr, get on my close network so you hear everything first 🤍' then drop: {make_link('blast', user_id)} — keep it casual. One push only.")
+            facts.append(f"ALBUM HEARD — BLAST LIST NOW: This fan listened to Soul Ties. Paste this exact link in your reply: {make_link('blast', user_id)} — say something like 'glad you fw it fr, get on my close network so you hear everything first 🤍 [link]'. The link MUST appear verbatim.")
         else:
             facts.append("FUNNEL COMPLETE: This fan listened and is on the blast list. Just vibe warmly, 1 sentence max. No more pushing anything.")
 
