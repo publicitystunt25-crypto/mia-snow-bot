@@ -5560,6 +5560,46 @@ def search_messages():
     return jsonify({"count": len(rows), "results": [{"user_id": r[0], "content": r[1], "created_at": str(r[2])} for r in rows]})
 
 
+@app.route("/dashboard/album-reblast", methods=["GET", "POST"])
+def dashboard_album_reblast():
+    """Re-send album link to specific fans who got mentioned but never received the link."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    body = request.get_json(silent=True) or {}
+    fan_ids = body.get("fan_ids", [])
+    if not fan_ids:
+        return jsonify({"error": "fan_ids required"}), 400
+
+    messages = [
+        "hey my bad i forgot to send you the link fr — here's Soul Ties",
+        "wait i was talking about Soul Ties earlier and never sent the link lol here it is",
+        "i mentioned Soul Ties but forgot to drop the link 😭 here you go fr",
+        "ok i been slipping — i talked about Soul Ties but never sent it, check it out fr",
+        "my bad for real — here's the Soul Ties link i was talking about 🤍",
+    ]
+
+    sent = []
+
+    def _blast(uid, delay, msg):
+        time.sleep(delay)
+        if is_paused(uid) or is_blocked(uid):
+            return
+        link = make_link("music", uid)
+        full_msg = f"{msg} {link}"
+        save_message(uid, "assistant", full_msg)
+        send_message(uid, full_msg)
+        print(f"[album-reblast] sent to {uid}")
+
+    for i, uid in enumerate(fan_ids):
+        msg = messages[i % len(messages)]
+        delay = i * 8
+        threading.Thread(target=_blast, args=(uid, delay, msg), daemon=True).start()
+        sent.append(uid)
+
+    return jsonify({"blasting": len(sent), "eta_minutes": round(len(sent) * 8 / 60, 1)})
+
+
 @app.route("/dashboard/backfill-sephora-sent", methods=["GET", "POST"])
 def backfill_sephora_sent():
     """Mark sent_sephora=true for all fans who already received the blast."""
