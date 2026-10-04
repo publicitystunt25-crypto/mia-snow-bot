@@ -1235,6 +1235,13 @@ def get_mia_reply(user_id):
         if vibe == "music_fan":
             facts.append("This person is already a music fan — they came in interested in music. Don't oversell it, just vibe naturally.")
 
+        # Instagram referral opener
+        _ad_referral = profile.get("ad_referral") or ""
+        _is_ig_referral = "src-ig" in _ad_referral
+        _is_new_fan = (profile.get("total_messages") or 0) <= 2
+        if _is_ig_referral and _is_new_fan:
+            facts.append("INSTAGRAM FAN: This person came from your Instagram. Open warm and grateful — something like 'hey!! glad you clicked fr, i don't do this with everybody so i fw you already 🤍 what's your name' or 'aw you came from the gram? that means a lot fr, what's good' — make them feel like clicking was the right move. Ask their name or where they're from to keep it going.")
+
         # Listened status
         if profile.get("listened_to_music"):
             facts.append("CONFIRMED LISTENER: This person has already listened to your music. Do NOT send the music link again. Do NOT push them toward the music or act like they haven't heard it. They already listened — treat them accordingly and just vibe. If you haven't asked which song they heard yet, ask naturally using varied phrasing ('which one you was feeling', 'which track you fw', 'which song you checked out'). If they didn't specify that's fine — don't keep pushing.")
