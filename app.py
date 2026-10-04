@@ -69,6 +69,8 @@ TRACKED_LINKS = {
     "src-fb-ad":  "https://fanlink.tv/xkuh",
     # Sephora Squad testimonial
     "sephora":    "https://go.sephorasquad.com/testimonial/submit/7b87ade3-2367-44db-af54-9f5457a3a604",
+    # BAGS post tracker
+    "bags-post":  "https://fanlink.tv/xkuh",
 }
 
 # These link names are traffic-source trackers (not content links) — shown in their own chart
