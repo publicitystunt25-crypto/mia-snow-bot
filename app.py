@@ -1065,6 +1065,7 @@ def _scheduled_post_loop():
             for post_id, message in due:
                 try:
                     publish_fb_post(message)
+                    publish_fb_story(message)
                     conn2 = get_conn()
                     cur2 = conn2.cursor()
                     cur2.execute(
@@ -5458,6 +5459,77 @@ def publish_fb_post(message):
     resp = requests.post(url, data={"message": message, "access_token": FB_PUBLISH_TOKEN})
     result = resp.json()
     print(f"[fb-post] published: {result}")
+    return result
+
+
+def publish_fb_story(message):
+    """Post a quote as a Facebook Story (photo story with text overlay)."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        import io
+    except ImportError:
+        print("[fb-story] Pillow not installed, skipping story")
+        return None
+
+    # Create image — dark background, white text, story dimensions (1080x1920)
+    img = Image.new("RGB", (1080, 1920), color=(15, 15, 15))
+    draw = ImageDraw.Draw(img)
+
+    # Word wrap the message
+    words = message.split()
+    lines = []
+    current = ""
+    for word in words:
+        test = (current + " " + word).strip()
+        if len(test) > 28:
+            if current:
+                lines.append(current)
+            current = word
+        else:
+            current = test
+    if current:
+        lines.append(current)
+
+    # Draw text centered
+    font_size = 72
+    try:
+        font = ImageFont.truetype("arial.ttf", font_size)
+    except:
+        font = ImageFont.load_default()
+
+    total_height = len(lines) * (font_size + 20)
+    y = (1920 - total_height) // 2
+    for line in lines:
+        bbox = draw.textbbox((0, 0), line, font=font)
+        w = bbox[2] - bbox[0]
+        x = (1080 - w) // 2
+        draw.text((x, y), line, fill=(255, 255, 255), font=font)
+        y += font_size + 20
+
+    # Upload photo
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=95)
+    buf.seek(0)
+
+    upload_url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/photos"
+    upload_resp = requests.post(upload_url, data={
+        "access_token": FB_PUBLISH_TOKEN,
+        "published": "false"
+    }, files={"source": ("story.jpg", buf, "image/jpeg")})
+    upload_result = upload_resp.json()
+    photo_id = upload_result.get("id")
+    if not photo_id:
+        print(f"[fb-story] photo upload failed: {upload_result}")
+        return None
+
+    # Post as story
+    story_url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/photo_stories"
+    story_resp = requests.post(story_url, data={
+        "photo_id": photo_id,
+        "access_token": FB_PUBLISH_TOKEN
+    })
+    result = story_resp.json()
+    print(f"[fb-story] posted: {result}")
     return result
 
 
