@@ -5722,6 +5722,19 @@ def fb_post_queue_status():
     })
 
 
+@app.route("/dashboard/fb-post-story", methods=["POST"])
+def fb_post_story():
+    """Post a message as a Facebook Story right now."""
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    message = (request.get_json(silent=True) or {}).get("message", "")
+    if not message:
+        return jsonify({"error": "message required"}), 400
+    result = publish_fb_story(message)
+    return jsonify({"result": result})
+
+
 @app.route("/dashboard/fb-post-now", methods=["POST"])
 def fb_post_now():
     """Manually trigger a Facebook post right now."""
