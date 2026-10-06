@@ -324,13 +324,10 @@ def init_db():
             id SERIAL PRIMARY KEY,
             user_id TEXT NOT NULL,
             link_name TEXT NOT NULL,
+            source TEXT DEFAULT 'dm',
             clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    try:
-        cur.execute("ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'dm'")
-    except Exception:
-        conn.rollback()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS comment_replies (
             id SERIAL PRIMARY KEY,
