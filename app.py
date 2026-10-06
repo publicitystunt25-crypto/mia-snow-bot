@@ -319,7 +319,6 @@ def init_db():
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS ad_referral TEXT DEFAULT NULL")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_sephora BOOLEAN DEFAULT FALSE")
     cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS clicked_sephora BOOLEAN DEFAULT FALSE")
-    cur.execute("ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'dm'")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS link_clicks (
             id SERIAL PRIMARY KEY,
@@ -328,6 +327,10 @@ def init_db():
             clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    try:
+        cur.execute("ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'dm'")
+    except Exception:
+        conn.rollback()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS comment_replies (
             id SERIAL PRIMARY KEY,
