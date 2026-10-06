@@ -5771,16 +5771,20 @@ def fb_post_queue_status():
 
 @app.route("/internal/link-clicks")
 def internal_link_clicks():
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM link_clicks WHERE clicked_at >= NOW() - INTERVAL '24 hours'")
-    today = cur.fetchone()[0]
-    cur.execute("SELECT link_name, COUNT(*) FROM link_clicks WHERE clicked_at >= NOW() - INTERVAL '24 hours' GROUP BY link_name ORDER BY 2 DESC")
-    by_link = [{"link": r[0], "clicks": r[1]} for r in cur.fetchall()]
-    cur.execute("SELECT COUNT(*) FROM link_clicks")
-    total = cur.fetchone()[0]
-    cur.close()
-    return jsonify({"last_24h": today, "total": total, "by_link": by_link})
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM link_clicks WHERE clicked_at >= NOW() - INTERVAL '24 hours'")
+        today = cur.fetchone()[0]
+        cur.execute("SELECT link_name, COUNT(*) FROM link_clicks WHERE clicked_at >= NOW() - INTERVAL '24 hours' GROUP BY link_name ORDER BY 2 DESC")
+        by_link = [{"link": r[0], "clicks": r[1]} for r in cur.fetchall()]
+        cur.execute("SELECT COUNT(*) FROM link_clicks")
+        total = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        return jsonify({"last_24h": today, "total": total, "by_link": by_link})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/internal/fb-post-story", methods=["GET", "POST"])
 @app.route("/dashboard/fb-post-story", methods=["GET", "POST"])
