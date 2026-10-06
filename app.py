@@ -5495,12 +5495,35 @@ def publish_fb_story(message):
 
     # Word wrap quote text
     font_size = 58
-    try:
-        font = ImageFont.truetype("arial.ttf", font_size)
-        name_font = ImageFont.truetype("arialbd.ttf", 36)
-    except:
-        font = ImageFont.load_default()
-        name_font = font
+    font = None
+    name_font = None
+    for font_path in [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        "arial.ttf",
+    ]:
+        try:
+            font = ImageFont.truetype(font_path, font_size)
+            break
+        except:
+            continue
+    for bold_path in [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+        "arialbd.ttf",
+    ]:
+        try:
+            name_font = ImageFont.truetype(bold_path, 42)
+            break
+        except:
+            continue
+    if font is None:
+        font = ImageFont.load_default(size=font_size)
+    if name_font is None:
+        name_font = ImageFont.load_default(size=42)
 
     card_w = card_x2 - card_x1 - 120
     words = message.split()
