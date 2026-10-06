@@ -5769,6 +5769,19 @@ def fb_post_queue_status():
     })
 
 
+@app.route("/internal/link-clicks")
+def internal_link_clicks():
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) as c FROM link_clicks WHERE clicked_at >= NOW() - INTERVAL '24 hours'")
+    today = cur.fetchone()["c"]
+    cur.execute("SELECT link_name, COUNT(*) as c FROM link_clicks WHERE clicked_at >= NOW() - INTERVAL '24 hours' GROUP BY link_name ORDER BY c DESC")
+    by_link = [{"link": r["link_name"], "clicks": r["c"]} for r in cur.fetchall()]
+    cur.execute("SELECT COUNT(*) as c FROM link_clicks")
+    total = cur.fetchone()["c"]
+    cur.close()
+    return jsonify({"last_24h": today, "total": total, "by_link": by_link})
+
 @app.route("/internal/fb-post-story", methods=["GET", "POST"])
 @app.route("/dashboard/fb-post-story", methods=["GET", "POST"])
 def fb_post_story():
