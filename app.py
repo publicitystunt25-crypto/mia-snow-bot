@@ -5746,6 +5746,7 @@ def fb_post_queue_status():
     })
 
 
+@app.route("/internal/fb-post-story", methods=["GET", "POST"])
 @app.route("/dashboard/fb-post-story", methods=["GET", "POST"])
 def fb_post_story():
     """Post a message as a Facebook Story right now."""
