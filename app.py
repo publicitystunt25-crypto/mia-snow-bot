@@ -5463,7 +5463,7 @@ def publish_fb_post(message):
 
 
 def publish_fb_story(message):
-    """Post a quote as a Facebook Story (photo story with text overlay)."""
+    """Post a quote as a Facebook Story — purple gradient card with white text."""
     try:
         from PIL import Image, ImageDraw, ImageFont
         import io
@@ -5471,40 +5471,65 @@ def publish_fb_story(message):
         print("[fb-story] Pillow not installed, skipping story")
         return None
 
-    # Create image — dark background, white text, story dimensions (1080x1920)
-    img = Image.new("RGB", (1080, 1920), color=(15, 15, 15))
+    W, H = 1080, 1920
+    img = Image.new("RGB", (W, H), color=(255, 255, 255))
     draw = ImageDraw.Draw(img)
 
-    # Word wrap the message
+    # Purple gradient background
+    for y in range(H):
+        t = y / H
+        r = int(98  + (138 - 98)  * t)
+        g = int(0   + (43  - 0)   * t)
+        b = int(234 + (226 - 234) * t)
+        draw.line([(0, y), (W, y)], fill=(r, g, b))
+
+    # White card in center
+    card_margin = 80
+    card_x1, card_y1 = card_margin, H // 2 - 320
+    card_x2, card_y2 = W - card_margin, H // 2 + 320
+    card_radius = 40
+    draw.rounded_rectangle([card_x1, card_y1, card_x2, card_y2], radius=card_radius, fill=(255, 255, 255))
+
+    # Decorative accent line (purple)
+    draw.rectangle([card_x1 + 60, card_y1 + 50, card_x1 + 110, card_y1 + 56], fill=(98, 0, 234))
+
+    # Word wrap quote text
+    font_size = 58
+    try:
+        font = ImageFont.truetype("arial.ttf", font_size)
+        name_font = ImageFont.truetype("arialbd.ttf", 36)
+    except:
+        font = ImageFont.load_default()
+        name_font = font
+
+    card_w = card_x2 - card_x1 - 120
     words = message.split()
     lines = []
     current = ""
     for word in words:
         test = (current + " " + word).strip()
-        if len(test) > 28:
-            if current:
-                lines.append(current)
+        bbox = draw.textbbox((0, 0), test, font=font)
+        if bbox[2] > card_w and current:
+            lines.append(current)
             current = word
         else:
             current = test
     if current:
         lines.append(current)
 
-    # Draw text centered
-    font_size = 72
-    try:
-        font = ImageFont.truetype("arial.ttf", font_size)
-    except:
-        font = ImageFont.load_default()
-
-    total_height = len(lines) * (font_size + 20)
-    y = (1920 - total_height) // 2
+    total_text_h = len(lines) * (font_size + 16)
+    text_y = (card_y1 + card_y2) // 2 - total_text_h // 2 - 20
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=font)
-        w = bbox[2] - bbox[0]
-        x = (1080 - w) // 2
-        draw.text((x, y), line, fill=(255, 255, 255), font=font)
-        y += font_size + 20
+        text_x = (card_x1 + card_x2) // 2 - (bbox[2] - bbox[0]) // 2
+        draw.text((text_x, text_y), line, fill=(20, 20, 20), font=font)
+        text_y += font_size + 16
+
+    # Name tag at bottom of card
+    name = "— Mia Snow"
+    bbox = draw.textbbox((0, 0), name, font=name_font)
+    nx = (card_x1 + card_x2) // 2 - (bbox[2] - bbox[0]) // 2
+    draw.text((nx, card_y2 - 80), name, fill=(98, 0, 234), font=name_font)
 
     # Upload photo
     buf = io.BytesIO()
@@ -5522,7 +5547,6 @@ def publish_fb_story(message):
         print(f"[fb-story] photo upload failed: {upload_result}")
         return None
 
-    # Post as story
     story_url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/photo_stories"
     story_resp = requests.post(story_url, data={
         "photo_id": photo_id,
@@ -5722,13 +5746,16 @@ def fb_post_queue_status():
     })
 
 
-@app.route("/dashboard/fb-post-story", methods=["POST"])
+@app.route("/dashboard/fb-post-story", methods=["GET", "POST"])
 def fb_post_story():
     """Post a message as a Facebook Story right now."""
-    password = request.args.get("password", "")
+    password = request.args.get("password", request.args.get("p", ""))
     if password != DASHBOARD_PASSWORD:
         return jsonify({"error": "unauthorized"}), 401
-    message = (request.get_json(silent=True) or {}).get("message", "")
+    if request.method == "POST":
+        message = (request.get_json(silent=True) or {}).get("message", "")
+    else:
+        message = request.args.get("message", "")
     if not message:
         return jsonify({"error": "message required"}), 400
     result = publish_fb_story(message)
