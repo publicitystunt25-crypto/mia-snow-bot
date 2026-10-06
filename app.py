@@ -5754,6 +5754,31 @@ def fb_post_queue_status():
     })
 
 
+@app.route("/internal/recent-convos")
+def internal_recent_convos():
+    """Return last 5 messages from the 20 most recently active fans."""
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT user_id FROM fan_profiles
+            ORDER BY last_message_at DESC LIMIT 20
+        """)
+        fans = [r[0] for r in cur.fetchall()]
+        result = []
+        for uid in fans:
+            cur.execute("""
+                SELECT role, content, created_at FROM messages
+                WHERE user_id = %s ORDER BY created_at DESC LIMIT 6
+            """, (uid,))
+            msgs = [{"role": r[0], "msg": r[1], "at": str(r[2])} for r in reversed(cur.fetchall())]
+            result.append({"user_id": uid, "messages": msgs})
+        cur.close()
+        conn.close()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/internal/link-clicks")
 def internal_link_clicks():
     try:
