@@ -5749,9 +5749,6 @@ def fb_post_queue_status():
 @app.route("/dashboard/fb-post-story", methods=["GET", "POST"])
 def fb_post_story():
     """Post a message as a Facebook Story right now."""
-    password = request.args.get("password", request.args.get("p", ""))
-    if password != DASHBOARD_PASSWORD:
-        return jsonify({"error": "unauthorized"}), 401
     if request.method == "POST":
         message = (request.get_json(silent=True) or {}).get("message", "")
     else:
