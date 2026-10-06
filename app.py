@@ -5773,12 +5773,12 @@ def fb_post_queue_status():
 def internal_link_clicks():
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) as c FROM link_clicks WHERE clicked_at >= NOW() - INTERVAL '24 hours'")
-    today = cur.fetchone()["c"]
-    cur.execute("SELECT link_name, COUNT(*) as c FROM link_clicks WHERE clicked_at >= NOW() - INTERVAL '24 hours' GROUP BY link_name ORDER BY c DESC")
-    by_link = [{"link": r["link_name"], "clicks": r["c"]} for r in cur.fetchall()]
-    cur.execute("SELECT COUNT(*) as c FROM link_clicks")
-    total = cur.fetchone()["c"]
+    cur.execute("SELECT COUNT(*) FROM link_clicks WHERE clicked_at >= NOW() - INTERVAL '24 hours'")
+    today = cur.fetchone()[0]
+    cur.execute("SELECT link_name, COUNT(*) FROM link_clicks WHERE clicked_at >= NOW() - INTERVAL '24 hours' GROUP BY link_name ORDER BY 2 DESC")
+    by_link = [{"link": r[0], "clicks": r[1]} for r in cur.fetchall()]
+    cur.execute("SELECT COUNT(*) FROM link_clicks")
+    total = cur.fetchone()[0]
     cur.close()
     return jsonify({"last_24h": today, "total": total, "by_link": by_link})
 
