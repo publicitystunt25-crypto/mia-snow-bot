@@ -303,22 +303,7 @@ def init_db():
             last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS funnel_restarted BOOLEAN DEFAULT FALSE")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS music_platform TEXT")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_otw BOOLEAN DEFAULT FALSE")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS otw_warmup_count INTEGER DEFAULT 0")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS music_link_sent_at TIMESTAMP")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS music_followup_sent BOOLEAN DEFAULT FALSE")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_soulties BOOLEAN DEFAULT FALSE")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS bought_merch BOOLEAN DEFAULT FALSE")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'en'")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS asked_music_taste BOOLEAN DEFAULT FALSE")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_single BOOLEAN DEFAULT FALSE")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS gave_number BOOLEAN DEFAULT FALSE")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS phone_number TEXT DEFAULT NULL")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS ad_referral TEXT DEFAULT NULL")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS sent_sephora BOOLEAN DEFAULT FALSE")
-    cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS clicked_sephora BOOLEAN DEFAULT FALSE")
+    # All ALTER TABLE migrations removed — columns already exist in DB
     cur.execute("""
         CREATE TABLE IF NOT EXISTS link_clicks (
             id SERIAL PRIMARY KEY,
