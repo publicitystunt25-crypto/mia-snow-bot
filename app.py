@@ -5847,6 +5847,32 @@ def internal_post_engagement():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/internal/schedule-posts", methods=["POST"])
+def internal_schedule_posts():
+    try:
+        body = request.get_json(silent=True) or {}
+        messages = body.get("messages", [])
+        interval_minutes = int(body.get("interval_minutes", 240))
+        if not messages:
+            return jsonify({"error": "messages array required"}), 400
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("UPDATE scheduled_posts SET status='cancelled' WHERE status='pending'")
+        for i, msg in enumerate(messages):
+            delay_minutes = i * interval_minutes
+            cur.execute(
+                "INSERT INTO scheduled_posts (message, scheduled_at) VALUES (%s, NOW() + INTERVAL '%s minutes')",
+                (msg, delay_minutes)
+            )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"queued": len(messages), "interval_minutes": interval_minutes,
+                        "eta_hours": round(len(messages) * interval_minutes / 60, 1)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/internal/scheduled-posts")
 def internal_scheduled_posts():
     try:
