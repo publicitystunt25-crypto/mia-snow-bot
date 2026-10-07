@@ -5818,8 +5818,8 @@ def internal_scheduled_posts():
         cur = conn.cursor()
         cur.execute("SELECT status, COUNT(*) FROM scheduled_posts GROUP BY status")
         counts = {r[0]: r[1] for r in cur.fetchall()}
-        cur.execute("SELECT id, message, scheduled_time, status FROM scheduled_posts ORDER BY scheduled_time DESC LIMIT 50")
-        rows = [{"id": r[0], "message": r[1][:80], "scheduled_time": str(r[2]), "status": r[3]} for r in cur.fetchall()]
+        cur.execute("SELECT id, message, scheduled_at, posted_at, status FROM scheduled_posts ORDER BY scheduled_at DESC LIMIT 50")
+        rows = [{"id": r[0], "message": r[1][:80], "scheduled_at": str(r[2]), "posted_at": str(r[3]), "status": r[4]} for r in cur.fetchall()]
         cur.close()
         conn.close()
         return jsonify({"counts": counts, "total": sum(counts.values()), "posts": rows})
