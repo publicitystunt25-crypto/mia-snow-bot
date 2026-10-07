@@ -5811,6 +5811,22 @@ def fb_post_story():
     return jsonify({"result": result})
 
 
+@app.route("/internal/scheduled-posts")
+def internal_scheduled_posts():
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT status, COUNT(*) FROM scheduled_posts GROUP BY status")
+        counts = {r[0]: r[1] for r in cur.fetchall()}
+        cur.execute("SELECT id, message, scheduled_time, status FROM scheduled_posts ORDER BY scheduled_time DESC LIMIT 50")
+        rows = [{"id": r[0], "message": r[1][:80], "scheduled_time": str(r[2]), "status": r[3]} for r in cur.fetchall()]
+        cur.close()
+        conn.close()
+        return jsonify({"counts": counts, "total": sum(counts.values()), "posts": rows})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/dashboard/fb-post-now", methods=["POST"])
 def fb_post_now():
     """Manually trigger a Facebook post right now."""
