@@ -5886,6 +5886,29 @@ def internal_fb_post_now():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/internal/insert-posts", methods=["POST"])
+def internal_insert_posts():
+    """Insert posts at specific timestamps without clearing existing queue."""
+    try:
+        body = request.get_json(silent=True) or {}
+        posts = body.get("posts", [])  # [{message, scheduled_at}]
+        if not posts:
+            return jsonify({"error": "posts array required"}), 400
+        conn = get_conn()
+        cur = conn.cursor()
+        for p in posts:
+            cur.execute(
+                "INSERT INTO scheduled_posts (message, scheduled_at) VALUES (%s, %s)",
+                (p["message"], p["scheduled_at"])
+            )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"inserted": len(posts)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/internal/schedule-posts", methods=["POST"])
 def internal_schedule_posts():
     try:
