@@ -71,6 +71,8 @@ TRACKED_LINKS = {
     "sephora":    "https://go.sephorasquad.com/testimonial/submit/7b87ade3-2367-44db-af54-9f5457a3a604",
     # BAGS post tracker
     "bags-post":  "https://fanlink.tv/xkuh",
+    # Post comment CTA — tracks clicks from comments on scheduled text posts
+    "post-comment": "https://fanlink.tv/wSNt",
 }
 
 # These link names are traffic-source trackers (not content links) — shown in their own chart
@@ -1050,8 +1052,21 @@ def _scheduled_post_loop():
             conn.close()
             for post_id, message in due:
                 try:
-                    publish_fb_post(message)
+                    fb_result = publish_fb_post(message)
                     publish_fb_story(message)
+                    # Auto-comment with Soul Ties link
+                    fb_post_id = fb_result.get("id") if isinstance(fb_result, dict) else None
+                    if fb_post_id:
+                        try:
+                            comment_text = "check out my album Soul Ties 🖤 https://mia-snow-bot.onrender.com/go/post-comment"
+                            requests.post(
+                                f"https://graph.facebook.com/v19.0/{fb_post_id}/comments",
+                                data={"message": comment_text, "access_token": FB_PUBLISH_TOKEN},
+                                timeout=10
+                            )
+                            print(f"[scheduled-post] commented on {fb_post_id}")
+                        except Exception as ce:
+                            print(f"[scheduled-post] comment error: {ce}")
                     conn2 = get_conn()
                     cur2 = conn2.cursor()
                     cur2.execute(
