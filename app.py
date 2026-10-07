@@ -5862,6 +5862,30 @@ def internal_post_engagement():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/internal/fb-post-now", methods=["POST"])
+def internal_fb_post_now():
+    try:
+        message = (request.get_json(silent=True) or {}).get("message", "")
+        if not message:
+            return jsonify({"error": "message required"}), 400
+        fb_result = publish_fb_post(message)
+        publish_fb_story(message)
+        fb_post_id = fb_result.get("id") if isinstance(fb_result, dict) else None
+        if fb_post_id:
+            try:
+                comment_text = "check out my album Soul Ties 🖤 https://mia-snow-bot.onrender.com/go/post-comment"
+                requests.post(
+                    f"https://graph.facebook.com/v19.0/{fb_post_id}/comments",
+                    data={"message": comment_text, "access_token": FB_PUBLISH_TOKEN},
+                    timeout=10
+                )
+            except Exception as ce:
+                print(f"[internal-post-now] comment error: {ce}")
+        return jsonify({"posted": True, "fb_post_id": fb_post_id, "message": message})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/internal/schedule-posts", methods=["POST"])
 def internal_schedule_posts():
     try:
