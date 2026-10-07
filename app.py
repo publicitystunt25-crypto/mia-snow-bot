@@ -98,6 +98,7 @@ STREAMS FUNNEL — follow this order strictly:
 - Keep replies 1-2 sentences. Natural. Don't sound like a promo bot.
 - Never hardcode URLs — always use tracked links from fan profile context.
 - NEVER get distracted. If they haven't heard the album, every single reply must be steering toward it — even if they're flirting, complimenting you, or talking about something else. Acknowledge what they said in one short sentence, then redirect to Soul Ties. No exceptions. Getting sidetracked into small talk, compliment exchanges, or their personal life without steering to the album is a failure. You can be warm AND on task at the same time.
+- LIGHT MODE: If the music link has already been sent (sent_soulties=true) but they haven't listened yet (listened_to_music=false), keep replies very short — one sentence max, nothing personal, no deep conversation. Just stay warm but minimal until they listen. Do not engage with flirting or personal questions at all in this mode.
 
 You are Mia Snow, a melodic R&B and melodic rap artist from Jacksonville, Florida, talking to fans in your Facebook inbox. Your name is Mia Snow — most people call you Mia or Snow.
 
@@ -1022,7 +1023,7 @@ def run_music_followups():
 def _mark_followup_sent(user_id):
     try:
         conn = get_conn(); cur = conn.cursor()
-        cur.execute("UPDATE fan_profiles SET music_followup_sent = TRUE WHERE user_id = %s", (user_id,))
+        cur.execute("UPDATE fan_profiles SET music_followup_sent = TRUE, music_followup_sent_at = NOW() WHERE user_id = %s", (user_id,))
         conn.commit(); cur.close(); conn.close()
     except Exception: pass
 
@@ -1031,6 +1032,40 @@ def _followup_loop():
     while True:
         time.sleep(3600)  # check every hour
         run_music_followups()
+        _run_stop_responding()
+
+def _run_stop_responding():
+    """Mark fans stop_responding if they ignored the follow-up for 24+ hours and never listened."""
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cutoff = _dt.datetime.utcnow() - _dt.timedelta(hours=24)
+        cur.execute("""
+            SELECT user_id, music_followup_sent_at, last_message_at
+            FROM fan_profiles
+            WHERE music_followup_sent = TRUE
+              AND listened_to_music = FALSE
+              AND COALESCE(stop_responding, FALSE) = FALSE
+              AND is_blocked = FALSE
+              AND music_followup_sent_at IS NOT NULL
+              AND music_followup_sent_at <= %s
+        """, (cutoff,))
+        fans = cur.fetchall()
+        cur.close()
+        conn.close()
+        for fan in fans:
+            uid = fan["user_id"]
+            followup_at = fan["music_followup_sent_at"]
+            last_msg = fan["last_message_at"]
+            # If they messaged AFTER the follow-up was sent, give them a pass — they're still active
+            if last_msg and followup_at and last_msg > followup_at:
+                continue
+            conn2 = get_conn(); cur2 = conn2.cursor()
+            cur2.execute("UPDATE fan_profiles SET stop_responding = TRUE WHERE user_id = %s", (uid,))
+            conn2.commit(); cur2.close(); conn2.close()
+            print(f"[stop-responding] marked {uid} — ignored follow-up, never listened")
+    except Exception as e:
+        print(f"[stop-responding] error: {e}")
 
 threading.Thread(target=_followup_loop, daemon=True).start()
 
@@ -1719,6 +1754,14 @@ def handle_reply(sender_id):
         if is_paused(sender_id) or is_blocked(sender_id):
             with _pending_lock:
                 _pending.pop(sender_id, None)
+            return
+
+        # Stop responding gate — fan ignored follow-up and never listened
+        _gate_profile = get_fan_profile(sender_id)
+        if _gate_profile and _gate_profile.get("stop_responding"):
+            with _pending_lock:
+                _pending.pop(sender_id, None)
+            print(f"[stop-responding] ignoring {sender_id} — marked stop_responding")
             return
 
         # Sephora gate — if we asked and they haven't clicked the link, don't reply
