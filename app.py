@@ -5978,6 +5978,21 @@ def internal_schedule_posts():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/internal/migrate")
+def internal_migrate():
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS stop_responding BOOLEAN DEFAULT FALSE")
+        cur.execute("ALTER TABLE fan_profiles ADD COLUMN IF NOT EXISTS music_followup_sent_at TIMESTAMP")
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"status": "ok", "columns_added": ["stop_responding", "music_followup_sent_at"]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/internal/scheduled-posts")
 def internal_scheduled_posts():
     try:
