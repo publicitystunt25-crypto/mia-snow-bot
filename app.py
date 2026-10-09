@@ -5843,9 +5843,9 @@ def internal_link_clicks():
     try:
         conn = get_conn()
         cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM link_clicks WHERE clicked_at >= NOW() - INTERVAL '24 hours'")
+        cur.execute("SELECT COUNT(*) FROM link_clicks WHERE clicked_at >= (NOW() AT TIME ZONE 'America/New_York')::date")
         today = cur.fetchone()[0]
-        cur.execute("SELECT link_name, COUNT(*) FROM link_clicks WHERE clicked_at >= NOW() - INTERVAL '24 hours' GROUP BY link_name ORDER BY 2 DESC")
+        cur.execute("SELECT link_name, COUNT(*) FROM link_clicks WHERE clicked_at >= (NOW() AT TIME ZONE 'America/New_York')::date GROUP BY link_name ORDER BY 2 DESC")
         by_link = [{"link": r[0], "clicks": r[1]} for r in cur.fetchall()]
         cur.execute("SELECT COUNT(*) FROM link_clicks")
         total = cur.fetchone()[0]
