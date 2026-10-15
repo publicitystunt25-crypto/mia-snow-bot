@@ -1042,11 +1042,13 @@ def _followup_loop():
         _run_stop_responding()
 
 def _run_stop_responding():
-    """Mark fans stop_responding if they ignored the follow-up for 24+ hours and never listened."""
+    """Mark fans stop_responding if they ignored follow-up OR have 50+ messages with zero clicks."""
     import datetime as _dt
     try:
         conn = get_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Rule 1: sent follow-up, never listened, didn't message back after
         cutoff = _dt.datetime.utcnow() - _dt.timedelta(hours=24)
         cur.execute("""
             SELECT user_id, music_followup_sent_at, last_message_at
@@ -1058,20 +1060,37 @@ def _run_stop_responding():
               AND music_followup_sent_at IS NOT NULL
               AND music_followup_sent_at <= %s
         """, (cutoff,))
-        fans = cur.fetchall()
-        cur.close()
-        conn.close()
-        for fan in fans:
+        for fan in cur.fetchall():
             uid = fan["user_id"]
             followup_at = fan["music_followup_sent_at"]
             last_msg = fan["last_message_at"]
-            # If they messaged AFTER the follow-up was sent, give them a pass — they're still active
             if last_msg and followup_at and last_msg > followup_at:
                 continue
             conn2 = get_conn(); cur2 = conn2.cursor()
             cur2.execute("UPDATE fan_profiles SET stop_responding = TRUE WHERE user_id = %s", (uid,))
             conn2.commit(); cur2.close(); conn2.close()
             print(f"[stop-responding] marked {uid} — ignored follow-up, never listened")
+
+        # Rule 2: 50+ messages exchanged but never clicked a single link
+        cur.execute("""
+            SELECT fp.user_id
+            FROM fan_profiles fp
+            WHERE fp.total_messages >= 50
+              AND COALESCE(fp.stop_responding, FALSE) = FALSE
+              AND fp.is_blocked = FALSE
+              AND NOT EXISTS (
+                  SELECT 1 FROM link_clicks lc WHERE lc.user_id = fp.user_id
+              )
+        """)
+        for fan in cur.fetchall():
+            uid = fan["user_id"]
+            conn2 = get_conn(); cur2 = conn2.cursor()
+            cur2.execute("UPDATE fan_profiles SET stop_responding = TRUE WHERE user_id = %s", (uid,))
+            conn2.commit(); cur2.close(); conn2.close()
+            print(f"[stop-responding] marked {uid} — 50+ messages, zero clicks")
+
+        cur.close()
+        conn.close()
     except Exception as e:
         print(f"[stop-responding] error: {e}")
 
