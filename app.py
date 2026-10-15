@@ -31,7 +31,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 IG_ACCESS_TOKEN = os.environ.get("IG_ACCESS_TOKEN")
 IG_VERIFY_TOKEN = os.environ.get("IG_VERIFY_TOKEN", "miasnow_ig_2026")
 FB_COMMENTS_PAGE_TOKEN = os.environ.get("FB_COMMENTS_PAGE_TOKEN")
-FB_PUBLISH_TOKEN = os.environ.get("FB_PUBLISH_TOKEN", "EAAOlU3de68QBSQr5gtIZCGZAzR0h7QHMJ3zfMZAMenV1fRSu8zT3LFKCrSMJSZBZB4xmxTNzo7o0ZC1mC3W3lS97jN13jwSZCNzGRDvLS0VM5FYabs8J85UP4uE6ME9u57WEpIYiWEVQ5ZA8JMDxr6WAk78pZCVUiLFmYZC2qXTarE5QwpfFSirBcZBz5hCYhganTAc4euVqLZCzggxcNMw4HYDu")
+FB_PUBLISH_TOKEN = os.environ.get("FB_PUBLISH_TOKEN", "EAAOlU3de68QBSjYm8M31676DELnIm8Hk1xGobwMDfmWRnmfCqS0Ks7rmqqf0nPeV0yMpoT0wjLBWEby90kiaHacWrASuZBk3b60JLC6fDXLtyDwtBZBoup1sArbsuC5wZAYTaeoLssRABhsAiFZAb0hqnEpCB3xKvwhbB3BRUFhGvZA8faHT3lrL6odIMpGMZCtODyslmyZAxZAcqqDZCBh1f")
 FB_PAGE_ID = "399823799880555"
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "miasnow2024")
 MAX_HISTORY = 6
@@ -1043,6 +1043,7 @@ def _followup_loop():
 
 def _run_stop_responding():
     """Mark fans stop_responding if they ignored the follow-up for 24+ hours and never listened."""
+    import datetime as _dt
     try:
         conn = get_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor)
