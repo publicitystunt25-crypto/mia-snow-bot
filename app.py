@@ -177,7 +177,9 @@ def _token_refresh_loop():
     stored_dm = _db_get_token("fb_dm_page_token")
     if stored_dm:
         PAGE_ACCESS_TOKEN = stored_dm
-        FB_PUBLISH_TOKEN = stored_dm
+        # Only use DM token as publish fallback if no dedicated publish token is set
+        if not os.environ.get("FB_PUBLISH_TOKEN"):
+            FB_PUBLISH_TOKEN = stored_dm
         print("[token-refresh] loaded DM page token from DB")
     stored_comments = _db_get_token("fb_comments_page_token")
     if stored_comments:
