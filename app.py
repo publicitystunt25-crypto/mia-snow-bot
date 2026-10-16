@@ -32,6 +32,14 @@ IG_ACCESS_TOKEN = os.environ.get("IG_ACCESS_TOKEN")
 IG_VERIFY_TOKEN = os.environ.get("IG_VERIFY_TOKEN", "miasnow_ig_2026")
 FB_COMMENTS_PAGE_TOKEN = os.environ.get("FB_COMMENTS_PAGE_TOKEN")
 FB_PUBLISH_TOKEN = os.environ.get("FB_PUBLISH_TOKEN", "EAAOlU3de68QBSjYm8M31676DELnIm8Hk1xGobwMDfmWRnmfCqS0Ks7rmqqf0nPeV0yMpoT0wjLBWEby90kiaHacWrASuZBk3b60JLC6fDXLtyDwtBZBoup1sArbsuC5wZAYTaeoLssRABhsAiFZAb0hqnEpCB3xKvwhbB3BRUFhGvZA8faHT3lrL6odIMpGMZCtODyslmyZAxZAcqqDZCBh1f")
+
+# ── Token auto-refresh config ─────────────────────────────────────────────────
+FB_DM_APP_ID = os.environ.get("FB_DM_APP_ID", "1011917747979088")
+FB_DM_APP_SECRET = os.environ.get("FB_DM_APP_SECRET", "f45d5f694b82cab5204fd7a54ab2952c")
+FB_DM_USER_TOKEN = os.environ.get("FB_DM_USER_TOKEN", "")
+FB_COMMENTS_APP_ID = os.environ.get("FB_COMMENTS_APP_ID", "1026202833710020")
+FB_COMMENTS_APP_SECRET = os.environ.get("FB_COMMENTS_APP_SECRET", "30145cabbe27ccf7dad0b0729e196662")
+FB_COMMENTS_USER_TOKEN = os.environ.get("FB_COMMENTS_USER_TOKEN", "")
 FB_PAGE_ID = "399823799880555"
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "miasnow2024")
 MAX_HISTORY = 6
@@ -84,6 +92,105 @@ def make_link(name, user_id):
 
 def get_conn():
     return psycopg2.connect(DATABASE_URL.strip(), sslmode="require")
+
+
+# ── Token store (DB-backed so refreshed tokens survive restarts) ──────────────
+def _db_get_token(key):
+    try:
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("SELECT value FROM token_store WHERE key = %s", (key,))
+        row = cur.fetchone(); cur.close(); conn.close()
+        return row[0] if row else None
+    except Exception:
+        return None
+
+def _db_set_token(key, value):
+    try:
+        conn = get_conn(); cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO token_store (key, value, updated_at) VALUES (%s, %s, NOW())
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+        """, (key, value))
+        conn.commit(); cur.close(); conn.close()
+    except Exception as e:
+        print(f"[token-store] save error: {e}")
+
+def _fb_exchange_token(user_token, app_id, app_secret):
+    """Exchange any token for a fresh 60-day user token."""
+    resp = requests.get("https://graph.facebook.com/oauth/access_token", params={
+        "grant_type": "fb_exchange_token",
+        "client_id": app_id,
+        "client_secret": app_secret,
+        "fb_exchange_token": user_token,
+    })
+    data = resp.json()
+    return data.get("access_token")
+
+def _fb_get_page_token(user_token, page_id):
+    """Get a page token from a user token."""
+    resp = requests.get(f"https://graph.facebook.com/{page_id}", params={
+        "fields": "access_token",
+        "access_token": user_token,
+    })
+    data = resp.json()
+    return data.get("access_token")
+
+def _refresh_tokens():
+    """Refresh both page tokens from stored user tokens. Called on startup and every 50 days."""
+    global PAGE_ACCESS_TOKEN, FB_COMMENTS_PAGE_TOKEN, FB_PUBLISH_TOKEN
+    # DM token
+    dm_user = _db_get_token("fb_dm_user_token") or FB_DM_USER_TOKEN
+    if dm_user:
+        new_user = _fb_exchange_token(dm_user, FB_DM_APP_ID, FB_DM_APP_SECRET)
+        if new_user:
+            page_tok = _fb_get_page_token(new_user, FB_PAGE_ID)
+            if page_tok:
+                PAGE_ACCESS_TOKEN = page_tok
+                FB_PUBLISH_TOKEN = page_tok
+                _db_set_token("fb_dm_user_token", new_user)
+                _db_set_token("fb_dm_page_token", page_tok)
+                print(f"[token-refresh] DM page token refreshed ok")
+            else:
+                print(f"[token-refresh] DM page token fetch failed")
+        else:
+            print(f"[token-refresh] DM user token exchange failed")
+    # Comments token
+    comments_user = _db_get_token("fb_comments_user_token") or FB_COMMENTS_USER_TOKEN
+    if comments_user:
+        new_user = _fb_exchange_token(comments_user, FB_COMMENTS_APP_ID, FB_COMMENTS_APP_SECRET)
+        if new_user:
+            page_tok = _fb_get_page_token(new_user, FB_PAGE_ID)
+            if page_tok:
+                FB_COMMENTS_PAGE_TOKEN = page_tok
+                _db_set_token("fb_comments_user_token", new_user)
+                _db_set_token("fb_comments_page_token", page_tok)
+                print(f"[token-refresh] comments page token refreshed ok")
+            else:
+                print(f"[token-refresh] comments page token fetch failed")
+        else:
+            print(f"[token-refresh] comments user token exchange failed")
+
+def _token_refresh_loop():
+    import datetime as _dt
+    # On startup: load any DB-stored page tokens so we use the latest even without refresh
+    global PAGE_ACCESS_TOKEN, FB_COMMENTS_PAGE_TOKEN, FB_PUBLISH_TOKEN
+    stored_dm = _db_get_token("fb_dm_page_token")
+    if stored_dm:
+        PAGE_ACCESS_TOKEN = stored_dm
+        FB_PUBLISH_TOKEN = stored_dm
+        print("[token-refresh] loaded DM page token from DB")
+    stored_comments = _db_get_token("fb_comments_page_token")
+    if stored_comments:
+        FB_COMMENTS_PAGE_TOKEN = stored_comments
+        print("[token-refresh] loaded comments page token from DB")
+    # Refresh every 50 days
+    while True:
+        time.sleep(50 * 24 * 3600)
+        print("[token-refresh] 50-day refresh starting...")
+        _refresh_tokens()
+
+threading.Thread(target=_token_refresh_loop, daemon=True).start()
+
 
 # ── Mia Snow persona ─────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """⚠️ OVERRIDE — STREAMS MODE ACTIVE: Your ONE job right now is getting people to listen to the Soul Ties album and give you real feedback on it. Every conversation must move toward the album.
@@ -342,6 +449,13 @@ def init_db():
             scheduled_at TIMESTAMP NOT NULL,
             posted_at TIMESTAMP DEFAULT NULL,
             status TEXT DEFAULT 'pending'
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS token_store (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT NOW()
         )
     """)
     conn.commit()
@@ -6007,6 +6121,28 @@ def internal_schedule_posts():
                         "eta_hours": round(len(messages) * interval_minutes / 60, 1)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/internal/seed-tokens", methods=["POST"])
+def internal_seed_tokens():
+    """Seed user tokens into DB for auto-refresh. POST {password, dm_user_token, comments_user_token}"""
+    body = request.get_json(silent=True) or {}
+    if body.get("password") != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    results = {}
+    dm = body.get("dm_user_token", "").strip()
+    if dm:
+        _db_set_token("fb_dm_user_token", dm)
+        results["dm_user_token"] = "saved"
+    comments = body.get("comments_user_token", "").strip()
+    if comments:
+        _db_set_token("fb_comments_user_token", comments)
+        results["comments_user_token"] = "saved"
+    if not results:
+        return jsonify({"error": "provide dm_user_token and/or comments_user_token"}), 400
+    # Immediately refresh with the new tokens
+    _refresh_tokens()
+    return jsonify({"ok": True, "saved": results})
 
 
 @app.route("/internal/migrate")
