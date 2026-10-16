@@ -192,6 +192,54 @@ def _token_refresh_loop():
 threading.Thread(target=_token_refresh_loop, daemon=True).start()
 
 
+# ── Comment queue processor (50/hour = 1 every 72 seconds) ───────────────────
+def _comment_queue_loop():
+    time.sleep(30)  # let app finish starting up
+    while True:
+        try:
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT id, comment_id, post_text, commenter_id, commenter_name
+                FROM comment_queue
+                WHERE status = 'pending'
+                ORDER BY created_at ASC
+                LIMIT 1
+            """)
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+
+            if row:
+                q_id, comment_id, post_text, commenter_id, commenter_name = row
+                try:
+                    reply_text = get_comment_reply(post_text, post_text, commenter_id)
+                    if reply_text:
+                        reply_to_comment(comment_id, reply_text, commenter_id, commenter_name)
+                    conn2 = get_conn()
+                    cur2 = conn2.cursor()
+                    cur2.execute("""
+                        UPDATE comment_queue SET status = 'done', reply = %s, processed_at = NOW()
+                        WHERE id = %s
+                    """, (reply_text, q_id))
+                    conn2.commit(); cur2.close(); conn2.close()
+                    print(f"[comment-queue] replied to {comment_id} ({commenter_name})")
+                except Exception as e:
+                    conn3 = get_conn()
+                    cur3 = conn3.cursor()
+                    cur3.execute("UPDATE comment_queue SET status = 'error' WHERE id = %s", (q_id,))
+                    conn3.commit(); cur3.close(); conn3.close()
+                    print(f"[comment-queue] error on {comment_id}: {e}")
+                time.sleep(72)  # 50 per hour
+            else:
+                time.sleep(30)  # nothing pending, check again in 30s
+        except Exception as e:
+            print(f"[comment-queue] loop error: {e}")
+            time.sleep(60)
+
+threading.Thread(target=_comment_queue_loop, daemon=True).start()
+
+
 # ── Mia Snow persona ─────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """⚠️ OVERRIDE — STREAMS MODE ACTIVE: Your ONE job right now is getting people to listen to the Soul Ties album and give you real feedback on it. Every conversation must move toward the album.
 
@@ -456,6 +504,19 @@ def init_db():
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL,
             updated_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS comment_queue (
+            id SERIAL PRIMARY KEY,
+            comment_id TEXT UNIQUE NOT NULL,
+            post_text TEXT DEFAULT '',
+            commenter_id TEXT DEFAULT '',
+            commenter_name TEXT DEFAULT '',
+            status TEXT DEFAULT 'pending',
+            reply TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            processed_at TIMESTAMP
         )
     """)
     conn.commit()
@@ -6147,8 +6208,9 @@ def internal_seed_tokens():
 
 @app.route("/internal/backfill-comments", methods=["POST"])
 def internal_backfill_comments():
-    """Reply to all unanswered comments from the last N hours. POST {password, hours=48}"""
+    """Enqueue unanswered comments for background processing at 50/hour. POST {password, hours=48}"""
     import time as _time
+    import datetime as _dt2
     body = request.get_json(silent=True) or {}
     if body.get("password") != DASHBOARD_PASSWORD:
         return jsonify({"error": "unauthorized"}), 401
@@ -6157,12 +6219,12 @@ def internal_backfill_comments():
     page_id = "399823799880555"
     token = FB_COMMENTS_PAGE_TOKEN or PAGE_ACCESS_TOKEN
 
-    results = {"replied": [], "skipped": [], "errors": []}
+    enqueued = 0
+    skipped = 0
+    errors = []
 
     try:
-        # 1. Fetch recent posts
-        posts_url = f"https://graph.facebook.com/v19.0/{page_id}/feed"
-        posts_r = requests.get(posts_url, params={
+        posts_r = requests.get(f"https://graph.facebook.com/v19.0/{page_id}/feed", params={
             "fields": "id,message,created_time",
             "limit": 25,
             "access_token": token
@@ -6173,91 +6235,113 @@ def internal_backfill_comments():
         posts = posts_r.json().get("data", [])
         cutoff = _time.time() - hours * 3600
 
+        conn = get_conn()
+        cur = conn.cursor()
+
         for post in posts:
             post_id = post["id"]
             post_text = post.get("message", "")
-            created = post.get("created_time", "")
-            # Parse ISO timestamp to check if post is within window (be generous — include posts up to 2x the window)
             try:
-                import datetime as _dt2
-                post_ts = _dt2.datetime.fromisoformat(created.replace("Z", "+00:00")).timestamp()
+                post_ts = _dt2.datetime.fromisoformat(post.get("created_time", "").replace("Z", "+00:00")).timestamp()
                 if post_ts < cutoff - hours * 3600:
-                    continue  # post is too old, skip
+                    continue
             except Exception:
                 pass
 
-            # 2. Fetch top-level comments for this post
-            comments_url = f"https://graph.facebook.com/v19.0/{post_id}/comments"
-            comments_r = requests.get(comments_url, params={
+            comments_r = requests.get(f"https://graph.facebook.com/v19.0/{post_id}/comments", params={
                 "fields": "id,message,from,created_time,comments{id,from}",
                 "limit": 100,
                 "access_token": token
             })
             if not comments_r.ok:
-                results["errors"].append(f"comments fetch failed for {post_id}: {comments_r.text[:200]}")
+                errors.append(f"failed to fetch comments for {post_id}")
                 continue
 
-            comments = comments_r.json().get("data", [])
-            for comment in comments:
+            for comment in comments_r.json().get("data", []):
                 comment_id = comment["id"]
                 comment_text = comment.get("message", "").strip()
                 commenter = comment.get("from", {})
                 commenter_id = commenter.get("id", "")
                 commenter_name = commenter.get("name", "")
-                created_comment = comment.get("created_time", "")
 
-                # Only process comments within the time window
                 try:
-                    import datetime as _dt3
-                    c_ts = _dt3.datetime.fromisoformat(created_comment.replace("Z", "+00:00")).timestamp()
+                    c_ts = _dt2.datetime.fromisoformat(comment.get("created_time", "").replace("Z", "+00:00")).timestamp()
                     if c_ts < cutoff:
-                        results["skipped"].append({"id": comment_id, "reason": "too_old"})
+                        skipped += 1
                         continue
                 except Exception:
                     pass
 
-                # Skip our own comments
                 if commenter_id == page_id:
-                    results["skipped"].append({"id": comment_id, "reason": "own_comment"})
+                    skipped += 1
                     continue
 
-                # Skip if we already replied to this comment (check sub-comments)
                 existing_replies = comment.get("comments", {}).get("data", [])
-                already_replied = any(r.get("from", {}).get("id") == page_id for r in existing_replies)
-                if already_replied:
-                    results["skipped"].append({"id": comment_id, "reason": "already_replied"})
+                if any(r.get("from", {}).get("id") == page_id for r in existing_replies):
+                    skipped += 1
                     continue
 
-                # Skip empty or emoji-only comments
                 if not comment_text or _is_emoji_only(comment_text):
-                    results["skipped"].append({"id": comment_id, "reason": "emoji_only"})
+                    skipped += 1
                     continue
 
-                # Generate reply
                 try:
-                    reply_text = get_comment_reply(comment_text, post_text, commenter_id)
-                    if reply_text:
-                        reply_to_comment(comment_id, reply_text, commenter_id, commenter_name)
-                        results["replied"].append({
-                            "comment_id": comment_id,
-                            "commenter": commenter_name,
-                            "comment": comment_text[:80],
-                            "reply": reply_text[:80]
-                        })
-                        _time.sleep(2)  # avoid rate limiting
+                    cur.execute("""
+                        INSERT INTO comment_queue (comment_id, post_text, commenter_id, commenter_name)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (comment_id) DO NOTHING
+                    """, (comment_id, post_text, commenter_id, commenter_name))
+                    if cur.rowcount:
+                        enqueued += 1
+                    else:
+                        skipped += 1
                 except Exception as e:
-                    results["errors"].append({"comment_id": comment_id, "error": str(e)})
+                    errors.append(str(e))
+
+        conn.commit()
+        cur.close()
+        conn.close()
 
     except Exception as e:
-        return jsonify({"error": str(e), "partial": results}), 500
+        return jsonify({"error": str(e)}), 500
 
+    eta_hours = round(enqueued / 50, 1)
     return jsonify({
         "ok": True,
-        "replied_count": len(results["replied"]),
-        "skipped_count": len(results["skipped"]),
-        "error_count": len(results["errors"]),
-        "details": results
+        "enqueued": enqueued,
+        "skipped": skipped,
+        "errors": errors,
+        "eta": f"~{eta_hours} hours at 50/hour"
     })
+
+
+@app.route("/internal/comment-queue-status")
+def internal_comment_queue_status():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT status, COUNT(*) FROM comment_queue GROUP BY status")
+        counts = {r[0]: r[1] for r in cur.fetchall()}
+        cur.execute("""
+            SELECT comment_id, commenter_name, reply, processed_at
+            FROM comment_queue WHERE status = 'done'
+            ORDER BY processed_at DESC LIMIT 10
+        """)
+        recent = [{"comment_id": r[0], "commenter": r[1], "reply": (r[2] or "")[:80], "at": str(r[3])} for r in cur.fetchall()]
+        cur.close()
+        conn.close()
+        pending = counts.get("pending", 0)
+        return jsonify({
+            "counts": counts,
+            "pending": pending,
+            "eta": f"~{round(pending / 50, 1)} hours remaining",
+            "recent_replies": recent
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/internal/migrate")
