@@ -6145,6 +6145,121 @@ def internal_seed_tokens():
     return jsonify({"ok": True, "saved": results})
 
 
+@app.route("/internal/backfill-comments", methods=["POST"])
+def internal_backfill_comments():
+    """Reply to all unanswered comments from the last N hours. POST {password, hours=48}"""
+    import time as _time
+    body = request.get_json(silent=True) or {}
+    if body.get("password") != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+
+    hours = int(body.get("hours", 48))
+    page_id = "399823799880555"
+    token = FB_COMMENTS_PAGE_TOKEN or PAGE_ACCESS_TOKEN
+
+    results = {"replied": [], "skipped": [], "errors": []}
+
+    try:
+        # 1. Fetch recent posts
+        posts_url = f"https://graph.facebook.com/v19.0/{page_id}/feed"
+        posts_r = requests.get(posts_url, params={
+            "fields": "id,message,created_time",
+            "limit": 25,
+            "access_token": token
+        })
+        if not posts_r.ok:
+            return jsonify({"error": f"feed fetch failed: {posts_r.text}"}), 500
+
+        posts = posts_r.json().get("data", [])
+        cutoff = _time.time() - hours * 3600
+
+        for post in posts:
+            post_id = post["id"]
+            post_text = post.get("message", "")
+            created = post.get("created_time", "")
+            # Parse ISO timestamp to check if post is within window (be generous — include posts up to 2x the window)
+            try:
+                import datetime as _dt2
+                post_ts = _dt2.datetime.fromisoformat(created.replace("Z", "+00:00")).timestamp()
+                if post_ts < cutoff - hours * 3600:
+                    continue  # post is too old, skip
+            except Exception:
+                pass
+
+            # 2. Fetch top-level comments for this post
+            comments_url = f"https://graph.facebook.com/v19.0/{post_id}/comments"
+            comments_r = requests.get(comments_url, params={
+                "fields": "id,message,from,created_time,comments{id,from}",
+                "limit": 100,
+                "access_token": token
+            })
+            if not comments_r.ok:
+                results["errors"].append(f"comments fetch failed for {post_id}: {comments_r.text[:200]}")
+                continue
+
+            comments = comments_r.json().get("data", [])
+            for comment in comments:
+                comment_id = comment["id"]
+                comment_text = comment.get("message", "").strip()
+                commenter = comment.get("from", {})
+                commenter_id = commenter.get("id", "")
+                commenter_name = commenter.get("name", "")
+                created_comment = comment.get("created_time", "")
+
+                # Only process comments within the time window
+                try:
+                    import datetime as _dt3
+                    c_ts = _dt3.datetime.fromisoformat(created_comment.replace("Z", "+00:00")).timestamp()
+                    if c_ts < cutoff:
+                        results["skipped"].append({"id": comment_id, "reason": "too_old"})
+                        continue
+                except Exception:
+                    pass
+
+                # Skip our own comments
+                if commenter_id == page_id:
+                    results["skipped"].append({"id": comment_id, "reason": "own_comment"})
+                    continue
+
+                # Skip if we already replied to this comment (check sub-comments)
+                existing_replies = comment.get("comments", {}).get("data", [])
+                already_replied = any(r.get("from", {}).get("id") == page_id for r in existing_replies)
+                if already_replied:
+                    results["skipped"].append({"id": comment_id, "reason": "already_replied"})
+                    continue
+
+                # Skip empty or emoji-only comments
+                if not comment_text or _is_emoji_only(comment_text):
+                    results["skipped"].append({"id": comment_id, "reason": "emoji_only"})
+                    continue
+
+                # Generate reply
+                try:
+                    reply_text = get_comment_reply(comment_text, post_text, commenter_id)
+                    if reply_text:
+                        reply_to_comment(comment_id, reply_text, commenter_id, commenter_name)
+                        results["replied"].append({
+                            "comment_id": comment_id,
+                            "commenter": commenter_name,
+                            "comment": comment_text[:80],
+                            "reply": reply_text[:80]
+                        })
+                        _time.sleep(2)  # avoid rate limiting
+                except Exception as e:
+                    results["errors"].append({"comment_id": comment_id, "error": str(e)})
+
+    except Exception as e:
+        return jsonify({"error": str(e), "partial": results}), 500
+
+    return jsonify({
+        "ok": True,
+        "replied_count": len(results["replied"]),
+        "skipped_count": len(results["skipped"]),
+        "error_count": len(results["errors"]),
+        "details": results
+    })
+
+
 @app.route("/internal/migrate")
 def internal_migrate():
     try:
