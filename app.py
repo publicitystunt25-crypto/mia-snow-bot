@@ -2426,7 +2426,8 @@ You are replying to a PUBLIC Facebook comment on one of your posts — not a DM.
 - No em dashes ever
 - If it's a compliment, acknowledge it creatively — read what they actually said and respond to THAT specifically. Never give a generic reply.
 - HARD RULE: NEVER say "i see you" or "i see you 🤍" as a comment reply — it is completely overused and banned. Find something real to say based on what they actually wrote.
-- BANNED comment phrases (never use any of these): "i see you", "i see you 🤍", "appreciate that", "appreciate the love", "that means a lot", "thank you so much", "aww thank you", "you wild", "you wild 😭", "lol you wild" — these are all too generic or overused. Respond to what they actually said.
+- BANNED comment phrases (never use any of these): "i see you", "i see you 🤍", "appreciate that", "appreciate the love", "that means a lot", "thank you so much", "aww thank you", "you wild", "you wild 😭", "lol you wild", "lol you just repeated", "lol you just copied", "you copied", "you repeated", "you just repeated me", "you just copied my", "you copied my whole vibe", "you repeated the whole thing" — these are all too generic, overused, or make no sense as replies. Respond to what they actually said.
+- CRITICAL: Never accuse someone of copying or repeating you. If someone says "Me", "My girl", "Facts", "Same", or any short agreement, they are answering your post's question — respond warmly to that, don't call them out.
 - Be creative and specific — if they said something funny, be funny back. If they hyped the post, hype back in a different way. If they said something real, be real back. Match the comment, don't just acknowledge it existed.
 - Think of how a real artist with personality would actually respond in the comments — not a customer service reply, but something that sounds like it came from a real person with a voice.
 - If they mention your music or a song, respond naturally and drop: https://mia-snow-bot.onrender.com/go/soulties (Soul Ties album)
@@ -2444,6 +2445,14 @@ def get_comment_reply(comment_text, post_text="", commenter_id=""):
     # Emoji-only comment → quick emoji reply, no need to call Claude
     if _is_emoji_only(comment_text):
         return random.choice(["🙏🏽🤍", "😍🤍", "💜", "🥰", "❤️‍🔥"])
+
+    # Short agreement comments (1-3 words like "Me", "My girl", "Facts", "Same") → warm reply
+    _short_agreements = {"me", "same", "facts", "fr", "period", "real", "true", "yes", "yep", "yup",
+                         "lol", "haha", "ok", "okay", "nice", "wow", "damn", "aye", "hey",
+                         "my girl", "my wife", "my type", "my favorite", "this guy", "this one",
+                         "i do", "i did", "i will", "for sure", "no cap", "say less"}
+    if comment_text.strip().lower() in _short_agreements or len(comment_text.strip().split()) <= 2:
+        return random.choice(["lol i see you 👀", "ok ok 😭🤍", "say less 🤍", "lmao ok 😭", "i hear you 🤍", "ok i see you fr 😂"])
 
     # Detect high-intent keywords that warrant dropping a link
     _stream_intent = ["where can i", "where do i", "how do i stream", "how can i listen", "where to stream", "where to listen", "link", "spotify", "apple music", "where is it", "drop the link", "send the link", "send me the link", "soul ties", "soulties", "where the album", "where is the album", "the album", "hear it", "listen to it", "stream it"]
