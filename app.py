@@ -162,8 +162,10 @@ def _refresh_tokens():
             page_tok = _fb_get_page_token(new_user, FB_PAGE_ID)
             if page_tok:
                 FB_COMMENTS_PAGE_TOKEN = page_tok
+                FB_PUBLISH_TOKEN = page_tok
                 _db_set_token("fb_comments_user_token", new_user)
                 _db_set_token("fb_comments_page_token", page_tok)
+                _db_set_token("fb_publish_page_token", page_tok)
                 print(f"[token-refresh] comments page token refreshed ok")
             else:
                 print(f"[token-refresh] comments page token fetch failed")
@@ -185,6 +187,10 @@ def _token_refresh_loop():
     if stored_comments:
         FB_COMMENTS_PAGE_TOKEN = stored_comments
         print("[token-refresh] loaded comments page token from DB")
+    stored_publish = _db_get_token("fb_publish_page_token")
+    if stored_publish:
+        FB_PUBLISH_TOKEN = stored_publish
+        print("[token-refresh] loaded publish page token from DB")
     # Refresh every 50 days
     while True:
         time.sleep(50 * 24 * 3600)
