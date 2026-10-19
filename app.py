@@ -4385,6 +4385,54 @@ def dashboard_stats_api():
     })
 
 
+@app.route("/dashboard/insights")
+def dashboard_insights():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+
+    token = _db_get_token("fb_comments_page_token") or FB_COMMENTS_PAGE_TOKEN
+    if not token:
+        return jsonify({"error": "no page token available"}), 500
+
+    PAGE_ID = "399823799880555"
+    metrics = "page_impressions,page_impressions_unique,page_reach,page_fan_adds,page_fan_removes,page_engaged_users,page_post_engagements"
+
+    results = {}
+    for period in ["day", "week", "days_28"]:
+        try:
+            url = (
+                f"https://graph.facebook.com/v19.0/{PAGE_ID}/insights"
+                f"?metric={metrics}&period={period}&date_preset=last_7_days"
+                f"&access_token={token}"
+            )
+            resp = requests.get(url, timeout=10)
+            data = resp.json()
+            if "data" in data:
+                for item in data["data"]:
+                    name = item["name"]
+                    period_key = item["period"]
+                    values = item.get("values", [])
+                    latest = values[-1] if values else {}
+                    results.setdefault(name, {})[period_key] = {
+                        "value": latest.get("value", 0),
+                        "end_time": latest.get("end_time", "")
+                    }
+        except Exception as e:
+            results[f"error_{period}"] = str(e)
+
+    # Also pull total page likes
+    try:
+        fans_url = f"https://graph.facebook.com/v19.0/{PAGE_ID}?fields=fan_count,followers_count&access_token={token}"
+        fans_resp = requests.get(fans_url, timeout=10).json()
+        results["page_fans_total"] = fans_resp.get("fan_count", 0)
+        results["page_followers_total"] = fans_resp.get("followers_count", 0)
+    except Exception as e:
+        results["fans_error"] = str(e)
+
+    return jsonify(results)
+
+
 @app.route("/dashboard/messages/<user_id>")
 def dashboard_messages(user_id):
     password = request.args.get("password", "")
