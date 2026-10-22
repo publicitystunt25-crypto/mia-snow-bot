@@ -188,14 +188,16 @@ def _token_refresh_loop():
             _db_set_token("fb_dm_page_token", PAGE_ACCESS_TOKEN)
             print("[token-refresh] seeded DM page token from env into DB")
 
-    stored_comments = _db_get_token("fb_comments_page_token")
-    if stored_comments:
-        FB_COMMENTS_PAGE_TOKEN = stored_comments
-        print("[token-refresh] loaded comments page token from DB")
+    env_comments = os.environ.get("FB_COMMENTS_PAGE_TOKEN")
+    if env_comments:
+        FB_COMMENTS_PAGE_TOKEN = env_comments
+        _db_set_token("fb_comments_page_token", env_comments)
+        print("[token-refresh] loaded comments page token from env (always preferred)")
     else:
-        if FB_COMMENTS_PAGE_TOKEN:
-            _db_set_token("fb_comments_page_token", FB_COMMENTS_PAGE_TOKEN)
-            print("[token-refresh] seeded comments page token from env into DB")
+        stored_comments = _db_get_token("fb_comments_page_token")
+        if stored_comments:
+            FB_COMMENTS_PAGE_TOKEN = stored_comments
+            print("[token-refresh] loaded comments page token from DB")
 
     stored_publish = _db_get_token("fb_publish_page_token")
     if stored_publish:
