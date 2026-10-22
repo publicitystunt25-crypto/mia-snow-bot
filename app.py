@@ -214,6 +214,37 @@ def _token_refresh_loop():
 threading.Thread(target=_token_refresh_loop, daemon=True).start()
 
 
+# ── Token health monitor (checks every hour, logs alert if dead) ─────────────
+def _token_health_loop():
+    time.sleep(60)  # let app finish starting up
+    while True:
+        try:
+            for label, token in [
+                ("DM", PAGE_ACCESS_TOKEN),
+                ("comments", FB_COMMENTS_PAGE_TOKEN),
+            ]:
+                if not token:
+                    print(f"[token-health] WARNING: {label} token is not set")
+                    continue
+                r = requests.get(
+                    "https://graph.facebook.com/debug_token",
+                    params={"input_token": token, "access_token": token},
+                    timeout=10
+                )
+                data = r.json().get("data", {})
+                if not data.get("is_valid", False):
+                    error = data.get("error", {}).get("message", "unknown reason")
+                    print(f"[token-health] DEAD TOKEN: {label} token is invalid — {error}")
+                else:
+                    expires = data.get("expires_at", 0)
+                    print(f"[token-health] {label} token OK (expires_at={expires})")
+        except Exception as e:
+            print(f"[token-health] check error: {e}")
+        time.sleep(3600)  # check every hour
+
+threading.Thread(target=_token_health_loop, daemon=True).start()
+
+
 # ── Comment queue processor (50/hour = 1 every 72 seconds) ───────────────────
 def _comment_queue_loop():
     time.sleep(30)  # let app finish starting up
