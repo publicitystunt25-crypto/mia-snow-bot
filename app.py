@@ -179,18 +179,32 @@ def _token_refresh_loop():
     stored_dm = _db_get_token("fb_dm_page_token")
     if stored_dm:
         PAGE_ACCESS_TOKEN = stored_dm
-        # Only use DM token as publish fallback if no dedicated publish token is set
         if not os.environ.get("FB_PUBLISH_TOKEN"):
             FB_PUBLISH_TOKEN = stored_dm
         print("[token-refresh] loaded DM page token from DB")
+    else:
+        # Seed env var token into DB so auto-refresh works later
+        if PAGE_ACCESS_TOKEN:
+            _db_set_token("fb_dm_page_token", PAGE_ACCESS_TOKEN)
+            print("[token-refresh] seeded DM page token from env into DB")
+
     stored_comments = _db_get_token("fb_comments_page_token")
     if stored_comments:
         FB_COMMENTS_PAGE_TOKEN = stored_comments
         print("[token-refresh] loaded comments page token from DB")
+    else:
+        if FB_COMMENTS_PAGE_TOKEN:
+            _db_set_token("fb_comments_page_token", FB_COMMENTS_PAGE_TOKEN)
+            print("[token-refresh] seeded comments page token from env into DB")
+
     stored_publish = _db_get_token("fb_publish_page_token")
     if stored_publish:
         FB_PUBLISH_TOKEN = stored_publish
         print("[token-refresh] loaded publish page token from DB")
+    else:
+        if FB_PUBLISH_TOKEN:
+            _db_set_token("fb_publish_page_token", FB_PUBLISH_TOKEN)
+            print("[token-refresh] seeded publish page token from env into DB")
     # Refresh every 50 days
     while True:
         time.sleep(50 * 24 * 3600)
