@@ -6457,6 +6457,65 @@ def internal_scheduled_posts():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/internal/cleanup", methods=["POST"])
+def internal_cleanup():
+    key = request.args.get("key", "")
+    if key != "miasnow2024secret":
+        return jsonify({"error": "unauthorized"}), 401
+
+    conn = get_conn()
+    cur = conn.cursor()
+    results = {}
+
+    # 1. Delete cancelled scheduled posts
+    cur.execute("DELETE FROM scheduled_posts WHERE status = 'cancelled'")
+    results["cancelled_posts_deleted"] = cur.rowcount
+
+    # 2. Delete old posted scheduled posts (older than 30 days)
+    cur.execute("DELETE FROM scheduled_posts WHERE status = 'posted' AND posted_at < NOW() - INTERVAL '30 days'")
+    results["old_posted_posts_deleted"] = cur.rowcount
+
+    # 3. Delete processed/error comment queue entries older than 7 days
+    try:
+        cur.execute("DELETE FROM comment_queue WHERE status IN ('done', 'error') AND processed_at < NOW() - INTERVAL '7 days'")
+        results["comment_queue_deleted"] = cur.rowcount
+    except Exception as e:
+        results["comment_queue_error"] = str(e)
+
+    # 4. Delete messages from fans inactive for 120+ days (keep fan_profiles)
+    cur.execute("""
+        DELETE FROM messages
+        WHERE user_id IN (
+            SELECT user_id FROM fan_profiles
+            WHERE last_seen < NOW() - INTERVAL '120 days'
+        )
+    """)
+    results["old_messages_deleted"] = cur.rowcount
+
+    # 5. Delete orphaned fan_profiles with no messages and never seen
+    cur.execute("""
+        DELETE FROM fan_profiles
+        WHERE total_messages = 0
+          AND last_seen < NOW() - INTERVAL '30 days'
+    """)
+    results["orphaned_profiles_deleted"] = cur.rowcount
+
+    # 6. Get table sizes after cleanup
+    cur.execute("""
+        SELECT relname as table_name,
+               pg_size_pretty(pg_total_relation_size(relid)) as size,
+               pg_total_relation_size(relid) as raw_size
+        FROM pg_catalog.pg_statio_user_tables
+        ORDER BY raw_size DESC
+    """)
+    results["table_sizes"] = [{"table": r[0], "size": r[1]} for r in cur.fetchall()]
+
+    conn.commit()
+    cur.close()
+    conn.close()
+    return jsonify(results)
+
+
 @app.route("/dashboard/fb-post-now", methods=["POST"])
 def fb_post_now():
     """Manually trigger a Facebook post right now."""
