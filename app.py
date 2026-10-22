@@ -412,124 +412,127 @@ HARD RULES:
 # ── Database setup ────────────────────────────────────────────────────────────
 
 def init_db():
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS messages (
-            id SERIAL PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS message_embeddings (
-            message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
-            embedding vector(1536)
-        )
-    """)
-    cur.execute("CREATE INDEX IF NOT EXISTS message_embeddings_idx ON message_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)")
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS paused_users (
-            user_id TEXT PRIMARY KEY,
-            paused_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS fan_profiles (
-            user_id TEXT PRIMARY KEY,
-            fb_name TEXT,
-            fb_url TEXT,
-            nickname TEXT,
-            location TEXT,
-            job TEXT,
-            birthday TEXT,
-            relationship_status TEXT,
-            has_kids BOOLEAN DEFAULT FALSE,
-            interests TEXT,
-            favorite_song TEXT,
-            how_found_mia TEXT,
-            vibe TEXT DEFAULT 'new',
-            fan_score INTEGER DEFAULT 1,
-            total_messages INTEGER DEFAULT 0,
-            total_conversations INTEGER DEFAULT 0,
-            sent_spotify BOOLEAN DEFAULT FALSE,
-            sent_youtube BOOLEAN DEFAULT FALSE,
-            sent_onlyfans BOOLEAN DEFAULT FALSE,
-            sent_merch BOOLEAN DEFAULT FALSE,
-            sent_blast_list BOOLEAN DEFAULT FALSE,
-            on_blast_list BOOLEAN DEFAULT FALSE,
-            bought_merch BOOLEAN DEFAULT FALSE,
-            sent_soulties BOOLEAN DEFAULT FALSE,
-            sent_single BOOLEAN DEFAULT FALSE,
-            asked_about_shows BOOLEAN DEFAULT FALSE,
-            asked_about_music_feedback BOOLEAN DEFAULT FALSE,
-            listened_to_music BOOLEAN DEFAULT FALSE,
-            is_girl_code BOOLEAN DEFAULT FALSE,
-            is_vip BOOLEAN DEFAULT FALSE,
-            is_blocked BOOLEAN DEFAULT FALSE,
-            handoff_active BOOLEAN DEFAULT FALSE,
-            funnel_restarted BOOLEAN DEFAULT FALSE,
-            notes TEXT,
-            first_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    # All ALTER TABLE migrations removed — columns already exist in DB
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS link_clicks (
-            id SERIAL PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            link_name TEXT NOT NULL,
-            source TEXT DEFAULT 'dm',
-            clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS comment_replies (
-            id SERIAL PRIMARY KEY,
-            post_id TEXT,
-            comment_id TEXT,
-            commenter_id TEXT,
-            commenter_name TEXT,
-            reply_type TEXT,
-            replied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS scheduled_posts (
-            id SERIAL PRIMARY KEY,
-            message TEXT NOT NULL,
-            scheduled_at TIMESTAMP NOT NULL,
-            posted_at TIMESTAMP DEFAULT NULL,
-            status TEXT DEFAULT 'pending'
-        )
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS token_store (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL,
-            updated_at TIMESTAMP DEFAULT NOW()
-        )
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS comment_queue (
-            id SERIAL PRIMARY KEY,
-            comment_id TEXT UNIQUE NOT NULL,
-            post_text TEXT DEFAULT '',
-            commenter_id TEXT DEFAULT '',
-            commenter_name TEXT DEFAULT '',
-            status TEXT DEFAULT 'pending',
-            reply TEXT,
-            created_at TIMESTAMP DEFAULT NOW(),
-            processed_at TIMESTAMP
-        )
-    """)
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS message_embeddings (
+                message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+                embedding vector(1536)
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS message_embeddings_idx ON message_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS paused_users (
+                user_id TEXT PRIMARY KEY,
+                paused_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS fan_profiles (
+                user_id TEXT PRIMARY KEY,
+                fb_name TEXT,
+                fb_url TEXT,
+                nickname TEXT,
+                location TEXT,
+                job TEXT,
+                birthday TEXT,
+                relationship_status TEXT,
+                has_kids BOOLEAN DEFAULT FALSE,
+                interests TEXT,
+                favorite_song TEXT,
+                how_found_mia TEXT,
+                vibe TEXT DEFAULT 'new',
+                fan_score INTEGER DEFAULT 1,
+                total_messages INTEGER DEFAULT 0,
+                total_conversations INTEGER DEFAULT 0,
+                sent_spotify BOOLEAN DEFAULT FALSE,
+                sent_youtube BOOLEAN DEFAULT FALSE,
+                sent_onlyfans BOOLEAN DEFAULT FALSE,
+                sent_merch BOOLEAN DEFAULT FALSE,
+                sent_blast_list BOOLEAN DEFAULT FALSE,
+                on_blast_list BOOLEAN DEFAULT FALSE,
+                bought_merch BOOLEAN DEFAULT FALSE,
+                sent_soulties BOOLEAN DEFAULT FALSE,
+                sent_single BOOLEAN DEFAULT FALSE,
+                asked_about_shows BOOLEAN DEFAULT FALSE,
+                asked_about_music_feedback BOOLEAN DEFAULT FALSE,
+                listened_to_music BOOLEAN DEFAULT FALSE,
+                is_girl_code BOOLEAN DEFAULT FALSE,
+                is_vip BOOLEAN DEFAULT FALSE,
+                is_blocked BOOLEAN DEFAULT FALSE,
+                handoff_active BOOLEAN DEFAULT FALSE,
+                funnel_restarted BOOLEAN DEFAULT FALSE,
+                notes TEXT,
+                first_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # All ALTER TABLE migrations removed — columns already exist in DB
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS link_clicks (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                link_name TEXT NOT NULL,
+                source TEXT DEFAULT 'dm',
+                clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS comment_replies (
+                id SERIAL PRIMARY KEY,
+                post_id TEXT,
+                comment_id TEXT,
+                commenter_id TEXT,
+                commenter_name TEXT,
+                reply_type TEXT,
+                replied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS scheduled_posts (
+                id SERIAL PRIMARY KEY,
+                message TEXT NOT NULL,
+                scheduled_at TIMESTAMP NOT NULL,
+                posted_at TIMESTAMP DEFAULT NULL,
+                status TEXT DEFAULT 'pending'
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS token_store (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS comment_queue (
+                id SERIAL PRIMARY KEY,
+                comment_id TEXT UNIQUE NOT NULL,
+                post_text TEXT DEFAULT '',
+                commenter_id TEXT DEFAULT '',
+                commenter_name TEXT DEFAULT '',
+                status TEXT DEFAULT 'pending',
+                reply TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                processed_at TIMESTAMP
+            )
+        """)
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[init_db] skipped (DB may be read-only): {e}")
 
 
 # ── Fan profile functions ─────────────────────────────────────────────────────
