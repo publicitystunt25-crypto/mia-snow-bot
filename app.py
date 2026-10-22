@@ -6179,11 +6179,12 @@ def internal_post_engagement():
     try:
         import requests as req
         # Get last 30 posts from the page feed
+        token = _db_get_token("fb_comments_page_token") or FB_COMMENTS_PAGE_TOKEN or PAGE_ACCESS_TOKEN
         url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/posts"
         params = {
             "fields": "message,created_time,likes.summary(true),comments.summary(true),shares,reactions.summary(true)",
             "limit": 30,
-            "access_token": PAGE_ACCESS_TOKEN,
+            "access_token": token,
         }
         r = req.get(url, params=params, timeout=15)
         data = r.json()
