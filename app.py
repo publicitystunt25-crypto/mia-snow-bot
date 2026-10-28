@@ -31,7 +31,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 IG_ACCESS_TOKEN = os.environ.get("IG_ACCESS_TOKEN")
 IG_VERIFY_TOKEN = os.environ.get("IG_VERIFY_TOKEN", "miasnow_ig_2026")
 FB_COMMENTS_PAGE_TOKEN = os.environ.get("FB_COMMENTS_PAGE_TOKEN")
-FB_PUBLISH_TOKEN = os.environ.get("FB_PUBLISH_TOKEN", "EAAOlU3de68QBSjYm8M31676DELnIm8Hk1xGobwMDfmWRnmfCqS0Ks7rmqqf0nPeV0yMpoT0wjLBWEby90kiaHacWrASuZBk3b60JLC6fDXLtyDwtBZBoup1sArbsuC5wZAYTaeoLssRABhsAiFZAb0hqnEpCB3xKvwhbB3BRUFhGvZA8faHT3lrL6odIMpGMZCtODyslmyZAxZAcqqDZCBh1f")
+FB_PUBLISH_TOKEN = os.environ.get("FB_PUBLISH_TOKEN")
 
 # ── Token auto-refresh config ─────────────────────────────────────────────────
 FB_DM_APP_ID = os.environ.get("FB_DM_APP_ID", "1011917747979088")
