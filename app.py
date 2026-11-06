@@ -81,6 +81,10 @@ TRACKED_LINKS = {
     "bags-post":  "https://fanlink.tv/xkuh",
     # Post comment CTA — tracks clicks from comments on scheduled text posts
     "post-comment": "https://fanlink.tv/wSNt",
+    # I'm So Wavy — platform links
+    "wavy":         None,  # served as landing page at /stream/wavy
+    "wavy-spotify": "https://open.spotify.com/track/4LbyoFg93K0dhSI5zQrprr?si=90504d84beb64f06",
+    "wavy-apple":   "https://music.apple.com/us/album/im-so-wavy/6829566728?i=6829566730",
 }
 
 # These link names are traffic-source trackers (not content links) — shown in their own chart
@@ -4754,12 +4758,76 @@ def admin_seed_fan():
     return jsonify({"seeded": True, "messages_found": msg_count, "profile": dict(fan)})
 
 
+@app.route("/stream/wavy")
+def wavy_landing():
+    user_id = request.args.get("uid", "")
+    source = request.args.get("source", "dm")
+    ua = request.headers.get("User-Agent", "").lower()
+    _is_crawler = any(bot in ua for bot in ["facebookexternalhit", "facebot", "linkedinbot", "twitterbot", "bot", "crawler", "spider", "preview"])
+    if not _is_crawler:
+        try:
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute("INSERT INTO link_clicks (user_id, link_name, source) VALUES (%s, %s, %s)", (user_id, "wavy", source))
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"[wavy_landing] click log error: {e}")
+    spotify_url = f"/go/wavy-spotify?uid={user_id}&source={source}"
+    apple_url   = f"/go/wavy-apple?uid={user_id}&source={source}"
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>I'm So Wavy – Mia Snow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *{{margin:0;padding:0;box-sizing:border-box}}
+  body{{font-family:'Inter',sans-serif;background:#0a0a0f;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}}
+  .card{{max-width:420px;width:100%;text-align:center}}
+  .art{{width:160px;height:160px;border-radius:16px;background:linear-gradient(135deg,#8b5cf6,#ec4899,#f97316);margin:0 auto 24px;display:flex;align-items:center;justify-content:center;font-size:48px;box-shadow:0 8px 32px rgba(139,92,246,.4)}}
+  h1{{font-size:1.5rem;font-weight:700;letter-spacing:-.01em;margin-bottom:4px}}
+  .artist{{font-size:.95rem;color:#a0a0b0;margin-bottom:32px}}
+  .btn{{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:16px 20px;border-radius:14px;text-decoration:none;font-size:1rem;font-weight:600;margin-bottom:12px;transition:transform .15s,box-shadow .15s}}
+  .btn:hover{{transform:translateY(-2px)}}
+  .btn-spotify{{background:#1DB954;color:#000;box-shadow:0 4px 20px rgba(29,185,84,.3)}}
+  .btn-apple{{background:#fff;color:#000;box-shadow:0 4px 20px rgba(255,255,255,.15)}}
+  .btn-spotify:hover{{box-shadow:0 8px 30px rgba(29,185,84,.5)}}
+  .btn-apple:hover{{box-shadow:0 8px 30px rgba(255,255,255,.25)}}
+  .icon{{width:28px;height:28px;flex-shrink:0}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="art">🌊</div>
+  <h1>I'm So Wavy</h1>
+  <p class="artist">Mia Snow</p>
+  <a href="{spotify_url}" class="btn btn-spotify">
+    <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+    Stream on Spotify
+  </a>
+  <a href="{apple_url}" class="btn btn-apple">
+    <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M23.994 6.124a9.23 9.23 0 00-.24-2.19c-.317-1.31-1.064-2.31-2.11-3.123a5.33 5.33 0 00-1.64-.868 7.95 7.95 0 00-1.69-.29c-.383-.04-.767-.06-1.15-.06H6.845c-.38 0-.762.02-1.143.06a7.95 7.95 0 00-1.69.29 5.33 5.33 0 00-1.64.868C1.325 1.624.577 2.624.26 3.934a9.23 9.23 0 00-.24 2.19C.006 6.504 0 6.884 0 7.264v9.47c0 .38.006.76.02 1.14.04.74.15 1.47.37 2.19.317 1.31 1.064 2.31 2.11 3.123a5.33 5.33 0 001.64.868c.54.17 1.11.26 1.69.29.38.04.763.06 1.143.06h10.31c.383 0 .767-.02 1.15-.06a7.95 7.95 0 001.69-.29 5.33 5.33 0 001.64-.868c1.046-.813 1.793-1.813 2.11-3.123.22-.72.33-1.45.37-2.19.014-.38.02-.76.02-1.14v-9.47c0-.38-.006-.76-.02-1.14zM12 18.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13zm6.75-11.75a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zM12 7a5 5 0 100 10A5 5 0 0012 7z"/></svg>
+    Stream on Apple Music
+  </a>
+</div>
+</body>
+</html>"""
+    return html
+
+
 @app.route("/go/<name>")
 def tracked_link(name):
     from flask import redirect as _redirect
     user_id = request.args.get("uid", "")
     source = request.args.get("source", "dm")
     destination = TRACKED_LINKS.get(name)
+    if name == "wavy":
+        from flask import redirect as _r
+        return _r(f"/stream/wavy?uid={user_id}&source={source}")
     if not destination:
         return "Not found", 404
     # Block Facebook/crawler preview fetches — they inflate click counts but aren't real taps
