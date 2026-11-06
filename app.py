@@ -85,6 +85,7 @@ TRACKED_LINKS = {
     "wavy":         None,  # served as landing page at /stream/wavy
     "wavy-spotify": "https://open.spotify.com/track/4LbyoFg93K0dhSI5zQrprr?si=90504d84beb64f06",
     "wavy-apple":   "https://music.apple.com/us/album/im-so-wavy/6829566728?i=6829566730",
+    "wavy-itunes":  "http://itunes.apple.com/album/id6829566728?ls=1&app=itunes",
 }
 
 # These link names are traffic-source trackers (not content links) — shown in their own chart
@@ -4776,6 +4777,7 @@ def wavy_landing():
             print(f"[wavy_landing] click log error: {e}")
     spotify_url = f"/go/wavy-spotify?uid={user_id}&source={source}"
     apple_url   = f"/go/wavy-apple?uid={user_id}&source={source}"
+    itunes_url  = f"/go/wavy-itunes?uid={user_id}&source={source}"
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -4795,8 +4797,10 @@ def wavy_landing():
   .btn:hover{{transform:translateY(-2px)}}
   .btn-spotify{{background:#1DB954;color:#000;box-shadow:0 4px 20px rgba(29,185,84,.3)}}
   .btn-apple{{background:#fff;color:#000;box-shadow:0 4px 20px rgba(255,255,255,.15)}}
+  .btn-itunes{{background:#ea3d7b;color:#fff;box-shadow:0 4px 20px rgba(234,61,123,.3)}}
   .btn-spotify:hover{{box-shadow:0 8px 30px rgba(29,185,84,.5)}}
   .btn-apple:hover{{box-shadow:0 8px 30px rgba(255,255,255,.25)}}
+  .btn-itunes:hover{{box-shadow:0 8px 30px rgba(234,61,123,.5)}}
   .icon{{width:28px;height:28px;flex-shrink:0}}
 </style>
 </head>
@@ -4812,6 +4816,10 @@ def wavy_landing():
   <a href="{apple_url}" class="btn btn-apple">
     <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M23.994 6.124a9.23 9.23 0 00-.24-2.19c-.317-1.31-1.064-2.31-2.11-3.123a5.33 5.33 0 00-1.64-.868 7.95 7.95 0 00-1.69-.29c-.383-.04-.767-.06-1.15-.06H6.845c-.38 0-.762.02-1.143.06a7.95 7.95 0 00-1.69.29 5.33 5.33 0 00-1.64.868C1.325 1.624.577 2.624.26 3.934a9.23 9.23 0 00-.24 2.19C.006 6.504 0 6.884 0 7.264v9.47c0 .38.006.76.02 1.14.04.74.15 1.47.37 2.19.317 1.31 1.064 2.31 2.11 3.123a5.33 5.33 0 001.64.868c.54.17 1.11.26 1.69.29.38.04.763.06 1.143.06h10.31c.383 0 .767-.02 1.15-.06a7.95 7.95 0 001.69-.29 5.33 5.33 0 001.64-.868c1.046-.813 1.793-1.813 2.11-3.123.22-.72.33-1.45.37-2.19.014-.38.02-.76.02-1.14v-9.47c0-.38-.006-.76-.02-1.14zM12 18.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13zm6.75-11.75a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zM12 7a5 5 0 100 10A5 5 0 0012 7z"/></svg>
     Stream on Apple Music
+  </a>
+  <a href="{itunes_url}" class="btn btn-itunes">
+    <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M23.994 6.124a9.23 9.23 0 00-.24-2.19c-.317-1.31-1.064-2.31-2.11-3.123a5.33 5.33 0 00-1.64-.868 7.95 7.95 0 00-1.69-.29c-.383-.04-.767-.06-1.15-.06H6.845c-.38 0-.762.02-1.143.06a7.95 7.95 0 00-1.69.29 5.33 5.33 0 00-1.64.868C1.325 1.624.577 2.624.26 3.934a9.23 9.23 0 00-.24 2.19C.006 6.504 0 6.884 0 7.264v9.47c0 .38.006.76.02 1.14.04.74.15 1.47.37 2.19.317 1.31 1.064 2.31 2.11 3.123a5.33 5.33 0 001.64.868c.54.17 1.11.26 1.69.29.38.04.763.06 1.143.06h10.31c.383 0 .767-.02 1.15-.06a7.95 7.95 0 001.69-.29 5.33 5.33 0 001.64-.868c1.046-.813 1.793-1.813 2.11-3.123.22-.72.33-1.45.37-2.19.014-.38.02-.76.02-1.14v-9.47c0-.38-.006-.76-.02-1.14zM12 18.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13zm6.75-11.75a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zM12 7a5 5 0 100 10A5 5 0 0012 7z"/></svg>
+    Open in iTunes
   </a>
 </div>
 </body>
