@@ -4818,10 +4818,10 @@ def unanswered_dms():
     conn = get_conn(); cur = conn.cursor()
     cur.execute("""
         SELECT fp.user_id, fp.fb_name, fp.nickname, fp.vibe, fp.total_messages,
-               m.msg AS last_msg, m.created_at AS last_msg_at
+               m.content AS last_msg, m.created_at AS last_msg_at
         FROM fan_profiles fp
         JOIN (
-            SELECT DISTINCT ON (user_id) user_id, msg, role, created_at
+            SELECT DISTINCT ON (user_id) user_id, content, role, created_at
             FROM messages
             ORDER BY user_id, created_at DESC
         ) m ON m.user_id = fp.user_id
