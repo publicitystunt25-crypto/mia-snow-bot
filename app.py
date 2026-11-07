@@ -4809,6 +4809,34 @@ def admin_seed_fan():
     return jsonify({"seeded": True, "messages_found": msg_count, "profile": dict(fan)})
 
 
+@app.route("/dashboard/unanswered")
+def unanswered_dms():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    since = request.args.get("since", "7")  # days
+    conn = get_conn(); cur = conn.cursor()
+    cur.execute("""
+        SELECT fp.user_id, fp.fb_name, fp.nickname, fp.vibe, fp.total_messages,
+               m.msg AS last_msg, m.created_at AS last_msg_at
+        FROM fan_profiles fp
+        JOIN (
+            SELECT DISTINCT ON (user_id) user_id, msg, role, created_at
+            FROM messages
+            ORDER BY user_id, created_at DESC
+        ) m ON m.user_id = fp.user_id
+        WHERE m.role = 'user'
+          AND m.created_at > NOW() - INTERVAL '1 day' * %s
+          AND fp.is_blocked = FALSE
+        ORDER BY m.created_at DESC
+    """, (int(since),))
+    rows = cur.fetchall()
+    cur.close(); conn.close()
+    result = [{"user_id": r[0], "name": r[1] or r[2] or r[0], "vibe": r[3],
+               "total_messages": r[4], "last_msg": r[5], "last_msg_at": str(r[6])} for r in rows]
+    return jsonify({"count": len(result), "fans": result})
+
+
 @app.route("/dashboard/ping-token")
 def ping_token():
     password = request.args.get("password", "")
