@@ -4801,6 +4801,22 @@ def admin_seed_fan():
     return jsonify({"seeded": True, "messages_found": msg_count, "profile": dict(fan)})
 
 
+@app.route("/dashboard/sephora-blocked-count")
+def sephora_blocked_count():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    conn = get_conn(); cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM fan_profiles WHERE sent_sephora = TRUE AND (clicked_sephora IS NULL OR clicked_sephora = FALSE) AND is_blocked = FALSE")
+    total = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM fan_profiles WHERE sent_sephora = TRUE AND (clicked_sephora IS NULL OR clicked_sephora = FALSE) AND is_blocked = FALSE AND last_message_at > NOW() - INTERVAL '7 days'")
+    recent7 = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM fan_profiles WHERE sent_sephora = TRUE AND (clicked_sephora IS NULL OR clicked_sephora = FALSE) AND is_blocked = FALSE AND last_message_at > NOW() - INTERVAL '30 days'")
+    recent30 = cur.fetchone()[0]
+    cur.close(); conn.close()
+    return jsonify({"total_ghosted": total, "messaged_last_7_days": recent7, "messaged_last_30_days": recent30})
+
+
 @app.route("/dashboard/unanswered")
 def unanswered_dms():
     password = request.args.get("password", "")
