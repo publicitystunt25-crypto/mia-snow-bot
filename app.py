@@ -2079,14 +2079,6 @@ def handle_reply(sender_id):
             print(f"[stop-responding] ignoring {sender_id} — marked stop_responding")
             return
 
-        # Sephora gate — if we asked and they haven't clicked the link, don't reply
-        _sephora_profile = get_fan_profile(sender_id)
-        if _sephora_profile and _sephora_profile.get("sent_sephora") and not _sephora_profile.get("clicked_sephora"):
-            with _pending_lock:
-                _pending.pop(sender_id, None)
-            print(f"[sephora-gate] not responding to {sender_id} — sephora ask sent but not clicked")
-            return
-
         # If owner just manually replied, stand down — clear pending and return
         if sender_id in _manual_replied:
             _manual_replied.discard(sender_id)
