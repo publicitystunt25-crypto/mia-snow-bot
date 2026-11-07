@@ -4790,7 +4790,7 @@ def wavy_landing():
   *{{margin:0;padding:0;box-sizing:border-box}}
   body{{font-family:'Inter',sans-serif;background:#0a0a0f;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}}
   .card{{max-width:420px;width:100%;text-align:center}}
-  .art{{width:160px;height:160px;border-radius:16px;background:linear-gradient(135deg,#8b5cf6,#ec4899,#f97316);margin:0 auto 24px;display:flex;align-items:center;justify-content:center;font-size:48px;box-shadow:0 8px 32px rgba(139,92,246,.4)}}
+  .art{{width:200px;height:200px;border-radius:16px;margin:0 auto 24px;display:block;object-fit:cover;box-shadow:0 8px 40px rgba(0,100,255,.4)}}
   h1{{font-size:1.5rem;font-weight:700;letter-spacing:-.01em;margin-bottom:4px}}
   .artist{{font-size:.95rem;color:#a0a0b0;margin-bottom:32px}}
   .btn{{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:16px 20px;border-radius:14px;text-decoration:none;font-size:1rem;font-weight:600;margin-bottom:12px;transition:transform .15s,box-shadow .15s}}
@@ -4806,7 +4806,7 @@ def wavy_landing():
 </head>
 <body>
 <div class="card">
-  <div class="art">🌊</div>
+  <img class="art" src="/static/wavy-cover.jpg" alt="I'm So Wavy cover art">
   <h1>I'm So Wavy</h1>
   <p class="artist">Mia Snow</p>
   <a href="{spotify_url}" class="btn btn-spotify">
