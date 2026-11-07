@@ -261,7 +261,7 @@ def _token_health_loop():
                                 print(f"[token-health] could not send expiry warning: {_e}")
         except Exception as e:
             print(f"[token-health] check error: {e}")
-        time.sleep(3600)  # check every hour
+        time.sleep(600)  # check every 10 minutes
 
 threading.Thread(target=_token_health_loop, daemon=True).start()
 
@@ -1600,6 +1600,9 @@ def get_mia_reply(user_id):
         if profile.get("listened_to_music"):
             facts.append("CONFIRMED LISTENER: This person has already listened to your music. Do NOT send the music link again. Do NOT push them toward the music or act like they haven't heard it. They already listened — treat them accordingly and just vibe. If you haven't asked which song they heard yet, ask naturally using varied phrasing ('which one you was feeling', 'which track you fw', 'which song you checked out'). If they didn't specify that's fine — don't keep pushing.")
 
+        # New drop blast context — always inject so Claude knows what's in play
+        facts.append("CURRENT CONTEXT: You just dropped a new single called 'Im So Wavy' and blasted the link to all your fans. If a fan is replying right now, they are almost certainly responding to that blast. The link you sent was https://mia-snow-bot.onrender.com/stream/wavy. HARD RULE: Do NOT ask 'which track' or 'which song' — there is only one track in play right now. If they say they listened, appreciate them. If they say they will, hype them up. If they already responded to the blast, you know exactly what they're talking about.")
+
         # Links already sent
         sent_links = []
         if profile.get("sent_spotify"):
@@ -2312,6 +2315,51 @@ def handle_reply(sender_id):
                 save_message(sender_id, "assistant", _shortcut_reply)
                 send_message(sender_id, _shortcut_reply)
             print(f"[shortcut] sent '{_shortcut_reply}' to {sender_id} — skipped Claude")
+            return
+
+        # ── Song appreciation shortcut — fan reacted positively to new drop ──
+        _listened_phrases = [
+            "love it", "love this", "i love it", "i love this", "love the song", "love ur song",
+            "love your song", "love the music", "love your music", "love ur music",
+            "this is fire", "this fire", "this hard", "this hits", "this slaps",
+            "this song is fire", "this song hard", "this song slaps", "this song hits",
+            "been on repeat", "on repeat", "can't stop listening", "cant stop listening",
+            "been playing it", "keep playing it", "playing it on repeat",
+            "listened", "i listened", "just listened", "i heard it", "just heard it",
+            "heard the song", "heard ur song", "heard your song",
+            "it's so good", "its so good", "so good", "it's good", "its good",
+            "it's fire", "its fire", "it's a bop", "its a bop", "this a bop",
+            "i fw it", "i fw this", "fw it", "fw this", "fw the song",
+            "checked it out", "i checked it out", "checked out the song",
+            "streamed it", "i streamed it", "i streamed", "just streamed",
+            "saved it", "i saved it", "added it", "i added it",
+            "this my new fav", "this my favorite", "this is my fav", "new favorite",
+            "you snapped", "you went crazy", "you ate", "you ate that",
+            "this lowkey hard", "lowkey fire", "lowkey good", "this lowkey good",
+            "🔥", "🔥🔥", "🔥🔥🔥",
+            "it's dope", "its dope", "dope song", "that's dope", "thats dope", "so dope",
+            "definitely will", "i will", "gonna check", "about to check", "finna check",
+            "gonna listen", "about to listen", "finna listen", "im about to", "i'm about to",
+        ]
+        _appreciation_replies = [
+            "omg that means everything to me fr 🤍 i put so much into that one",
+            "yesss thank you!! that means so much fr 🤍🤍",
+            "ahhh that makes me so happy to hear 🥹🤍 fr thank you",
+            "that literally just made my whole day 🤍 thank you fr fr",
+            "omg stoppp you're making me emotional 🥹🤍 thank you so much",
+            "yesss!!! that means the world fr 🤍 i worked so hard on that",
+            "you have no idea how much that means to me 🤍 fr thank you",
+            "ahhh i love you for that 🤍🤍 that really means a lot fr",
+        ]
+        _msg_lower = " ".join(messages).lower()
+        _is_song_appreciation = any(p in _msg_lower for p in _listened_phrases)
+        if _is_song_appreciation:
+            time.sleep(random.randint(20, 50))
+            if not is_paused(sender_id) and not is_blocked(sender_id):
+                _app_reply = random.choice(_appreciation_replies)
+                save_message(sender_id, "assistant", _app_reply)
+                send_message(sender_id, _app_reply)
+                print(f"[song_appreciation] sent appreciation to {sender_id}")
             return
 
         # ── Compliment / small talk shortcut (skip Claude for simple messages) ──
