@@ -6223,6 +6223,60 @@ def fb_post_queue_status():
     })
 
 
+_dm_blast_status = {"running": False, "sent": 0, "failed": 0, "total": 0, "done": False, "started_at": None}
+
+def _run_dm_blast(message_template, fan_ids):
+    import time as _time
+    global _dm_blast_status
+    _dm_blast_status.update({"running": True, "sent": 0, "failed": 0, "total": len(fan_ids), "done": False})
+    for uid in fan_ids:
+        try:
+            msg = message_template.replace("{uid}", uid)
+            send_message(uid, msg)
+            _dm_blast_status["sent"] += 1
+            print(f"[dm_blast] sent to {uid} ({_dm_blast_status['sent']}/{_dm_blast_status['total']})")
+        except Exception as e:
+            _dm_blast_status["failed"] += 1
+            print(f"[dm_blast] failed {uid}: {e}")
+        _time.sleep(0.5)  # 2 sends/sec — well under FB rate limit
+    _dm_blast_status.update({"running": False, "done": True})
+    print(f"[dm_blast] complete — sent:{_dm_blast_status['sent']} failed:{_dm_blast_status['failed']}")
+
+
+@app.route("/dashboard/dm-blast", methods=["POST"])
+def dm_blast():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    if _dm_blast_status.get("running"):
+        return jsonify({"error": "blast already running", "status": _dm_blast_status}), 409
+    body = request.get_json(silent=True) or {}
+    message = body.get("message", "").strip()
+    target = body.get("target", "all")  # "all" or "blast_list"
+    if not message:
+        return jsonify({"error": "message required"}), 400
+    conn = get_conn(); cur = conn.cursor()
+    if target == "blast_list":
+        cur.execute("SELECT user_id FROM fan_profiles WHERE on_blast_list = TRUE AND is_blocked = FALSE ORDER BY last_message_at DESC NULLS LAST")
+    else:
+        cur.execute("SELECT user_id FROM fan_profiles WHERE is_blocked = FALSE AND total_messages > 0 ORDER BY last_message_at DESC NULLS LAST")
+    rows = cur.fetchall(); cur.close(); conn.close()
+    fan_ids = [r[0] for r in rows]
+    import threading, datetime as _dt
+    _dm_blast_status["started_at"] = _dt.datetime.utcnow().isoformat()
+    t = threading.Thread(target=_run_dm_blast, args=(message, fan_ids), daemon=True)
+    t.start()
+    return jsonify({"ok": True, "queued": len(fan_ids), "target": target})
+
+
+@app.route("/dashboard/dm-blast-status")
+def dm_blast_status():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify(_dm_blast_status)
+
+
 @app.route("/internal/recent-convos")
 def internal_recent_convos():
     """Return last 5 messages from the 20 most recently active fans."""
