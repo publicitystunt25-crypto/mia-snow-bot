@@ -181,17 +181,18 @@ def _token_refresh_loop():
     import datetime as _dt
     # On startup: load any DB-stored page tokens so we use the latest even without refresh
     global PAGE_ACCESS_TOKEN, FB_COMMENTS_PAGE_TOKEN, FB_PUBLISH_TOKEN
+    # Env var always wins for DM token — DB only used as fallback when env var is absent
+    env_dm = os.environ.get("PAGE_ACCESS_TOKEN")
     stored_dm = _db_get_token("fb_dm_page_token")
-    if stored_dm:
+    if env_dm:
+        PAGE_ACCESS_TOKEN = env_dm
+        _db_set_token("fb_dm_page_token", env_dm)
+        print("[token-refresh] loaded DM page token from ENV (env wins)")
+    elif stored_dm:
         PAGE_ACCESS_TOKEN = stored_dm
-        if not os.environ.get("FB_PUBLISH_TOKEN"):
-            FB_PUBLISH_TOKEN = stored_dm
-        print("[token-refresh] loaded DM page token from DB")
-    else:
-        # Seed env var token into DB so auto-refresh works later
-        if PAGE_ACCESS_TOKEN:
-            _db_set_token("fb_dm_page_token", PAGE_ACCESS_TOKEN)
-            print("[token-refresh] seeded DM page token from env into DB")
+        print("[token-refresh] loaded DM page token from DB (no env var set)")
+    if PAGE_ACCESS_TOKEN and not os.environ.get("FB_PUBLISH_TOKEN"):
+        FB_PUBLISH_TOKEN = PAGE_ACCESS_TOKEN
 
     env_comments = os.environ.get("FB_COMMENTS_PAGE_TOKEN")
     if env_comments:
