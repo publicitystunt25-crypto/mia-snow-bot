@@ -4808,6 +4808,28 @@ def admin_seed_fan():
     return jsonify({"seeded": True, "messages_found": msg_count, "profile": dict(fan)})
 
 
+@app.route("/dashboard/ping-token")
+def ping_token():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    results = {}
+    for label, token in [("dm", PAGE_ACCESS_TOKEN), ("comments", FB_COMMENTS_PAGE_TOKEN), ("publish", FB_PUBLISH_TOKEN)]:
+        if not token:
+            results[label] = {"status": "missing"}
+            continue
+        try:
+            r = requests.get("https://graph.facebook.com/v19.0/me", params={"fields": "id,name", "access_token": token}, timeout=8)
+            if r.ok:
+                results[label] = {"status": "ok", "page": r.json().get("name")}
+            else:
+                err = r.json().get("error", {})
+                results[label] = {"status": "dead", "code": err.get("code"), "message": err.get("message")}
+        except Exception as e:
+            results[label] = {"status": "error", "message": str(e)}
+    return jsonify(results)
+
+
 @app.route("/stream/wavy")
 def wavy_landing():
     user_id = request.args.get("uid", "")
