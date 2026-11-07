@@ -6385,6 +6385,20 @@ def dm_blast_status():
     return jsonify(_dm_blast_status)
 
 
+@app.route("/dashboard/send-dm", methods=["POST"])
+def send_dm_single():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    body = request.get_json(silent=True) or {}
+    user_id = body.get("user_id", "").strip()
+    message = body.get("message", "").strip()
+    if not user_id or not message:
+        return jsonify({"error": "user_id and message required"}), 400
+    send_message(user_id, message)
+    return jsonify({"ok": True, "user_id": user_id})
+
+
 @app.route("/internal/recent-convos")
 def internal_recent_convos():
     """Return last 5 messages from the 20 most recently active fans."""
