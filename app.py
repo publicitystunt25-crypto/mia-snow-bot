@@ -242,14 +242,63 @@ def _token_health_loop():
                 if not data.get("is_valid", False):
                     error = data.get("error", {}).get("message", "unknown reason")
                     print(f"[token-health] DEAD TOKEN: {label} token is invalid — {error}")
+                    try:
+                        send_message(OWNER_ID, f"⚠️ ALERT: Your {label} token is DEAD and the bot has stopped working.\n\nError: {error}\n\nGo to developers.facebook.com and generate a new Page Access Token, then update it in Render env vars.")
+                    except Exception as _e:
+                        print(f"[token-health] could not send owner alert: {_e}")
                 else:
                     expires = data.get("expires_at", 0)
                     print(f"[token-health] {label} token OK (expires_at={expires})")
+                    # Warn 3 days before expiry
+                    if expires and expires > 0:
+                        import datetime as _dt
+                        days_left = (expires - _dt.datetime.utcnow().timestamp()) / 86400
+                        if days_left < 3:
+                            try:
+                                send_message(OWNER_ID, f"⚠️ HEADS UP: Your {label} token expires in {int(days_left)} day(s). Go to developers.facebook.com now and refresh it before the bot goes silent.")
+                            except Exception as _e:
+                                print(f"[token-health] could not send expiry warning: {_e}")
         except Exception as e:
             print(f"[token-health] check error: {e}")
         time.sleep(3600)  # check every hour
 
 threading.Thread(target=_token_health_loop, daemon=True).start()
+
+
+def _daily_heartbeat_loop():
+    import time as _t, datetime as _dt
+    _t.sleep(300)  # wait 5 min after startup
+    while True:
+        try:
+            now = _dt.datetime.utcnow()
+            # Fire once a day around 10am ET (3pm UTC)
+            if now.hour == 15 and now.minute < 5:
+                conn = get_conn(); cur = conn.cursor()
+                cur.execute("SELECT COUNT(*) FROM fan_profiles WHERE last_message_at > NOW() - INTERVAL '24 hours' AND is_blocked = FALSE")
+                active = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM link_clicks WHERE clicked_at > NOW() - INTERVAL '24 hours'")
+                clicks = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM fan_profiles WHERE first_message_at > NOW() - INTERVAL '24 hours'")
+                new_fans = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM scheduled_posts WHERE status = 'pending'")
+                pending_posts = cur.fetchone()[0]
+                cur.close(); conn.close()
+                status_line = "✅ Bot is alive" if active > 0 else "⚠️ Bot may be down — 0 active fans"
+                msg = (
+                    f"{status_line}\n\n"
+                    f"📊 Last 24hrs:\n"
+                    f"• Active fans: {active}\n"
+                    f"• New fans: {new_fans}\n"
+                    f"• Link clicks: {clicks}\n"
+                    f"• Scheduled posts pending: {pending_posts}"
+                )
+                send_message(OWNER_ID, msg)
+                _t.sleep(360)  # sleep 6 min so we don't fire twice in the same window
+        except Exception as e:
+            print(f"[heartbeat] error: {e}")
+        _t.sleep(60)
+
+threading.Thread(target=_daily_heartbeat_loop, daemon=True).start()
 
 
 # ── Comment queue processor (50/hour = 1 every 72 seconds) ───────────────────
