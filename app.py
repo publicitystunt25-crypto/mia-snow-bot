@@ -75,8 +75,6 @@ TRACKED_LINKS = {
     "src-email":  "https://m.me/therealmiasnow1",
     # Facebook ad — sends to BAGS, tracks ad traffic
     "src-fb-ad":  "https://fanlink.tv/xkuh",
-    # Sephora Squad testimonial
-    "sephora":    "https://go.sephorasquad.com/testimonial/submit/7b87ade3-2367-44db-af54-9f5457a3a604",
     # BAGS post tracker
     "bags-post":  "https://fanlink.tv/xkuh",
     # Post comment CTA — tracks clicks from comments on scheduled text posts
@@ -870,9 +868,6 @@ def update_fan_after_message(user_id, messages):
         updates["sent_soulties"] = True
     if "/go/single" in combined or "fanlink.tv/xiAa" in combined:
         updates["sent_single"] = True
-    if "/go/sephora" in combined or "sephorasquad.com" in combined:
-        updates["sent_sephora"] = True
-
     # Detect if fan confirmed they bought merch
     _bought_phrases = [
         "i ordered", "i bought", "i got it", "just ordered", "just bought",
@@ -1762,10 +1757,6 @@ def get_mia_reply(user_id):
         # Merch buyer — never promote again
         if profile.get("bought_merch"):
             facts.append("MERCH BUYER: This fan already bought merch — do NOT promote merch again. Just vibe with them naturally. They're already a supporter.")
-
-        # Sephora Squad — ask engaged fans naturally
-        if _blast_sent or (profile.get("listened_to_music") and _total_msgs >= 10):
-            facts.append(f"SEPHORA ASK: You applied for the Sephora Glam Squad and need testimonials to get chosen. Work this in naturally — something like 'can i ask you a favor real quick? i applied for the Sephora Glam Squad and they pick based on testimonials — if you fw me it would mean a lot if you left me one, takes like 2 mins fr' then drop: {make_link('sephora', user_id)} — keep it personal and genuine. Only bring it up ONCE per conversation.")
 
         # Music platform — send the right Soul Ties album link per fan
         music_platform = profile.get("music_platform")
@@ -4849,22 +4840,6 @@ def admin_seed_fan():
     return jsonify({"seeded": True, "messages_found": msg_count, "profile": dict(fan)})
 
 
-@app.route("/dashboard/sephora-blocked-count")
-def sephora_blocked_count():
-    password = request.args.get("password", "")
-    if password != DASHBOARD_PASSWORD:
-        return jsonify({"error": "unauthorized"}), 401
-    conn = get_conn(); cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM fan_profiles WHERE sent_sephora = TRUE AND (clicked_sephora IS NULL OR clicked_sephora = FALSE) AND is_blocked = FALSE")
-    total = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM fan_profiles WHERE sent_sephora = TRUE AND (clicked_sephora IS NULL OR clicked_sephora = FALSE) AND is_blocked = FALSE AND last_message_at > NOW() - INTERVAL '7 days'")
-    recent7 = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM fan_profiles WHERE sent_sephora = TRUE AND (clicked_sephora IS NULL OR clicked_sephora = FALSE) AND is_blocked = FALSE AND last_message_at > NOW() - INTERVAL '30 days'")
-    recent30 = cur.fetchone()[0]
-    cur.close(); conn.close()
-    return jsonify({"total_ghosted": total, "messaged_last_7_days": recent7, "messaged_last_30_days": recent30})
-
-
 @app.route("/dashboard/unanswered")
 def unanswered_dms():
     password = request.args.get("password", "")
@@ -5002,8 +4977,6 @@ def tracked_link(name):
             conn = get_conn()
             cur = conn.cursor()
             cur.execute("INSERT INTO link_clicks (user_id, link_name, source) VALUES (%s, %s, %s)", (user_id, name, source))
-            if name == "sephora" and user_id:
-                cur.execute("UPDATE fan_profiles SET clicked_sephora = TRUE WHERE user_id = %s", (user_id,))
             conn.commit()
             cur.close()
             conn.close()
@@ -5729,58 +5702,6 @@ def dashboard_album_blast():
     return jsonify({"blasting": len(sent), "eta_minutes": round(len(sent) * 8 / 60, 1)})
 
 
-@app.route("/dashboard/sephora-blast", methods=["GET", "POST"])
-def dashboard_sephora_blast():
-    """DM Sephora testimonial ask to warm fans (blast list or 10+ messages and listened)."""
-    password = request.args.get("password", "")
-    if password != DASHBOARD_PASSWORD:
-        return jsonify({"error": "unauthorized"}), 401
-
-    limit = int(request.args.get("limit", 1000))
-
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT fp.user_id FROM fan_profiles fp
-        WHERE fp.is_blocked = FALSE
-          AND (fp.sent_blast_list = TRUE OR (fp.listened_to_music = TRUE AND fp.total_messages >= 10))
-        ORDER BY fp.last_message_at DESC
-        LIMIT %s
-    """, (limit,))
-    fans = [row[0] for row in cur.fetchall()]
-    cur.close()
-    conn.close()
-
-    messages = [
-        "wait can i ask you a real quick favor? i applied for the Sephora Glam Squad and they choose based on testimonials — if you fw me at all it would mean everything if you left me one fr, literally takes 2 mins 🙏🏾",
-        "hey can i ask you something? i applied to join the Sephora Glam Squad and i need testimonials to get picked — would you leave me one? it takes like 2 minutes and it would genuinely mean a lot to me 🤍",
-        "ok i need a favor fr 🙏🏾 i applied for the Sephora Glam Squad and they pick based on testimonials — if you fw my vibe would you drop me a quick one? takes 2 mins i promise",
-        "can i be real with you for a sec? i applied for Sephora's Glam Squad and it's something i really want — they choose based on testimonials and i need people who actually rock with me to leave one 🤍 would you?",
-        "i don't ask for much but i need this one fr 😭 applied for the Sephora Glam Squad and they pick based on testimonials — takes 2 mins, means the world to me 🙏🏾",
-    ]
-
-    sent = []
-
-    def _blast(uid, delay, msg):
-        time.sleep(delay)
-        if is_paused(uid) or is_blocked(uid):
-            return
-        link = make_link("sephora", uid)
-        full_msg = f"{msg} {link}"
-        save_message(uid, "assistant", full_msg)
-        send_message(uid, full_msg)
-        upsert_fan_profile(uid, sent_sephora=True)
-        print(f"[sephora-blast] sent to {uid}")
-
-    for i, uid in enumerate(fans):
-        msg = messages[i % len(messages)]
-        delay = i * 8
-        threading.Thread(target=_blast, args=(uid, delay, msg), daemon=True).start()
-        sent.append(uid)
-
-    return jsonify({"blasting": len(sent), "eta_minutes": round(len(sent) * 8 / 60, 1)})
-
-
 @app.route("/dashboard/merch-blast", methods=["GET", "POST"])
 def dashboard_merch_blast():
     """DM merch link to engaged fans who have never gotten a merch pitch."""
@@ -6338,26 +6259,6 @@ def dashboard_album_reblast():
     return jsonify({"blasting": len(sent), "eta_minutes": round(len(sent) * 8 / 60, 1)})
 
 
-@app.route("/dashboard/backfill-sephora-sent", methods=["GET", "POST"])
-def backfill_sephora_sent():
-    """Mark sent_sephora=true for all fans who already received the blast."""
-    password = request.args.get("password", "")
-    if password != DASHBOARD_PASSWORD:
-        return jsonify({"error": "unauthorized"}), 401
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        UPDATE fan_profiles SET sent_sephora = TRUE
-        WHERE user_id IN (
-            SELECT DISTINCT user_id FROM messages
-            WHERE role = 'assistant' AND content LIKE '%go/sephora%'
-        )
-    """)
-    updated = cur.rowcount
-    conn.commit()
-    cur.close()
-    conn.close()
-    return jsonify({"updated": updated})
 
 
 @app.route("/dashboard/fb-post-queue-status")
