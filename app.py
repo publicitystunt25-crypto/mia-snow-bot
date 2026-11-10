@@ -94,7 +94,10 @@ def make_link(name, user_id):
 
 
 def get_conn():
-    return psycopg2.connect(DATABASE_URL.strip(), sslmode="require")
+    conn = psycopg2.connect(DATABASE_URL.strip(), sslmode="require")
+    conn.cursor().execute("SET timezone = 'America/New_York'")
+    conn.commit()
+    return conn
 
 
 # ── Token store (DB-backed so refreshed tokens survive restarts) ──────────────
@@ -1594,9 +1597,6 @@ def get_mia_reply(user_id):
         # Listened status
         if profile.get("listened_to_music"):
             facts.append("CONFIRMED LISTENER: This person has already listened to your music. Do NOT send the music link again. Do NOT push them toward the music or act like they haven't heard it. They already listened — treat them accordingly and just vibe. If you haven't asked which song they heard yet, ask naturally using varied phrasing ('which one you was feeling', 'which track you fw', 'which song you checked out'). If they didn't specify that's fine — don't keep pushing.")
-
-        # New drop blast context — always inject so Claude knows what's in play
-        facts.append("CURRENT CONTEXT: You just dropped a new single called 'Im So Wavy' and blasted the link to all your fans. If a fan is replying right now, they are almost certainly responding to that blast. The link you sent was https://mia-snow-bot.onrender.com/stream/wavy. HARD RULE: Do NOT ask 'which track' or 'which song' — there is only one track in play right now. If they say they listened, appreciate them. If they say they will, hype them up. If they already responded to the blast, you know exactly what they're talking about.")
 
         # Links already sent
         sent_links = []
