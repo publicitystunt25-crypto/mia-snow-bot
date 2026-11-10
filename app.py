@@ -5082,7 +5082,7 @@ body{background:#060604;color:#F0EAD8;font-family:'DM Sans',system-ui,sans-serif
 </head>
 <body>
 <div class="wrap">
-  <a href="https://imsowavy.therealmiasnow.com/?support=1" target="_blank" rel="noopener" class="support">Support Mia Snow</a>
+  <a href="https://imsowavy.therealmiasnow.com/?support=1" target="_blank" rel="noopener" class="support">&#36; Support Mia Snow</a>
   <div class="cover"><img src="IMG_PLACEHOLDER" alt="BAGS - Mia Snow"></div>
   <div class="info"><div class="info-title">BAGS</div><div class="rule"></div><div class="info-artist">Mia Snow</div></div>
   <div class="links">
