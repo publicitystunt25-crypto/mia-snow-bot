@@ -5076,10 +5076,13 @@ body{background:#060604;color:#F0EAD8;font-family:'DM Sans',system-ui,sans-serif
 .btn-arrow{font-size:9px;color:#6A6050;margin-left:2px}
 .ic-spotify{background:#1DB954}.ic-apple{background:linear-gradient(135deg,#F93D6E,#BD3ACC)}.ic-deezer{background:#9B4BEB}.ic-itunes{background:linear-gradient(135deg,#F93D6E,#BD3ACC)}.ic-youtube{background:#FF0000}
 .footer{margin-top:44px;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;color:#6A6050;text-align:center}
+.support{display:flex;align-items:center;justify-content:center;width:100%;min-height:54px;margin-bottom:26px;border-radius:12px;font-size:1.05rem;font-weight:700;letter-spacing:.03em;color:#000;text-decoration:none;background:linear-gradient(180deg,#ffeaa0 0%,#f9d462 38%,#e9b53a 72%,#d9a02a 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 8px 24px rgba(217,160,42,.3)}
+.support:active{transform:scale(.98)}
 </style>
 </head>
 <body>
 <div class="wrap">
+  <a href="https://imsowavy.therealmiasnow.com/?support=1" target="_blank" rel="noopener" class="support">Support Mia Snow</a>
   <div class="cover"><img src="IMG_PLACEHOLDER" alt="BAGS - Mia Snow"></div>
   <div class="info"><div class="info-title">BAGS</div><div class="rule"></div><div class="info-artist">Mia Snow</div></div>
   <div class="links">
