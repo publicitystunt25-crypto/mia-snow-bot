@@ -4498,6 +4498,15 @@ def dashboard_stats_api():
 
     from collections import defaultdict
 
+    cur.execute("""
+        SELECT COUNT(*) as total FROM link_clicks
+        WHERE link_name = 'post-comment'
+    """)
+    comment_clicks_total = cur.fetchone()["total"]
+
+    today_key = str(list(clicks_by_day.keys())[0]) if clicks_by_day else ""
+    comment_clicks_today = clicks_by_day.get(today_key, {}).get("by_type", {}).get("post-comment", 0)
+
     cur.close()
     conn.close()
     return jsonify({
@@ -4506,6 +4515,8 @@ def dashboard_stats_api():
         "click_rate_pct": round(fans_with_clicks / total_fans * 100, 1) if total_fans else 0,
         "total_clicks": total_clicks,
         "clicks_today": clicks_today,
+        "comment_clicks_today": comment_clicks_today,
+        "comment_clicks_total": comment_clicks_total,
         "clicks_by_day": clicks_by_day,
         "messages_today": {
             "fan_messages": msg_today["fan_messages"],
