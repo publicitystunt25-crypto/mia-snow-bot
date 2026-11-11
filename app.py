@@ -79,6 +79,7 @@ TRACKED_LINKS = {
     "bags-post":  "https://fanlink.tv/xkuh",
     # Post comment CTA — tracks clicks from comments on scheduled text posts
     "post-comment": "https://mia-snow-bot.onrender.com/soulties",
+    "hologram":     "https://bags.therealmiasnow.com",
     # I'm So Wavy — platform links
     "wavy":         None,  # served as landing page at /stream/wavy
     "wavy-spotify": "https://open.spotify.com/track/4LbyoFg93K0dhSI5zQrprr?si=90504d84beb64f06",
@@ -6493,12 +6494,22 @@ def fb_post_queue_status():
 
 _dm_blast_status = {"running": False, "sent": 0, "failed": 0, "total": 0, "done": False, "started_at": None}
 
-def _run_dm_blast(message_template, fan_ids):
+def _run_dm_blast(message_template, fan_ids, image_url=None):
     import time as _time
     global _dm_blast_status
     _dm_blast_status.update({"running": True, "sent": 0, "failed": 0, "total": len(fan_ids), "done": False})
     for uid in fan_ids:
         try:
+            if image_url:
+                url = "https://graph.facebook.com/v19.0/me/messages"
+                params = {"access_token": PAGE_ACCESS_TOKEN}
+                img_payload = {
+                    "recipient": {"id": uid},
+                    "message": {"attachment": {"type": "image", "payload": {"url": image_url, "is_reusable": True}}},
+                    "messaging_type": "RESPONSE",
+                }
+                requests.post(url, params=params, json=img_payload, timeout=10)
+                _time.sleep(0.3)
             msg = message_template.replace("{uid}", uid)
             send_message(uid, msg)
             _dm_blast_status["sent"] += 1
@@ -6506,7 +6517,7 @@ def _run_dm_blast(message_template, fan_ids):
         except Exception as e:
             _dm_blast_status["failed"] += 1
             print(f"[dm_blast] failed {uid}: {e}")
-        _time.sleep(0.5)  # 2 sends/sec — well under FB rate limit
+        _time.sleep(0.5)
     _dm_blast_status.update({"running": False, "done": True})
     print(f"[dm_blast] complete — sent:{_dm_blast_status['sent']} failed:{_dm_blast_status['failed']}")
 
@@ -6543,6 +6554,26 @@ def dm_blast_status():
     if password != DASHBOARD_PASSWORD:
         return jsonify({"error": "unauthorized"}), 401
     return jsonify(_dm_blast_status)
+
+
+@app.route("/dashboard/hologram-blast", methods=["POST"])
+def hologram_blast():
+    password = request.args.get("password", "")
+    if password != DASHBOARD_PASSWORD:
+        return jsonify({"error": "unauthorized"}), 401
+    if _dm_blast_status.get("running"):
+        return jsonify({"error": "blast already running", "status": _dm_blast_status}), 409
+    conn = get_conn(); cur = conn.cursor()
+    cur.execute("SELECT user_id FROM fan_profiles WHERE is_blocked = FALSE AND total_messages > 0 ORDER BY last_message_at DESC NULLS LAST")
+    rows = cur.fetchall(); cur.close(); conn.close()
+    fan_ids = [r[0] for r in rows]
+    import threading, datetime as _dt
+    _dm_blast_status["started_at"] = _dt.datetime.utcnow().isoformat()
+    message = "aye you can literally put me in your room now \U0001f62d\U0001f525 place me on your floor and watch what happens \U0001f440 record it and show me the video\n\nTry it here \U0001f449 https://mia-snow-bot.onrender.com/go/hologram?uid={uid}"
+    image_url = "https://mia-snow-bot.onrender.com/static/hologram.webp"
+    t = threading.Thread(target=_run_dm_blast, args=(message, fan_ids, image_url), daemon=True)
+    t.start()
+    return jsonify({"ok": True, "queued": len(fan_ids)})
 
 
 @app.route("/dashboard/send-dm", methods=["POST"])
