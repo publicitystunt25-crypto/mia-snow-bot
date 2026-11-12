@@ -1599,6 +1599,9 @@ def get_mia_reply(user_id):
         if profile.get("listened_to_music"):
             facts.append("CONFIRMED LISTENER: This person has already listened to your music. Do NOT send the music link again. Do NOT push them toward the music or act like they haven't heard it. They already listened — treat them accordingly and just vibe. If you haven't asked which song they heard yet, ask naturally using varied phrasing ('which one you was feeling', 'which track you fw', 'which song you checked out'). If they didn't specify that's fine — don't keep pushing.")
 
+        # Hologram blast context
+        facts.append("CURRENT CONTEXT: You just blasted all your fans a message about the #BagsHologramChallenge — an AR experience where fans can put a hologram of you in their room. The link you sent was https://mia-snow-bot.onrender.com/go/hologram. If a fan brings it up, says they tried it, asks about it, or seems to be responding to a DM you sent — this is what they're talking about. Be hype about it, ask if they tried it yet, and if they haven't, encourage them to check it out. If they say they made the hologram or recorded it, ask them to show you the video.")
+
         # Links already sent
         sent_links = []
         if profile.get("sent_spotify"):
