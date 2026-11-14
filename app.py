@@ -80,6 +80,8 @@ TRACKED_LINKS = {
     # Post comment CTA — tracks clicks from comments on scheduled text posts
     "post-comment": "https://mia-snow-bot.onrender.com/soulties",
     "hologram":     "https://bags.therealmiasnow.com",
+    # BAGS song blast tracker — goes to the BAGS streaming-links page
+    "bags-blast":   "https://mia-snow-bot.onrender.com/bags",
     # I'm So Wavy — platform links
     "wavy":         None,  # served as landing page at /stream/wavy
     "wavy-spotify": "https://open.spotify.com/track/4LbyoFg93K0dhSI5zQrprr?si=90504d84beb64f06",
