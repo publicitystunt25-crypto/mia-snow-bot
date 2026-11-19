@@ -1022,6 +1022,20 @@ def messages_today(user_id):
     return count
 
 
+def bot_replies_today(user_id):
+    """Count bot (assistant) replies sent to this fan in the last 24 hours."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT COUNT(*) FROM messages WHERE user_id = %s AND role = 'assistant' AND created_at >= NOW() - INTERVAL '24 hours'",
+        (user_id,)
+    )
+    count = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    return count
+
+
 def unanswered_message_count(user_id):
     """Count how many consecutive user messages have come in since the last assistant reply."""
     conn = get_conn()
@@ -1621,7 +1635,7 @@ def get_mia_reply(user_id):
             music_note = " They have confirmed they listened so do NOT resend the music link." if already_listened and "music link" in " ".join(sent_links) else " Only resend the music link if it's clear from the conversation they have NOT listened yet."
             facts.append(f"HARD RULE — Links already sent to this person: {', '.join(sent_links)}.{music_note} Do NOT resend any other links under any circumstances.")
         if profile.get("sent_blast_list"):
-            facts.append("FUNNEL COMPLETE: You've already connected with this person and shared your music and blast list. Keep replies short and warm — 1 sentence max, no emoji overload. You're living your life, not sitting by the phone. You still love them but you're busy and that's real. Don't start new topics, don't ask questions, don't push any links. Just respond warmly to whatever they say and keep it moving. If they go quiet, don't follow up.")
+            facts.append("FUNNEL COMPLETE: You've already sent this person your music and blast list — the job is done. Reply in ONE short sentence only, no questions, no new topics, no links. You're busy. Don't hold a conversation. Just acknowledge what they said and keep it moving. If they keep messaging, reply less and less — your goal was to get the click, not to be their penpal. Do not follow up if they go quiet.")
         if _booking_email_already_sent:
             facts.append("BOOKING EMAIL ALREADY GIVEN: You already sent bookmiasnow@gmail.com to this person earlier in this conversation. Do NOT send it again. If they bring up bookings, features, or collabs again just acknowledge it briefly — 'yea they gonna handle it, just make sure you sent that email' or 'just make sure you hit that email and they gonna get back to you' — one line max, no repeating the full email address.")
         # FaceTime request — brush off naturally, no link
@@ -1865,9 +1879,9 @@ def get_mia_reply(user_id):
     # Low-engagement mode for fans who confirmed they listened AND are on the blast list
     _low_engagement = profile and profile.get("listened_to_music") and profile.get("sent_blast_list")
     _low_engagement_context = (
-        "[LOW-ENGAGEMENT MODE: This fan has already listened to the music and joined the blast list — they've completed the funnel. "
-        "Keep your reply to 1 short sentence max. Do NOT ask questions. Do NOT push anything. "
-        "Just be warm but brief — you're busy and don't have time to chat all day. Save tokens.]"
+        "[LOW-ENGAGEMENT MODE: This fan clicked your links and completed the funnel. "
+        "Reply in 1 sentence max — 8 words or less. No questions. No emoji. No follow-up. "
+        "You are busy. Acknowledge and exit. Do not hold a conversation. Save tokens.]"
     ) if _low_engagement else None
 
     response = client.messages.create(
@@ -2223,6 +2237,16 @@ def handle_reply(sender_id):
                 return  # stay quiet, let them reach out again
 
         print(f"[handle_reply] responding to {sender_id} funnel={funnel_complete} in_quiet={in_quiet_period}")
+
+        # Daily reply cap — stop burning credits on fans who just want to chat
+        _bot_replies_today = bot_replies_today(sender_id)
+        _has_any_link = profile and (profile.get("sent_blast_list") or profile.get("listened_to_music") or profile.get("sent_soulties") or profile.get("sent_single"))
+        _daily_cap = 3 if _has_any_link else 5
+        if _bot_replies_today >= _daily_cap and not is_business:
+            print(f"[daily_cap] silencing {sender_id} — {_bot_replies_today} bot replies today (cap={_daily_cap})")
+            for msg in messages:
+                save_message(sender_id, "user", msg)
+            return
 
         today_count = messages_today(sender_id)
         high_volume_day = today_count >= 20
