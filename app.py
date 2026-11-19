@@ -1880,8 +1880,8 @@ def get_mia_reply(user_id):
     _low_engagement = profile and profile.get("listened_to_music") and profile.get("sent_blast_list")
     _low_engagement_context = (
         "[LOW-ENGAGEMENT MODE: This fan clicked your links and completed the funnel. "
-        "Reply in 1 sentence max — 8 words or less. No questions. No emoji. No follow-up. "
-        "You are busy. Acknowledge and exit. Do not hold a conversation. Save tokens.]"
+        "Reply in 1 short sentence max. No questions. No follow-up. "
+        "You are busy. Acknowledge what they said and keep it moving. Do not hold a conversation.]"
     ) if _low_engagement else None
 
     response = client.messages.create(
